@@ -25,33 +25,49 @@ contract Executor is IExecutor {
         uint256 gasLimit,
         uint256 msgValue,
         address refundAddr,
-        SignedQuote calldata signedQuote,
+        bytes calldata signedQuoteBytes,
         bytes calldata requestBytes
     ) public payable {
-        if (signedQuote.srcChain != ourChain) {
-            revert QuoteSrcChainMismatch(signedQuote.srcChain, ourChain);
+        {
+            uint16 quoteSrcChain;
+            uint16 quoteDstChain;
+            uint64 expiryTime;
+            assembly {
+                quoteSrcChain := shr(240, calldataload(add(signedQuoteBytes.offset, 56)))
+                quoteDstChain := shr(240, calldataload(add(signedQuoteBytes.offset, 58)))
+                expiryTime := shr(192, calldataload(add(signedQuoteBytes.offset, 60)))
+            }
+            if (quoteSrcChain != ourChain) {
+                revert QuoteSrcChainMismatch(quoteSrcChain, ourChain);
+            }
+            if (quoteDstChain != dstChain) {
+                revert QuoteDstChainMismatch(quoteDstChain, dstChain);
+            }
+            if (expiryTime <= block.timestamp) {
+                revert QuoteExpired(expiryTime);
+            }
         }
-        if (signedQuote.dstChain != dstChain) {
-            revert QuoteDstChainMismatch(signedQuote.dstChain, dstChain);
-        }
-        if (signedQuote.expiryTime <= block.timestamp) {
-            revert QuoteExpired(signedQuote.expiryTime);
+        uint160 quoterAddress;
+        bytes32 universalPayeeAddress;
+        assembly {
+            quoterAddress := shr(96, calldataload(add(signedQuoteBytes.offset, 4)))
+            universalPayeeAddress := calldataload(add(signedQuoteBytes.offset, 24))
         }
         // Check if the higher 96 bits (left-most 12 bytes) are non-zero
-        if (uint256(signedQuote.payeeAddress) >> 160 != 0) {
-            revert NotAnEvmAddress(signedQuote.payeeAddress);
+        if (uint256(universalPayeeAddress) >> 160 != 0) {
+            revert NotAnEvmAddress(universalPayeeAddress);
         }
-        address payeeAddress = address(uint160(uint256(signedQuote.payeeAddress)));
+        address payeeAddress = address(uint160(uint256(universalPayeeAddress)));
         payable(payeeAddress).transfer(msg.value);
         emit RequestForExecution(
-            signedQuote.quoterAddress,
+            address(quoterAddress),
             msg.value,
             dstChain,
             dstAddr,
             gasLimit,
             msgValue,
             refundAddr,
-            signedQuote,
+            signedQuoteBytes,
             requestBytes
         );
     }

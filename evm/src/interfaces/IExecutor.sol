@@ -2,22 +2,13 @@
 pragma solidity ^0.8.19;
 
 interface IExecutor {
-    struct Signature {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-    }
-
-    struct SignedQuote {
+    struct SignedQuoteHeader {
         bytes4 prefix;
         address quoterAddress;
         bytes32 payeeAddress;
         uint16 srcChain;
         uint16 dstChain;
-        uint64 baseFee;
-        uint64 conversionRate;
         uint64 expiryTime;
-        Signature signature;
     }
 
     event RequestForExecution(
@@ -28,7 +19,7 @@ interface IExecutor {
         uint256 gasLimit,
         uint256 msgValue,
         address refundAddr,
-        SignedQuote signedQuote,
+        bytes signedQuote,
         bytes requestBytes
     );
 
@@ -38,7 +29,7 @@ interface IExecutor {
         uint256 gasLimit,
         uint256 msgValue,
         address refundAddr,
-        SignedQuote calldata signedQuote,
+        bytes calldata signedQuote,
         bytes calldata requestBytes
     ) external payable;
 }
