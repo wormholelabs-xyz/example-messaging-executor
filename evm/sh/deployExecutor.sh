@@ -4,7 +4,7 @@
 # This script deploys the Executor contract.
 # Usage: RPC_URL= MNEMONIC= OUR_CHAIN_ID= EVM_CHAIN_ID= ./sh/deployExecutor.sh
 #  tilt: ./sh/deployExecutor.sh
-#
+#  anvil: EVM_CHAIN_ID=31337 MNEMONIC=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 ./sh/deployExecutor.sh
 
 if [ "${RPC_URL}X" == "X" ]; then
   RPC_URL=http://localhost:8545
