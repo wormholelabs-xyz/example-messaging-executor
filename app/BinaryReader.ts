@@ -4,7 +4,7 @@ export function isValidHexString(s: string): boolean {
   return /^(0x)?[0-9a-fA-F]+$/.test(s);
 }
 
-export function hexToUint8Array(s: string): Uint8Array {
+export function hexToBuffer(s: string): Buffer {
   if (!isValidHexString(s)) {
     throw new Error(`${s} is not hex`);
   }
@@ -12,7 +12,11 @@ export function hexToUint8Array(s: string): Uint8Array {
     s = s.slice(2);
   }
   s.padStart(s.length + (s.length % 2), "0");
-  return new Uint8Array(Buffer.from(s, "hex"));
+  return Buffer.from(s, "hex");
+}
+
+export function hexToUint8Array(s: string): Uint8Array {
+  return new Uint8Array(hexToBuffer(s));
 }
 
 export function uint8ArrayToHex(b: Uint8Array) {
@@ -26,10 +30,20 @@ export class BinaryReader {
   private _offset: number;
 
   constructor(
-    arrayBuffer: WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
+    arrayBufferOrString:
+      | WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
+      | string
   ) {
-    this._buffer = Buffer.from(arrayBuffer);
+    if (typeof arrayBufferOrString === "string") {
+      this._buffer = hexToBuffer(arrayBufferOrString);
+    } else {
+      this._buffer = Buffer.from(arrayBufferOrString);
+    }
     this._offset = 0;
+  }
+
+  length(): number {
+    return this._buffer.length;
   }
 
   readUint8(): number {

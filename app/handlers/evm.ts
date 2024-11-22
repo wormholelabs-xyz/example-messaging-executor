@@ -6,7 +6,8 @@ import { BinaryReader } from "../BinaryReader";
 const REQUEST_FOR_EXECUTION_TOPIC =
   "0x48f75baf726bbb12e77ca4f0f39aeed4ec43e710a7bdd132adbe1645ee90e0a2";
 // TODO: get this from config
-const EXECUTOR_ADDRESS = "0x634facff0663e8da9e9eae4963d2f5006078b7bd";
+const EXECUTOR_ADDRESS =
+  "0x634fACff0663E8da9e9Eae4963d2F5006078b7BD".toLowerCase();
 
 // event RequestForExecution(
 //     address indexed quoterAddress,
@@ -21,6 +22,18 @@ const EXECUTOR_ADDRESS = "0x634facff0663e8da9e9eae4963d2f5006078b7bd";
 // );
 
 export const evmHandler: Handler = {
+  getGasPrice: async (rpc: string) => {
+    const response = await axios.post(rpc, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_gasPrice",
+      params: [],
+    });
+    if (response.data?.result) {
+      return BigInt(response.data.result);
+    }
+    throw new Error(`unable to determine gas price`);
+  },
   getRequest: async (rpc: string, id: BinaryReader) => {
     // e.g. 0x4ffd22d986913d33927a392fe4319bcd2b62f3afe1c15a2c59f77fc2cc4c20a9
     const transactionHash = id.readHex(32);
@@ -43,7 +56,10 @@ export const evmHandler: Handler = {
         log.topics.length === 2 &&
         log.topics[0] === REQUEST_FOR_EXECUTION_TOPIC
       ) {
-        const quoterAddress = `0x${log.topics[1].substring(26)}`;
+        const { 0: quoterAddress } = decodeParameters(
+          ["address"],
+          log.topics[1]
+        ) as any;
         const {
           0: amtPaid,
           1: dstChain,
@@ -64,7 +80,7 @@ export const evmHandler: Handler = {
             "bytes",
             "bytes",
           ],
-          log.data.slice(2)
+          log.data
         ) as any;
         return {
           amtPaid,
@@ -76,6 +92,7 @@ export const evmHandler: Handler = {
           refundAddr,
           requestBytes,
           signedQuoteBytes,
+          timestamp: new Date(Number(BigInt(log.blockTimestamp) * 1000n)),
         };
       }
     }
