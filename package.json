@@ -12,9 +12,6 @@
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",
     "viem": "^2.21.49",
-    "web3-eth-abi": "^4.4.0",
-    "web3-eth-accounts": "^4.3.0",
-    "web3-utils": "^4.3.2",
     "winston": "^3.17.0"
   },
   "devDependencies": {

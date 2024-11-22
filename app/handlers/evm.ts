@@ -1,5 +1,5 @@
 import axios from "axios";
-import { decodeParameters } from "web3-eth-abi";
+import { decodeEventLog } from "viem";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
 
@@ -56,32 +56,85 @@ export const evmHandler: Handler = {
         log.topics.length === 2 &&
         log.topics[0] === REQUEST_FOR_EXECUTION_TOPIC
       ) {
-        const { 0: quoterAddress } = decodeParameters(
-          ["address"],
-          log.topics[1]
-        ) as any;
         const {
-          0: amtPaid,
-          1: dstChain,
-          2: dstAddr,
-          3: gasLimit,
-          4: msgValue,
-          5: refundAddr,
-          6: signedQuoteBytes,
-          7: requestBytes,
-        } = decodeParameters(
-          [
-            "uint256",
-            "uint16",
-            "bytes32",
-            "uint256",
-            "uint256",
-            "address",
-            "bytes",
-            "bytes",
+          args: {
+            quoterAddress,
+            amtPaid,
+            dstChain,
+            dstAddr,
+            gasLimit,
+            msgValue,
+            refundAddr,
+            signedQuote: signedQuoteBytes,
+            requestBytes,
+          },
+        } = decodeEventLog({
+          abi: [
+            {
+              type: "event",
+              name: "RequestForExecution",
+              inputs: [
+                {
+                  name: "quoterAddress",
+                  type: "address",
+                  indexed: true,
+                  internalType: "address",
+                },
+                {
+                  name: "amtPaid",
+                  type: "uint256",
+                  indexed: false,
+                  internalType: "uint256",
+                },
+                {
+                  name: "dstChain",
+                  type: "uint16",
+                  indexed: false,
+                  internalType: "uint16",
+                },
+                {
+                  name: "dstAddr",
+                  type: "bytes32",
+                  indexed: false,
+                  internalType: "bytes32",
+                },
+                {
+                  name: "gasLimit",
+                  type: "uint256",
+                  indexed: false,
+                  internalType: "uint256",
+                },
+                {
+                  name: "msgValue",
+                  type: "uint256",
+                  indexed: false,
+                  internalType: "uint256",
+                },
+                {
+                  name: "refundAddr",
+                  type: "address",
+                  indexed: false,
+                  internalType: "address",
+                },
+                {
+                  name: "signedQuote",
+                  type: "bytes",
+                  indexed: false,
+                  internalType: "bytes",
+                },
+                {
+                  name: "requestBytes",
+                  type: "bytes",
+                  indexed: false,
+                  internalType: "bytes",
+                },
+              ],
+              anonymous: false,
+            },
           ],
-          log.data
-        ) as any;
+          topics: log.topics,
+          data: log.data,
+        });
         return {
           amtPaid,
           dstAddr,
