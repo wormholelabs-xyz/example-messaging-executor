@@ -1,18 +1,20 @@
 import axios from "axios";
 import "dotenv/config";
 import express from "express";
-import { privateKeyToAddress } from "web3-eth-accounts";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { mainnet } from "viem/chains";
 import { createLogger, format, Logger, transports } from "winston";
 import { BinaryReader, hexToUint8Array } from "./BinaryReader";
+import { MAX_U64 } from "./BinaryWriter";
 import { Handler } from "./handlers";
 import { evmHandler } from "./handlers/evm";
-import { SignedQuote } from "./signedQuote";
-import { MAX_U64 } from "./BinaryWriter";
 import {
   ModularMessageRequest,
   RequestForExecution,
   VAAv1Request,
 } from "./requestForExecution";
+import { SignedQuote } from "./signedQuote";
 
 // Serialize BigInts as strings in responses
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -138,14 +140,70 @@ async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
   if (!bytes) {
     throw new Error(`unable to fetch VAA ${vaaId}`);
   }
-  logger.info(
-    `cast send --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit ${r.gasLimit} 0x${r.dstAddr.substring(26)} "execute(bytes)" 0x${Buffer.from(bytes, "base64").toString("hex")}`
-  );
+  const dstInfo = CHAIN_TO_INFO[r.dstChain];
+  const account = privateKeyToAccount(TEST_KEY);
+  const publicClient = createPublicClient({
+    chain: mainnet,
+    transport: http(dstInfo.rpc),
+  });
+  const { request } = await publicClient.simulateContract({
+    account,
+    address: `0x${r.dstAddr.substring(26)}`,
+    gas: r.gasLimit,
+    value: r.msgValue,
+    abi: [
+      {
+        type: "function",
+        name: "execute",
+        inputs: [{ type: "bytes" }],
+        outputs: [],
+      },
+    ],
+    functionName: "execute",
+    args: [`0x${Buffer.from(bytes, "base64").toString("hex")}`],
+  });
+  const client = createWalletClient({
+    account,
+    chain: mainnet,
+    transport: http(dstInfo.rpc),
+  });
+  return await client.writeContract(request);
 }
 async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
-  logger.info(
-    `cast send --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --gas-limit ${r.gasLimit} 0x${r.dstAddr.substring(26)} "executeMsg(uint16,bytes32,uint64,bytes)" ${m.chain} ${m.address} ${m.sequence.toString()} ${m.payload}`
-  );
+  const dstInfo = CHAIN_TO_INFO[r.dstChain];
+  const account = privateKeyToAccount(TEST_KEY);
+  const publicClient = createPublicClient({
+    chain: mainnet,
+    transport: http(dstInfo.rpc),
+  });
+  // TODO: call `isReady` first before attempting relay
+  const { request } = await publicClient.simulateContract({
+    account,
+    address: `0x${r.dstAddr.substring(26)}`,
+    gas: r.gasLimit,
+    value: r.msgValue,
+    abi: [
+      {
+        type: "function",
+        name: "executeMsg",
+        inputs: [
+          { type: "uint16" },
+          { type: "bytes32" },
+          { type: "uint64" },
+          { type: "bytes" },
+        ],
+        outputs: [],
+      },
+    ],
+    functionName: "executeMsg",
+    args: [m.chain, m.address, m.sequence, m.payload],
+  });
+  const walletClient = createWalletClient({
+    account,
+    chain: mainnet,
+    transport: http(dstInfo.rpc),
+  });
+  return await walletClient.writeContract(request);
 }
 const relays: {
   [id: string]: {
@@ -165,17 +223,25 @@ async function relayNext(logger: Logger) {
   logger.info(JSON.stringify(r));
   if (r.instruction) {
     try {
-      console.log("here");
       if (r.instruction instanceof VAAv1Request) {
-        await relayVAAv1(r.requestForExecution, r.instruction);
+        const tx = await relayVAAv1(r.requestForExecution, r.instruction);
+        relays[id].status = "submitted";
+        relays[id].txs.push(tx);
       } else if (r.instruction instanceof ModularMessageRequest) {
-        await relayMM(r.requestForExecution, r.instruction);
+        const tx = await relayMM(r.requestForExecution, r.instruction);
+        relays[id].status = "submitted";
+        relays[id].txs.push(tx);
       } else {
-        console.log("nope");
         relays[id].status = "unsupported";
       }
-    } catch (e) {
-      pendingRelays.push(id);
+    } catch (e: any) {
+      logger.error(e);
+      // TODO: handle this better
+      if (e?.message?.includes("reverted")) {
+        relays[id].status = "failed";
+      } else {
+        pendingRelays.push(id);
+      }
     }
   } else {
     relays[id].status = "unsupported";
@@ -348,6 +414,11 @@ app.get("/v0/request/MM/:chain/:emitter/:sequence/:payload", (req, res) => {
 });
 
 app.get("/v0/status/:id", async (req, res) => {
+  // TODO: normalize id
+  if (relays[req.params.id]) {
+    res.send(relays[req.params.id]);
+    return;
+  }
   try {
     const reader = new BinaryReader(hexToUint8Array(req.params.id));
     const chainId = reader.readUint16();
