@@ -332,7 +332,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     const expiryTime = new Date();
     expiryTime.setHours(expiryTime.getHours() + 1);
     res.json({
-      signedQuote: new SignedQuote(
+      signedQuote: await new SignedQuote(
         QUOTER_PUBLIC_KEY,
         srcInfo.payeeAddress,
         parseInt(req.params.srcChain),
@@ -352,7 +352,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
 app.get("/v0/estimate/:quote/:gasLimit/:msgValue", async (req, res) => {
   try {
     const quote = SignedQuote.from(req.params.quote);
-    quote.verify([QUOTER_PUBLIC_KEY.toLowerCase()]);
+    await quote.verify([QUOTER_PUBLIC_KEY.toLowerCase()]);
     const srcInfo = CHAIN_TO_INFO[quote.srcChain];
     if (!srcInfo) {
       res
@@ -458,7 +458,7 @@ app.get("/v0/status/:id", async (req, res) => {
     }
     const quote = SignedQuote.from(requestForExecution.signedQuoteBytes);
     try {
-      quote.verify([QUOTER_PUBLIC_KEY.toLowerCase()]);
+      await quote.verify([QUOTER_PUBLIC_KEY.toLowerCase()]);
     } catch (e: any) {
       res.status(400).send(e?.message || "Bad quote");
       return;

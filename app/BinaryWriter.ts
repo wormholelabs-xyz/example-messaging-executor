@@ -72,7 +72,7 @@ export class BinaryWriter {
     return copy;
   }
 
-  toHex(): string {
+  toHex(): `0x${string}` {
     return uint8ArrayToHex(this.data());
   }
 }
