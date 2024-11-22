@@ -19,6 +19,9 @@ contract Executor is IExecutor {
     error QuoteExpired(uint64 expiryTime);
     error NotAnEvmAddress(bytes32);
 
+    bytes4 public constant REQ_MM = "ERM1";
+    bytes4 public constant REQ_VAA_V1 = "ERV1";
+
     function requestExecution(
         uint16 dstChain,
         bytes32 dstAddr,
@@ -70,5 +73,24 @@ contract Executor is IExecutor {
             signedQuoteBytes,
             requestBytes
         );
+    }
+
+    /// @inheritdoc IExecutor
+    function makeMMRequest(uint64 sequence, bytes calldata payload) public view returns (bytes memory) {
+        if (payload.length > type(uint32).max) {
+            revert PayloadTooLarge();
+        }
+        return abi.encodePacked(
+            REQ_MM, ourChain, bytes32(uint256(uint160(msg.sender))), sequence, uint32(payload.length), payload
+        );
+    }
+
+    /// @inheritdoc IExecutor
+    function makeVAAV1Request(uint16 emitterChain, bytes32 emitterAddress, uint64 sequence)
+        public
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(REQ_VAA_V1, emitterChain, emitterAddress, sequence);
     }
 }

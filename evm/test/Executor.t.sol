@@ -95,4 +95,28 @@ contract ExecutorTest is Test {
         );
         executor.requestExecution(4, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
     }
+
+    function test_makeMMRequest() public {
+        address caller = address(0xdeadbeef);
+        vm.prank(caller);
+        bytes memory payload = "Hello, World";
+        bytes memory expected = abi.encodePacked(
+            "ERM1", // prefix
+            uint16(2), // sourceChainId
+            bytes32(uint256(uint160(caller))), // sourceAddress
+            uint64(42), // sequence
+            uint32(payload.length), // payloadLen
+            payload // payload
+        );
+        bytes memory buf = executor.makeMMRequest(42, payload);
+        assertEq(keccak256(expected), keccak256(buf));
+    }
+
+    function test_makeVAAV1Request() public view {
+        uint16 emitterChain = 7;
+        bytes32 emitterAddress = bytes32(uint256(uint160(0xdeadbeef)));
+        bytes memory expected = abi.encodePacked("ERV1", emitterChain, emitterAddress, uint64(42));
+        bytes memory buf = executor.makeVAAV1Request(emitterChain, emitterAddress, 42);
+        assertEq(keccak256(expected), keccak256(buf));
+    }
 }
