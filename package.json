@@ -1,6 +1,7 @@
 {
   "license": "Apache-2.0",
   "scripts": {
+    "dev": "tsx watch --include app app/server.ts",
     "start": "tsx app/server.ts"
   },
   "dependencies": {
