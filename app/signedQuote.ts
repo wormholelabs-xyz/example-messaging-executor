@@ -1,7 +1,7 @@
-import { recover, signRaw } from "web3-eth-accounts";
-import { BinaryWriter } from "./BinaryWriter";
+import { isHex, keccak256, recoverAddress } from "viem";
+import { sign } from "viem/accounts";
 import { BinaryReader } from "./BinaryReader";
-import { sha3Raw } from "web3-utils";
+import { BinaryWriter } from "./BinaryWriter";
 
 function normalize(amount: bigint, from: number, to: number) {
   if (from > to) {
@@ -84,7 +84,7 @@ export class SignedQuote {
     );
   }
 
-  serializeBody(): string {
+  serializeBody(): `0x${string}` {
     return new BinaryWriter()
       .writeUint8Array(Buffer.from(SignedQuote.prefix))
       .writeHex(this.quoterAddress)
@@ -99,21 +99,31 @@ export class SignedQuote {
       .toHex();
   }
 
-  sign(privateKey: string) {
+  // TODO: consider an EIP standard for signing
+  async sign(privateKey: `0x${string}`) {
     const serialized = this.serializeBody();
-    const result = signRaw(serialized, privateKey);
-    this.signature = result.signature;
+    this.signature = await sign({
+      hash: keccak256(serialized),
+      privateKey,
+      to: "hex",
+    });
     return serialized + this.signature.substring(2);
   }
 
-  verify(allowedQuoterAddresses: string[]) {
+  async verify(allowedQuoterAddresses: string[]) {
     if (!allowedQuoterAddresses.includes(this.quoterAddress)) {
-      `Bad quoterAddress. Expected one of: ${allowedQuoterAddresses}, Received: ${this.quoterAddress}`;
+      throw new Error(
+        `Bad quoterAddress. Expected one of: ${allowedQuoterAddresses}, Received: ${this.quoterAddress}`
+      );
     }
-    const recoveredPublicKey = recover(
-      sha3Raw(this.serializeBody()),
-      this.signature,
-      true
+    if (!isHex(this.signature)) {
+      throw new Error(`Bad signature`);
+    }
+    const recoveredPublicKey = (
+      await recoverAddress({
+        hash: keccak256(this.serializeBody()),
+        signature: this.signature,
+      })
     ).toLowerCase();
     if (recoveredPublicKey !== this.quoterAddress) {
       throw new Error(

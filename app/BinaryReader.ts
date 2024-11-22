@@ -19,7 +19,7 @@ export function hexToUint8Array(s: string): Uint8Array {
   return new Uint8Array(hexToBuffer(s));
 }
 
-export function uint8ArrayToHex(b: Uint8Array) {
+export function uint8ArrayToHex(b: Uint8Array): `0x${string}` {
   return `0x${Buffer.from(b).toString("hex")}`;
 }
 
