@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19;
 
-type UniversalAddress is bytes32;
-
 library ExecutorMessages {
-    bytes4 public constant REQ_MM = "ERM1";
-    bytes4 public constant REQ_VAA_V1 = "ERV1";
+    bytes4 private constant REQ_MM = "ERM1";
+    bytes4 private constant REQ_VAA_V1 = "ERV1";
 
     /// @notice Payload length will not fit in a uint32.
     /// @dev Selector: 492f620d.

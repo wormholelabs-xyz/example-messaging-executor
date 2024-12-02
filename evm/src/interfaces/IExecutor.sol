@@ -16,20 +16,18 @@ interface IExecutor {
         uint256 amtPaid,
         uint16 dstChain,
         bytes32 dstAddr,
-        uint256 gasLimit,
-        uint256 msgValue,
         address refundAddr,
         bytes signedQuote,
-        bytes requestBytes
+        bytes requestBytes,
+        bytes relayInstructions
     );
 
     function requestExecution(
         uint16 dstChain,
         bytes32 dstAddr,
-        uint256 gasLimit,
-        uint256 msgValue,
         address refundAddr,
         bytes calldata signedQuote,
-        bytes calldata requestBytes
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
     ) external payable;
 }
