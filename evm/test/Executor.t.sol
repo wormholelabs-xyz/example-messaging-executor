@@ -36,7 +36,21 @@ contract ExecutorTest is Test {
             dstChain: 4,
             expiryTime: uint64(block.timestamp + 1)
         });
-        executor.requestExecution(4, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
+        executor.requestExecution(4, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", hex"");
+    }
+
+    function test_requestExecutionWithRelayInstructions() public {
+        Executor.SignedQuoteHeader memory signedQuote = IExecutor.SignedQuoteHeader({
+            prefix: "EQ01",
+            quoterAddress: address(0),
+            payeeAddress: bytes32(0),
+            srcChain: 2,
+            dstChain: 4,
+            expiryTime: uint64(block.timestamp + 1)
+        });
+        executor.requestExecution(
+            4, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", "Hello, World!"
+        );
     }
 
     function test_requestExecutionRevertsWithSrcMismatch() public {
@@ -49,7 +63,7 @@ contract ExecutorTest is Test {
             expiryTime: uint64(block.timestamp + 1)
         });
         vm.expectRevert(abi.encodeWithSelector(Executor.QuoteSrcChainMismatch.selector, 4, 2));
-        executor.requestExecution(4, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
+        executor.requestExecution(4, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", hex"");
     }
 
     function test_requestExecutionRevertsWithDstMismatch() public {
@@ -62,7 +76,7 @@ contract ExecutorTest is Test {
             expiryTime: uint64(block.timestamp + 1)
         });
         vm.expectRevert(abi.encodeWithSelector(Executor.QuoteDstChainMismatch.selector, 4, 5));
-        executor.requestExecution(5, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
+        executor.requestExecution(5, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", hex"");
     }
 
     function test_requestExecutionRevertsWithExpiredQuote() public {
@@ -75,7 +89,7 @@ contract ExecutorTest is Test {
             expiryTime: uint64(block.timestamp)
         });
         vm.expectRevert(abi.encodeWithSelector(Executor.QuoteExpired.selector, uint64(block.timestamp)));
-        executor.requestExecution(4, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
+        executor.requestExecution(4, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", hex"");
     }
 
     function test_requestExecutionRevertsWithNonEvmPayee() public {
@@ -93,6 +107,6 @@ contract ExecutorTest is Test {
                 bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
             )
         );
-        executor.requestExecution(4, bytes32(0), 0, 0, address(0), encodeSignedQuoteHeader(signedQuote), hex"");
+        executor.requestExecution(4, bytes32(0), address(0), encodeSignedQuoteHeader(signedQuote), hex"", hex"");
     }
 }

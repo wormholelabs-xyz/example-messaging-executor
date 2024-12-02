@@ -22,11 +22,10 @@ contract Executor is IExecutor {
     function requestExecution(
         uint16 dstChain,
         bytes32 dstAddr,
-        uint256 gasLimit,
-        uint256 msgValue,
         address refundAddr,
         bytes calldata signedQuoteBytes,
-        bytes calldata requestBytes
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
     ) public payable {
         {
             uint16 quoteSrcChain;
@@ -64,11 +63,10 @@ contract Executor is IExecutor {
             msg.value,
             dstChain,
             dstAddr,
-            gasLimit,
-            msgValue,
             refundAddr,
             signedQuoteBytes,
-            requestBytes
+            requestBytes,
+            relayInstructions
         );
     }
 }
