@@ -5,9 +5,6 @@ import { BinaryReader } from "../BinaryReader";
 
 const REQUEST_FOR_EXECUTION_TOPIC =
   "0x48f75baf726bbb12e77ca4f0f39aeed4ec43e710a7bdd132adbe1645ee90e0a2";
-// TODO: get this from config
-const EXECUTOR_ADDRESS =
-  "0x634fACff0663E8da9e9Eae4963d2F5006078b7BD".toLowerCase();
 
 // event RequestForExecution(
 //     address indexed quoterAddress,
@@ -34,7 +31,11 @@ export const evmHandler: Handler = {
     }
     throw new Error(`unable to determine gas price`);
   },
-  getRequest: async (rpc: string, id: BinaryReader) => {
+  getRequest: async (
+    rpc: string,
+    executorAddress: string,
+    id: BinaryReader
+  ) => {
     // e.g. 0x4ffd22d986913d33927a392fe4319bcd2b62f3afe1c15a2c59f77fc2cc4c20a9
     const transactionHash = id.readHex(32);
     const logIndex = id.readUint256();
@@ -52,7 +53,7 @@ export const evmHandler: Handler = {
       if (
         log &&
         log.removed === false &&
-        log.address === EXECUTOR_ADDRESS &&
+        log.address === executorAddress.toLowerCase() &&
         log.topics.length === 2 &&
         log.topics[0] === REQUEST_FOR_EXECUTION_TOPIC
       ) {

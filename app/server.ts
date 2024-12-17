@@ -25,10 +25,11 @@ BigInt.prototype.toJSON = function () {
 
 const RELAY_SLEEP = 5000;
 const TEST_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // anvil private key #0
+  // "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // anvil private key #0
+  "0x6370fd033278c143179d81c5526140625662b8daa446c22ee2d73db3707e620c"; // same key as generic relayer used
 const QUOTER_PUBLIC_KEY = privateKeyToAddress(TEST_KEY);
-const SUPPORTED_SRC_CHAINS = [2, 5];
-const SUPPORTED_DST_CHAINS = [2, 5];
+const SUPPORTED_SRC_CHAINS = [2, 4];
+const SUPPORTED_DST_CHAINS = [2, 4];
 const CHAIN_TO_INFO: {
   [id: number]: {
     rpc: string;
@@ -38,27 +39,30 @@ const CHAIN_TO_INFO: {
     payeeAddress: string;
     gasPriceDecimals: number;
     nativeDecimals: number;
+    executorAddress: string;
   };
 } = {
   2: {
-    rpc: "http://localhost:8545",
+    rpc: "http://eth-devnet:8545",
     handler: evmHandler,
     baseFee: 1000n,
     coingeckoId: "ethereum",
     payeeAddress:
-      "0x0000000000000000000000003C44CdDdB6a900fa2b585dd299e03d12FA4293BC", // anvil account #2
+      "0x00000000000000000000000022d491Bde2303f2f43325b2108D26f1eAbA1e32b", // anvil account #2
     gasPriceDecimals: 18,
     nativeDecimals: 18,
+    executorAddress: "0x634fACff0663E8da9e9Eae4963d2F5006078b7BD",
   },
-  5: {
-    rpc: "http://localhost:8545",
+  4: {
+    rpc: "http://eth-devnet2:8545",
     handler: evmHandler,
     baseFee: 10000n,
-    coingeckoId: "polygon-ecosystem-token",
+    coingeckoId: "binancecoin",
     payeeAddress:
-      "0x0000000000000000000000009965507D1a55bcC2695C58ba16FB37d819B0A4dc", // anvil account #5
+      "0x00000000000000000000000022d491Bde2303f2f43325b2108D26f1eAbA1e32b", // anvil account #5
     gasPriceDecimals: 18,
     nativeDecimals: 18,
+    executorAddress: "0x6D4Dd4E7166A55D4e72855Fde204D47a167DA197",
   },
 };
 
@@ -345,6 +349,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
       ).sign(TEST_KEY),
     });
   } catch (e: any) {
+    console.log(e);
     res.status(400).send(e?.message || "Unable to generate quote");
   }
 });
@@ -441,6 +446,7 @@ app.get("/v0/status/:id", async (req, res) => {
     }
     const requestForExecution = await srcInfo.handler.getRequest(
       srcInfo.rpc,
+      srcInfo.executorAddress,
       reader
     );
     if (!requestForExecution) {
