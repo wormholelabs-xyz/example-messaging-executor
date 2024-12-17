@@ -10,7 +10,7 @@ library RelayInstructions {
     /// @param gasLimit The gas limit passed to the relayer.
     /// @param msgVal The additional message value passed to the relayer. This may be zero.
     /// @return bytes The encoded instruction bytes.
-    function encodeGas(uint128 gasLimit, uint128 msgVal) public pure returns (bytes memory) {
+    function encodeGas(uint128 gasLimit, uint128 msgVal) internal pure returns (bytes memory) {
         return abi.encodePacked(RECV_INST_TYPE_GAS, gasLimit, msgVal);
     }
 
@@ -18,7 +18,7 @@ library RelayInstructions {
     /// @param dropOff The amount of gas to be dropped off.
     /// @param recipient The recipient of the drop off.
     /// @return bytes The encoded instruction bytes.
-    function encodeGasDropOffInstructions(uint128 dropOff, bytes32 recipient) public pure returns (bytes memory) {
+    function encodeGasDropOffInstructions(uint128 dropOff, bytes32 recipient) internal pure returns (bytes memory) {
         return abi.encodePacked(RECV_INST_TYPE_DROP_OFF, dropOff, recipient);
     }
 }
