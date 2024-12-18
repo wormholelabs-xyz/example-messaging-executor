@@ -15,6 +15,10 @@ import {
   VAAv1Request,
 } from "./requestForExecution";
 import { SignedQuote } from "./signedQuote";
+import {
+  decodeRelayInstructions,
+  totalGasLimitAndMsgValue,
+} from "./relayInstructions";
 
 // Serialize BigInts as strings in responses
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -150,11 +154,13 @@ async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
     chain: mainnet,
     transport: http(dstInfo.rpc),
   });
+  const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
+  const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
   const { request } = await publicClient.simulateContract({
     account,
     address: `0x${r.dstAddr.substring(26)}`,
-    gas: r.gasLimit,
-    value: r.msgValue,
+    gas: gasLimit,
+    value: msgValue,
     abi: [
       {
         type: "function",
@@ -180,12 +186,14 @@ async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
     chain: mainnet,
     transport: http(dstInfo.rpc),
   });
+  const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
+  const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
   // TODO: call `isReady` first before attempting relay
   const { request } = await publicClient.simulateContract({
     account,
     address: `0x${r.dstAddr.substring(26)}`,
-    gas: r.gasLimit,
-    value: r.msgValue,
+    gas: gasLimit,
+    value: msgValue,
     abi: [
       {
         type: "function",
@@ -354,7 +362,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
   }
 });
 
-app.get("/v0/estimate/:quote/:gasLimit/:msgValue", async (req, res) => {
+app.get("/v0/estimate/:quote/:relayInstructions", async (req, res) => {
   try {
     const quote = SignedQuote.from(req.params.quote);
     await quote.verify([QUOTER_PUBLIC_KEY.toLowerCase()]);
@@ -376,9 +384,13 @@ app.get("/v0/estimate/:quote/:gasLimit/:msgValue", async (req, res) => {
         );
       return;
     }
+    const relayInstructions = decodeRelayInstructions(
+      req.params.relayInstructions
+    );
+    const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
     const estimate = quote.estimate(
-      BigInt(req.params.gasLimit),
-      BigInt(req.params.msgValue),
+      gasLimit,
+      msgValue,
       dstInfo.gasPriceDecimals,
       srcInfo.nativeDecimals,
       dstInfo.nativeDecimals
@@ -469,9 +481,13 @@ app.get("/v0/status/:id", async (req, res) => {
       res.status(400).send(e?.message || "Bad quote");
       return;
     }
+    const relayInstructions = decodeRelayInstructions(
+      requestForExecution.relayInstructionsBytes
+    );
+    const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
     const estimate = quote.estimate(
-      requestForExecution.gasLimit,
-      requestForExecution.msgValue,
+      gasLimit,
+      msgValue,
       dstInfo.gasPriceDecimals,
       srcInfo.nativeDecimals,
       dstInfo.nativeDecimals
