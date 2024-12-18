@@ -46,6 +46,10 @@ export class BinaryReader {
     return this._buffer.length;
   }
 
+  offset(): number {
+    return this._offset;
+  }
+
   readUint8(): number {
     const tmp = this._buffer.readUint8(this._offset);
     this._offset += 1;
@@ -70,6 +74,12 @@ export class BinaryReader {
     return tmp;
   }
 
+  readUint128(): bigint {
+    const tmp = this._buffer.subarray(this._offset, this._offset + 16);
+    this._offset += 16;
+    return BigInt(`0x${tmp.toString("hex") || "0"}`);
+  }
+
   readUint256(): bigint {
     const tmp = this._buffer.subarray(this._offset, this._offset + 32);
     this._offset += 32;
@@ -82,7 +92,7 @@ export class BinaryReader {
     return new Uint8Array(tmp);
   }
 
-  readHex(length: number): string {
+  readHex(length: number): `0x${string}` {
     return uint8ArrayToHex(this.readUint8Array(length));
   }
 

@@ -6,11 +6,10 @@ export type RequestForExecution = {
   amtPaid: bigint;
   dstChain: number;
   dstAddr: string;
-  gasLimit: bigint;
-  msgValue: bigint;
   refundAddr: string;
   signedQuoteBytes: string;
   requestBytes: string;
+  relayInstructionsBytes: string;
 };
 
 export class ModularMessageRequest {

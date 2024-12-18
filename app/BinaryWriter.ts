@@ -2,6 +2,9 @@ import { Buffer } from "buffer";
 import { hexToUint8Array, uint8ArrayToHex } from "./BinaryReader";
 
 export const MAX_U64 = 18446744073709551615n;
+export const MAX_U128 = 340282366920938463463374607431768211455n;
+export const MAX_U256 =
+  115792089237316195423570985008687907853269984665640564039457584007913129639935n;
 
 // BinaryWriter appends data to the end of a buffer, resizing the buffer as needed
 // Numbers are encoded as big endian
@@ -53,6 +56,16 @@ export class BinaryWriter {
     this._ensure(8);
     this._offset = this._buffer.writeBigUInt64BE(value, this._offset);
     return this;
+  }
+
+  writeUint128(value: bigint) {
+    if (value < 0n || value > MAX_U128) throw new Error("Invalid value");
+    return this.writeHex(value.toString(16).padStart(16 * 2, "0"));
+  }
+
+  writeUint256(value: bigint) {
+    if (value < 0n || value > MAX_U256) throw new Error("Invalid value");
+    return this.writeHex(value.toString(16).padStart(32 * 2, "0"));
   }
 
   writeUint8Array(value: Uint8Array) {

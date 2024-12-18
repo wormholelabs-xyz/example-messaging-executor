@@ -1,22 +1,11 @@
 import axios from "axios";
-import { decodeEventLog } from "viem";
+import { decodeEventLog, toEventHash } from "viem";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
 
-const REQUEST_FOR_EXECUTION_TOPIC =
-  "0x48f75baf726bbb12e77ca4f0f39aeed4ec43e710a7bdd132adbe1645ee90e0a2";
-
-// event RequestForExecution(
-//     address indexed quoterAddress,
-//     uint256 amtPaid,
-//     uint16 dstChain,
-//     bytes32 dstAddr,
-//     uint256 gasLimit,
-//     uint256 msgValue,
-//     address refundAddr,
-//     bytes signedQuote,
-//     bytes requestBytes
-// );
+const REQUEST_FOR_EXECUTION_TOPIC = toEventHash(
+  "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)"
+);
 
 export const evmHandler: Handler = {
   getGasPrice: async (rpc: string) => {
@@ -63,11 +52,10 @@ export const evmHandler: Handler = {
             amtPaid,
             dstChain,
             dstAddr,
-            gasLimit,
-            msgValue,
             refundAddr,
             signedQuote: signedQuoteBytes,
             requestBytes,
+            relayInstructions: relayInstructionsBytes,
           },
         } = decodeEventLog({
           abi: [
@@ -100,18 +88,6 @@ export const evmHandler: Handler = {
                   internalType: "bytes32",
                 },
                 {
-                  name: "gasLimit",
-                  type: "uint256",
-                  indexed: false,
-                  internalType: "uint256",
-                },
-                {
-                  name: "msgValue",
-                  type: "uint256",
-                  indexed: false,
-                  internalType: "uint256",
-                },
-                {
                   name: "refundAddr",
                   type: "address",
                   indexed: false,
@@ -129,6 +105,12 @@ export const evmHandler: Handler = {
                   indexed: false,
                   internalType: "bytes",
                 },
+                {
+                  name: "relayInstructions",
+                  type: "bytes",
+                  indexed: false,
+                  internalType: "bytes",
+                },
               ],
               anonymous: false,
             },
@@ -140,12 +122,11 @@ export const evmHandler: Handler = {
           amtPaid,
           dstAddr,
           dstChain: Number(dstChain),
-          gasLimit,
-          msgValue,
           quoterAddress,
           refundAddr,
-          requestBytes,
           signedQuoteBytes,
+          requestBytes,
+          relayInstructionsBytes,
           timestamp: new Date(Number(BigInt(log.blockTimestamp) * 1000n)),
         };
       }
