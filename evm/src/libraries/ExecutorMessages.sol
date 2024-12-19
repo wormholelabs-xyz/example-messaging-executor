@@ -15,8 +15,8 @@ library ExecutorMessages {
     /// @param sequence The sequence number returned by `endpoint.sendMessage`.
     /// @param payload The full payload, the keccak of which was sent to `endpoint.sendMessage`.
     /// @return bytes The encoded request.
-    function makeMMRequest(uint16 srcChain, address srcAddr, uint64 sequence, bytes calldata payload)
-        public
+    function makeMMRequest(uint16 srcChain, address srcAddr, uint64 sequence, bytes memory payload)
+        internal
         pure
         returns (bytes memory)
     {
@@ -34,7 +34,7 @@ library ExecutorMessages {
     /// @param sequence The sequence number from the VAA.
     /// @return bytes The encoded request.
     function makeVAAV1Request(uint16 emitterChain, bytes32 emitterAddress, uint64 sequence)
-        public
+        internal
         pure
         returns (bytes memory)
     {
