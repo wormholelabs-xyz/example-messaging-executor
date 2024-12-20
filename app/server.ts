@@ -1,9 +1,9 @@
 import axios from "axios";
 import "dotenv/config";
 import express from "express";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { Chain, createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import { mainnet } from "viem/chains";
+import { bsc, mainnet } from "viem/chains";
 import { createLogger, format, Logger, transports } from "winston";
 import { BinaryReader, hexToUint8Array } from "./BinaryReader";
 import { MAX_U64 } from "./BinaryWriter";
@@ -44,6 +44,7 @@ const CHAIN_TO_INFO: {
     gasPriceDecimals: number;
     nativeDecimals: number;
     executorAddress: string;
+    evmChain?: Chain;
   };
 } = {
   2: {
@@ -55,7 +56,8 @@ const CHAIN_TO_INFO: {
       "0x00000000000000000000000022d491Bde2303f2f43325b2108D26f1eAbA1e32b", // anvil account #2
     gasPriceDecimals: 18,
     nativeDecimals: 18,
-    executorAddress: "0x634fACff0663E8da9e9Eae4963d2F5006078b7BD",
+    executorAddress: "0x0a65677098872f870224F6E9533734F4a4B0eBAB",
+    evmChain: { ...mainnet, id: 1337 }, // ID is 1337 in tilt
   },
   4: {
     rpc: "http://eth-devnet2:8545",
@@ -66,7 +68,8 @@ const CHAIN_TO_INFO: {
       "0x00000000000000000000000022d491Bde2303f2f43325b2108D26f1eAbA1e32b", // anvil account #5
     gasPriceDecimals: 18,
     nativeDecimals: 18,
-    executorAddress: "0x6D4Dd4E7166A55D4e72855Fde204D47a167DA197",
+    executorAddress: "0xB67841A38bF16EB9999dC7B6015746506e20F0aA",
+    evmChain: { ...bsc, id: 1397 }, // ID is 1397 in tilt
   },
 };
 
@@ -142,16 +145,17 @@ async function getPrices(
 
 async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
   const vaaId = `${v.chain}/${v.address.slice(2)}/${v.sequence.toString()}`;
-  const bytes = (
-    await axios.get(`https://api.wormholescan.io/v1/signed_vaa/${vaaId}`)
-  ).data?.vaaBytes;
+  const bytes =
+    // await axios.get(`https://api.wormholescan.io/v1/signed_vaa/${vaaId}`)
+    (await axios.get(`http://guardian:7071/v1/signed_vaa/${vaaId}`)).data
+      ?.vaaBytes;
   if (!bytes) {
     throw new Error(`unable to fetch VAA ${vaaId}`);
   }
   const dstInfo = CHAIN_TO_INFO[r.dstChain];
   const account = privateKeyToAccount(TEST_KEY);
   const publicClient = createPublicClient({
-    chain: mainnet,
+    chain: dstInfo.evmChain,
     transport: http(dstInfo.rpc),
   });
   const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
@@ -164,17 +168,17 @@ async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
     abi: [
       {
         type: "function",
-        name: "execute",
+        name: "receiveMessage",
         inputs: [{ type: "bytes" }],
         outputs: [],
       },
     ],
-    functionName: "execute",
+    functionName: "receiveMessage",
     args: [`0x${Buffer.from(bytes, "base64").toString("hex")}`],
   });
   const client = createWalletClient({
     account,
-    chain: mainnet,
+    chain: dstInfo.evmChain,
     transport: http(dstInfo.rpc),
   });
   return await client.writeContract(request);
@@ -183,7 +187,7 @@ async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
   const dstInfo = CHAIN_TO_INFO[r.dstChain];
   const account = privateKeyToAccount(TEST_KEY);
   const publicClient = createPublicClient({
-    chain: mainnet,
+    chain: dstInfo.evmChain,
     transport: http(dstInfo.rpc),
   });
   const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
@@ -212,7 +216,7 @@ async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
   });
   const walletClient = createWalletClient({
     account,
-    chain: mainnet,
+    chain: dstInfo.evmChain,
     transport: http(dstInfo.rpc),
   });
   return await walletClient.writeContract(request);
