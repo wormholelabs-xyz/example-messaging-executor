@@ -1,4 +1,4 @@
 node_modules/
-
-# Code coverage
 lcov.info
+.env
+.env.*

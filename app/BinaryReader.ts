@@ -62,14 +62,32 @@ export class BinaryReader {
     return tmp;
   }
 
+  readUint16LE(): number {
+    const tmp = this._buffer.readUint16LE(this._offset);
+    this._offset += 2;
+    return tmp;
+  }
+
   readUint32(): number {
     const tmp = this._buffer.readUint32BE(this._offset);
     this._offset += 4;
     return tmp;
   }
 
+  readUint32LE(): number {
+    const tmp = this._buffer.readUint32LE(this._offset);
+    this._offset += 4;
+    return tmp;
+  }
+
   readUint64(): bigint {
     const tmp = this._buffer.readBigUInt64BE(this._offset);
+    this._offset += 8;
+    return tmp;
+  }
+
+  readUint64LE(): bigint {
+    const tmp = this._buffer.readBigUInt64LE(this._offset);
     this._offset += 8;
     return tmp;
   }

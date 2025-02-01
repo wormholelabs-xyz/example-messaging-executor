@@ -34,6 +34,7 @@ export const evmHandler: Handler = {
       method: "eth_getTransactionReceipt",
       params: [transactionHash],
     });
+    // TODO: check success?
     const logs = response?.data?.result?.logs;
     if (logs) {
       const log = logs.find(
