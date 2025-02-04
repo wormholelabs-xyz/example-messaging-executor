@@ -44,7 +44,7 @@ export class SignedQuote {
     dstGasPrice: bigint,
     srcPrice: bigint,
     dstPrice: bigint,
-    signature?: string
+    signature?: string,
   ) {
     if (payeeAddress.replace("0x", "").length !== 64) {
       throw new Error("invalid payeeAddress length");
@@ -80,7 +80,7 @@ export class SignedQuote {
       reader.readUint64(),
       reader.readUint64(),
       reader.readUint64(),
-      reader.readHex(65)
+      reader.readHex(65),
     );
   }
 
@@ -113,7 +113,7 @@ export class SignedQuote {
   async verify(allowedQuoterAddresses: string[]) {
     if (!allowedQuoterAddresses.includes(this.quoterAddress)) {
       throw new Error(
-        `Bad quoterAddress. Expected one of: ${allowedQuoterAddresses}, Received: ${this.quoterAddress}`
+        `Bad quoterAddress. Expected one of: ${allowedQuoterAddresses}, Received: ${this.quoterAddress}`,
       );
     }
     if (!isHex(this.signature)) {
@@ -127,7 +127,7 @@ export class SignedQuote {
     ).toLowerCase();
     if (recoveredPublicKey !== this.quoterAddress) {
       throw new Error(
-        `Bad quote signature recovery. Expected: ${this.quoterAddress}, Received: ${recoveredPublicKey}`
+        `Bad quote signature recovery. Expected: ${this.quoterAddress}, Received: ${recoveredPublicKey}`,
       );
     }
   }
@@ -137,7 +137,7 @@ export class SignedQuote {
     msgValue: bigint,
     dstGasPriceDecimals: number,
     srcTokenDecimals: number,
-    dstNativeDecimals: number
+    dstNativeDecimals: number,
   ): bigint {
     // TODO: add baseFee
     // TODO: add msgValue
@@ -145,14 +145,14 @@ export class SignedQuote {
     const nGasLimitCost = normalize(
       gasLimit * this.dstGasPrice,
       dstGasPriceDecimals,
-      r
+      r,
     );
     const nSrcPrice = normalize(this.srcPrice, SignedQuote.decimals, r);
     const nDstPrice = normalize(this.dstPrice, SignedQuote.decimals, r);
     return normalize(
       mul(nGasLimitCost, div(nDstPrice, nSrcPrice, r), r),
       r,
-      srcTokenDecimals
+      srcTokenDecimals,
     );
   }
 }

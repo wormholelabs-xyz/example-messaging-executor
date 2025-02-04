@@ -4,7 +4,7 @@ import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
 
 const REQUEST_FOR_EXECUTION_TOPIC = toEventHash(
-  "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)"
+  "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)",
 );
 
 export const evmHandler: Handler = {
@@ -23,7 +23,7 @@ export const evmHandler: Handler = {
   getRequest: async (
     rpc: string,
     executorAddress: string,
-    id: BinaryReader
+    id: BinaryReader,
   ) => {
     // e.g. 0x4ffd22d986913d33927a392fe4319bcd2b62f3afe1c15a2c59f77fc2cc4c20a9
     const transactionHash = id.readHex(32);
@@ -37,7 +37,7 @@ export const evmHandler: Handler = {
     const logs = response?.data?.result?.logs;
     if (logs) {
       const log = logs.find(
-        (log: any) => log?.logIndex && BigInt(log.logIndex) === logIndex
+        (log: any) => log?.logIndex && BigInt(log.logIndex) === logIndex,
       );
       if (
         log &&

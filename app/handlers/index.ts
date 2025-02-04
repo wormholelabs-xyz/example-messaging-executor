@@ -6,6 +6,6 @@ export type Handler = {
   getRequest: (
     rpc: string,
     executorAddress: string,
-    id: BinaryReader
+    id: BinaryReader,
   ) => Promise<RequestForExecution | null>;
 };

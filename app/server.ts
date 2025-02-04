@@ -85,7 +85,7 @@ const logger = createLogger({
       // log format: [YYYY-MM-DD HH:mm:ss.SSS A ZZ] [level] [source] message
       const source = info.source || "main";
       return `[${info.timestamp}] [${info.level}] [${source}] ${info.message}`;
-    })
+    }),
   ),
   transports: [new transports.Console()],
 });
@@ -105,7 +105,7 @@ async function updatePriceCache(ids: string[]) {
   if (idsToQuery.length) {
     try {
       const response = await axios.get(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${idsToQuery.join(",")}&vs_currencies=usd`
+        `https://api.coingecko.com/api/v3/simple/price?ids=${idsToQuery.join(",")}&vs_currencies=usd`,
       );
       const expiry = new Date(now);
       expiry.setMinutes(expiry.getMinutes() + 5);
@@ -120,7 +120,7 @@ async function updatePriceCache(ids: string[]) {
 }
 async function getPrices(
   srcId: string,
-  dstId: string
+  dstId: string,
 ): Promise<{ srcPrice: bigint; dstPrice: bigint }> {
   await updatePriceCache([srcId, dstId]);
   const cachedSrc = priceCache[srcId];
@@ -135,10 +135,10 @@ async function getPrices(
   // coingecko prices are a decimal number in USD
   // scale each price to the quote decimals
   const srcPrice = BigInt(
-    priceCache[srcId].usd.toFixed(SignedQuote.decimals).replace(".", "")
+    priceCache[srcId].usd.toFixed(SignedQuote.decimals).replace(".", ""),
   );
   const dstPrice = BigInt(
-    priceCache[dstId].usd.toFixed(SignedQuote.decimals).replace(".", "")
+    priceCache[dstId].usd.toFixed(SignedQuote.decimals).replace(".", ""),
   );
   return { srcPrice, dstPrice };
 }
@@ -269,7 +269,7 @@ async function sleep(timeout: number) {
 async function runWithRetry(
   fn: (logger: Logger) => Promise<void>,
   timeout: number,
-  logger: Logger
+  logger: Logger,
 ) {
   let retry = 0;
   while (true) {
@@ -301,7 +301,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     res
       .status(400)
       .send(
-        `Unsupported source chain: ${req.params.srcChain}, supported source chains: ${SUPPORTED_SRC_CHAINS}`
+        `Unsupported source chain: ${req.params.srcChain}, supported source chains: ${SUPPORTED_SRC_CHAINS}`,
       );
     return;
   }
@@ -309,7 +309,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     res
       .status(400)
       .send(
-        `Unsupported destination chain: ${req.params.dstChain}, supported destination chains: ${SUPPORTED_DST_CHAINS}`
+        `Unsupported destination chain: ${req.params.dstChain}, supported destination chains: ${SUPPORTED_DST_CHAINS}`,
       );
     return;
   }
@@ -319,7 +319,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     res
       .status(400)
       .send(
-        `Unsupported source chain: ${srcChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+        `Unsupported source chain: ${srcChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
       );
     return;
   }
@@ -327,7 +327,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     res
       .status(400)
       .send(
-        `Unsupported destination chain: ${dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+        `Unsupported destination chain: ${dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
       );
     return;
   }
@@ -335,7 +335,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     const dstGasPrice = await dstInfo.handler.getGasPrice(dstInfo.rpc);
     const { srcPrice, dstPrice } = await getPrices(
       srcInfo.coingeckoId,
-      dstInfo.coingeckoId
+      dstInfo.coingeckoId,
     );
     if (srcPrice === 0n || srcPrice > MAX_U64) {
       res.status(400).send(`source price out of range`);
@@ -357,7 +357,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
         dstInfo.baseFee,
         dstGasPrice,
         srcPrice,
-        dstPrice
+        dstPrice,
       ).sign(TEST_KEY),
     });
   } catch (e: any) {
@@ -375,7 +375,7 @@ app.get("/v0/estimate/:quote/:relayInstructions", async (req, res) => {
       res
         .status(400)
         .send(
-          `Unsupported request chain: ${quote.srcChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+          `Unsupported request chain: ${quote.srcChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
         );
       return;
     }
@@ -384,12 +384,12 @@ app.get("/v0/estimate/:quote/:relayInstructions", async (req, res) => {
       res
         .status(400)
         .send(
-          `Unsupported destination chain: ${quote.dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+          `Unsupported destination chain: ${quote.dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
         );
       return;
     }
     const relayInstructions = decodeRelayInstructions(
-      req.params.relayInstructions
+      req.params.relayInstructions,
     );
     const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
     const estimate = quote.estimate(
@@ -397,7 +397,7 @@ app.get("/v0/estimate/:quote/:relayInstructions", async (req, res) => {
       msgValue,
       dstInfo.gasPriceDecimals,
       srcInfo.nativeDecimals,
-      dstInfo.nativeDecimals
+      dstInfo.nativeDecimals,
     );
     res.send({ quote, estimate });
   } catch (e: any) {
@@ -411,7 +411,7 @@ app.get("/v0/request/VAAv1/:chain/:emitter/:sequence", (req, res) => {
       bytes: new VAAv1Request(
         parseInt(req.params.chain),
         req.params.emitter,
-        BigInt(req.params.sequence)
+        BigInt(req.params.sequence),
       ).serialize(),
     });
   } catch (e) {
@@ -426,7 +426,7 @@ app.get("/v0/request/MM/:chain/:emitter/:sequence/:payload", (req, res) => {
         parseInt(req.params.chain),
         req.params.emitter,
         BigInt(req.params.sequence),
-        req.params.payload
+        req.params.payload,
       ).serialize(),
     });
   } catch (e) {
@@ -447,7 +447,7 @@ app.get("/v0/status/:id", async (req, res) => {
       res
         .status(400)
         .send(
-          `Unsupported source chain: ${chainId}, supported source chains: ${SUPPORTED_SRC_CHAINS}`
+          `Unsupported source chain: ${chainId}, supported source chains: ${SUPPORTED_SRC_CHAINS}`,
         );
       return;
     }
@@ -456,14 +456,14 @@ app.get("/v0/status/:id", async (req, res) => {
       res
         .status(400)
         .send(
-          `Unsupported request chain: ${chainId}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+          `Unsupported request chain: ${chainId}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
         );
       return;
     }
     const requestForExecution = await srcInfo.handler.getRequest(
       srcInfo.rpc,
       srcInfo.executorAddress,
-      reader
+      reader,
     );
     if (!requestForExecution) {
       res.sendStatus(404);
@@ -474,7 +474,7 @@ app.get("/v0/status/:id", async (req, res) => {
       res
         .status(400)
         .send(
-          `Unsupported destination chain: ${requestForExecution.dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`
+          `Unsupported destination chain: ${requestForExecution.dstChain}, supported request chains: ${Object.keys(CHAIN_TO_INFO)}`,
         );
       return;
     }
@@ -486,7 +486,7 @@ app.get("/v0/status/:id", async (req, res) => {
       return;
     }
     const relayInstructions = decodeRelayInstructions(
-      requestForExecution.relayInstructionsBytes
+      requestForExecution.relayInstructionsBytes,
     );
     const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
     const estimate = quote.estimate(
@@ -494,7 +494,7 @@ app.get("/v0/status/:id", async (req, res) => {
       msgValue,
       dstInfo.gasPriceDecimals,
       srcInfo.nativeDecimals,
-      dstInfo.nativeDecimals
+      dstInfo.nativeDecimals,
     );
     let instruction: VAAv1Request | ModularMessageRequest | undefined;
     try {
@@ -502,7 +502,7 @@ app.get("/v0/status/:id", async (req, res) => {
     } catch (e) {
       try {
         instruction = ModularMessageRequest.from(
-          requestForExecution.requestBytes
+          requestForExecution.requestBytes,
         );
       } catch (e) {}
     }

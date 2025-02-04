@@ -32,7 +32,7 @@ export class BinaryReader {
   constructor(
     arrayBufferOrString:
       | WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
-      | string
+      | string,
   ) {
     if (typeof arrayBufferOrString === "string") {
       this._buffer = hexToBuffer(arrayBufferOrString);

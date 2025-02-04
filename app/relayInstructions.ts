@@ -25,7 +25,7 @@ type RelayInstructions = (GasInstruction | GasDropOffInstruction)[];
 export function decodeRelayInstructions(
   relayInstructionsBytes:
     | WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
-    | string
+    | string,
 ): RelayInstructions {
   const relayInstructions: RelayInstructions = [];
   const reader = new BinaryReader(relayInstructionsBytes);
@@ -54,7 +54,7 @@ export function decodeRelayInstructions(
 }
 
 export function encodeRelayInstructions(
-  relayInstructions: RelayInstructions
+  relayInstructions: RelayInstructions,
 ): `0x${string}` {
   const writer = new BinaryWriter();
   for (const relayInstruction of relayInstructions) {
@@ -75,7 +75,7 @@ export function encodeRelayInstructions(
 }
 
 export function totalGasLimitAndMsgValue(
-  relayInstructions: RelayInstructions
+  relayInstructions: RelayInstructions,
 ): {
   gasLimit: bigint;
   msgValue: bigint;

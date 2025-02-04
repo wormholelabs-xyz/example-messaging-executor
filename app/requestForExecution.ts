@@ -24,7 +24,7 @@ export class ModularMessageRequest {
     chain: number,
     address: string,
     sequence: bigint,
-    payload: string
+    payload: string,
   ) {
     if (address.replace("0x", "").length !== 64) {
       throw new Error("invalid address length");
@@ -96,7 +96,7 @@ export class VAAv1Request {
     return new VAAv1Request(
       reader.readUint16(),
       reader.readHex(32),
-      reader.readUint64()
+      reader.readUint64(),
     );
   }
 
