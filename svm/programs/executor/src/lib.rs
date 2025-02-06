@@ -5,22 +5,24 @@ declare_id!("Ax7mtQPbNPQmghd7C3BHrMdwwmkAXBDq7kNGfXNcc7dg");
 // TODO: cfg_if
 static OUR_CHAIN: u16 = 1;
 
+static SIGNED_QUOTE_HEADER_LEN: usize = 68;
+
 #[program]
 pub mod executor {
     use super::*;
 
     pub fn request_for_execution(
         ctx: Context<RequestForExecution>,
-        amount: u64,
-        dst_chain: u16,
-        _dst_addr: [u8; 32],
-        _refund_addr: Pubkey,
-        signed_quote_bytes: Vec<u8>,
-        _request_bytes: Vec<u8>,
-        _relay_instructions: Vec<u8>,
+        args: RequestForExecutionArgs,
     ) -> Result<()> {
+        let RequestForExecutionArgs {
+            amount,
+            dst_chain,
+            signed_quote_bytes,
+            ..
+        } = args;
         require!(
-            signed_quote_bytes.len() >= 68,
+            signed_quote_bytes.len() >= SIGNED_QUOTE_HEADER_LEN,
             ExecutorErrors::InvalidArguments
         );
         {
@@ -92,6 +94,17 @@ pub struct RequestForExecution<'info> {
     #[account(mut)]
     pub payee: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct RequestForExecutionArgs {
+    pub amount: u64,
+    pub dst_chain: u16,
+    pub dst_addr: [u8; 32],
+    pub refund_addr: Pubkey,
+    pub signed_quote_bytes: Vec<u8>,
+    pub request_bytes: Vec<u8>,
+    pub relay_instructions: Vec<u8>,
 }
 
 #[error_code]

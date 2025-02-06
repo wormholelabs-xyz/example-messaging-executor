@@ -36,17 +36,17 @@ describe("executor", () => {
   it("Requests execution!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -56,9 +56,9 @@ describe("executor", () => {
               BigInt(Date.now() + 1_000_000) / BigInt(1000),
             ),
           ),
-          Buffer.from("", "hex"),
-          Buffer.from("", "hex"),
-        )
+          requestBytes: Buffer.from("", "hex"),
+          relayInstructions: Buffer.from("", "hex"),
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -69,17 +69,17 @@ describe("executor", () => {
   it("Requests execution with real quote, v1 VAA request, and relay instruction!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -90,15 +90,15 @@ describe("executor", () => {
               "0000000000002710000000003b9aca0700001d624add080000000625b3cb4600b69fffad8549dd87b875a85f6341283bc3cc61758e5b929cfa6913c8727af7a2776c66584cc260cb05d505c852187c0a29a7b774e1d05815020f774013b30fe11c",
             ),
           ),
-          Buffer.from(
+          requestBytes: Buffer.from(
             "4552563100020000000000000000000000009ee7a4e1dc11226d90db33f326168cf33b2456cc0000000000000000",
             "hex",
           ),
-          Buffer.from(
+          relayInstructions: Buffer.from(
             "01000000000000000000000000000f424000000000000000000000000000000000",
             "hex",
           ),
-        )
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -109,17 +109,17 @@ describe("executor", () => {
   it("Requests execution with real quote, MM request, and relay instruction!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -130,15 +130,15 @@ describe("executor", () => {
               "0000000000002710000000003b9aca0700001d624add080000000625b3cb4600b69fffad8549dd87b875a85f6341283bc3cc61758e5b929cfa6913c8727af7a2776c66584cc260cb05d505c852187c0a29a7b774e1d05815020f774013b30fe11c",
             ),
           ),
-          Buffer.from(
+          requestBytes: Buffer.from(
             "45524d310002000000000000000000000000157f9cd170058f373294addc32149f1f5c77a6410000000000000000000000910000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e11ba2b4d45eaed5996cd0823791e0c93114882d004f994e54540800000000000f42400000000000000000000000008738d8b87d770220aaf91239adc62a2ff3f88bbe000000000000000000000000e11ba2b4d45eaed5996cd0823791e0c93114882d0004",
             "hex",
           ),
-          Buffer.from(
+          relayInstructions: Buffer.from(
             "0100000000000000000000000000030d4000000000000000000000000000000000",
             "hex",
           ),
-        )
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -162,17 +162,17 @@ describe("executor", () => {
     }
     const payment = 1000;
     await program.methods
-      .requestForExecution(
-        new BN(payment),
-        2,
-        [
+      .requestForExecution({
+        amount: new BN(payment),
+        dstChain: 2,
+        dstAddr: [
           ...Buffer.from(
             "0000000000000000000000000000000000000000000000000000000000000000",
             "hex",
           ),
         ],
-        program.provider.publicKey!,
-        Buffer.from(
+        refundAddr: program.provider.publicKey!,
+        signedQuoteBytes: Buffer.from(
           encodeSignedQuoteHeader(
             "EQ01",
             "0x0000000000000000000000000000000000000000",
@@ -182,9 +182,9 @@ describe("executor", () => {
             BigInt(Date.now() + 1_000_000) / BigInt(1000),
           ),
         ),
-        Buffer.from("", "hex"),
-        Buffer.from("", "hex"),
-      )
+        requestBytes: Buffer.from("", "hex"),
+        relayInstructions: Buffer.from("", "hex"),
+      })
       .accounts({ payee })
       .rpc();
 
@@ -196,17 +196,17 @@ describe("executor", () => {
   it("Reverts with src mismatch!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -216,9 +216,9 @@ describe("executor", () => {
               BigInt(Date.now() + 1_000_000) / BigInt(1000),
             ),
           ),
-          Buffer.from("", "hex"),
-          Buffer.from("", "hex"),
-        )
+          requestBytes: Buffer.from("", "hex"),
+          relayInstructions: Buffer.from("", "hex"),
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -231,17 +231,17 @@ describe("executor", () => {
   it("Reverts with dst mismatch!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -251,9 +251,9 @@ describe("executor", () => {
               BigInt(Date.now() + 1_000_000) / BigInt(1000),
             ),
           ),
-          Buffer.from("", "hex"),
-          Buffer.from("", "hex"),
-        )
+          requestBytes: Buffer.from("", "hex"),
+          relayInstructions: Buffer.from("", "hex"),
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -266,17 +266,17 @@ describe("executor", () => {
   it("Reverts with expired quote!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -286,9 +286,9 @@ describe("executor", () => {
               BigInt(Date.now() - 1_000_000) / BigInt(1000),
             ),
           ),
-          Buffer.from("", "hex"),
-          Buffer.from("", "hex"),
-        )
+          requestBytes: Buffer.from("", "hex"),
+          relayInstructions: Buffer.from("", "hex"),
+        })
         .accounts({
           payee: program.provider.publicKey!,
         })
@@ -301,17 +301,17 @@ describe("executor", () => {
   it("Reverts with payee mismatch!", async () => {
     await expect(
       program.methods
-        .requestForExecution(
-          new BN(1),
-          2,
-          [
+        .requestForExecution({
+          amount: new BN(1),
+          dstChain: 2,
+          dstAddr: [
             ...Buffer.from(
               "0000000000000000000000000000000000000000000000000000000000000000",
               "hex",
             ),
           ],
-          program.provider.publicKey!,
-          Buffer.from(
+          refundAddr: program.provider.publicKey!,
+          signedQuoteBytes: Buffer.from(
             encodeSignedQuoteHeader(
               "EQ01",
               "0x0000000000000000000000000000000000000000",
@@ -321,9 +321,9 @@ describe("executor", () => {
               BigInt(Date.now() + 1_000_000) / BigInt(1000),
             ),
           ),
-          Buffer.from("", "hex"),
-          Buffer.from("", "hex"),
-        )
+          requestBytes: Buffer.from("", "hex"),
+          relayInstructions: Buffer.from("", "hex"),
+        })
         .accounts({
           payee: new anchor.web3.Keypair().publicKey,
         })
