@@ -7,6 +7,22 @@ const REQUEST_FOR_EXECUTION_TOPIC = toEventHash(
   "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)",
 );
 
+async function getRequestTimestamp(log: any, rpc: string, blockHash: string) {
+  if (log.blockTimestamp) {
+    return new Date(Number(BigInt(log.blockTimestamp) * 1000n));
+  }
+  const response = await axios.post(rpc, {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_getBlockByHash",
+    params: [blockHash, false],
+  });
+  if (!response.data?.result?.timestamp) {
+    throw new Error(`Unable to fetch block timestamp for ${blockHash}`);
+  }
+  return new Date(Number(BigInt(response.data.result.timestamp) * 1000n));
+}
+
 export const evmHandler: Handler = {
   getGasPrice: async (rpc: string) => {
     const response = await axios.post(rpc, {
@@ -128,7 +144,11 @@ export const evmHandler: Handler = {
           signedQuoteBytes,
           requestBytes,
           relayInstructionsBytes,
-          timestamp: new Date(Number(BigInt(log.blockTimestamp) * 1000n)),
+          timestamp: await getRequestTimestamp(
+            log,
+            rpc,
+            response.data.result.blockHash,
+          ),
         };
       }
     }
