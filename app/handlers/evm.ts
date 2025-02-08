@@ -1,7 +1,24 @@
 import axios from "axios";
-import { decodeEventLog, toEventHash } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  decodeEventLog,
+  http,
+  toEventHash,
+} from "viem";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
+import { privateKeyToAccount } from "viem/accounts";
+import { ChainInfo } from "../types";
+import {
+  ModularMessageRequest,
+  RequestForExecution,
+  VAAv1Request,
+} from "../requestForExecution";
+import {
+  decodeRelayInstructions,
+  totalGasLimitAndMsgValue,
+} from "../relayInstructions";
 
 const REQUEST_FOR_EXECUTION_TOPIC = toEventHash(
   "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)",
@@ -153,5 +170,90 @@ export const evmHandler: Handler = {
       }
     }
     return null;
+  },
+  relayVAAv1: async (
+    c: ChainInfo,
+    r: RequestForExecution,
+    v: VAAv1Request,
+    b: string,
+  ) => {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    const account = privateKeyToAccount(c.privateKey);
+    const publicClient = createPublicClient({
+      chain: c.evmChain,
+      transport: http(c.rpc),
+    });
+    const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
+    const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
+    const { request } = await publicClient.simulateContract({
+      account,
+      address: `0x${r.dstAddr.substring(26)}`,
+      gas: gasLimit,
+      value: msgValue,
+      abi: [
+        {
+          type: "function",
+          name: "receiveMessage",
+          inputs: [{ type: "bytes" }],
+          outputs: [],
+        },
+      ],
+      functionName: "receiveMessage",
+      args: [`0x${Buffer.from(b, "base64").toString("hex")}`],
+    });
+    const client = createWalletClient({
+      account,
+      chain: c.evmChain,
+      transport: http(c.rpc),
+    });
+    return [await client.writeContract(request)];
+  },
+  relayMM: async (
+    c: ChainInfo,
+    r: RequestForExecution,
+    m: ModularMessageRequest,
+  ) => {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    const account = privateKeyToAccount(c.privateKey);
+    const publicClient = createPublicClient({
+      chain: c.evmChain,
+      transport: http(c.rpc),
+    });
+    const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
+    const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
+    // TODO: call `isReady` first before attempting relay
+    // or just only try for a certain number of times / up to a certain timeout
+    // which must be longer than a typical finalized message
+    const { request } = await publicClient.simulateContract({
+      account,
+      address: `0x${r.dstAddr.substring(26)}`,
+      gas: gasLimit,
+      value: msgValue,
+      abi: [
+        {
+          type: "function",
+          name: "executeMsg",
+          inputs: [
+            { type: "uint16" },
+            { type: "bytes32" },
+            { type: "uint64" },
+            { type: "bytes" },
+          ],
+          outputs: [],
+        },
+      ],
+      functionName: "executeMsg",
+      args: [m.chain, m.address, m.sequence, m.payload],
+    });
+    const walletClient = createWalletClient({
+      account,
+      chain: c.evmChain,
+      transport: http(c.rpc),
+    });
+    return [await walletClient.writeContract(request)];
   },
 };

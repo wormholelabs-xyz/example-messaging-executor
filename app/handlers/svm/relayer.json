@@ -1,0 +1,96 @@
+{
+  "address": "Ax7mtQPbNPQmghd7C3BHrMdwwmkAXBDq7kNGfXNcc7dg",
+  "metadata": {
+    "name": "relayer",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "execute_vaa_v1",
+      "docs": [
+        "This instruction returns the instruction for execution based on a v1 VAA",
+        "# Arguments",
+        "",
+        "* `ctx` - `ExecuteVaaV1` context",
+        "* `vaa_body` - Body of the VAA for execution"
+      ],
+      "discriminator": [195, 77, 54, 118, 36, 151, 194, 202],
+      "accounts": [],
+      "args": [
+        {
+          "name": "vaa_body",
+          "type": "bytes"
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "Ix"
+        }
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "AcctMeta",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pubkey",
+            "docs": ["An account's public key."],
+            "type": "pubkey"
+          },
+          {
+            "name": "is_signer",
+            "docs": [
+              "True if an `Instruction` requires a `Transaction` signature matching `pubkey`."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "is_writable",
+            "docs": [
+              "True if the account data or metadata may be mutated during program execution."
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ix",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "program_id",
+            "docs": ["Pubkey of the program that executes this instruction."],
+            "type": "pubkey"
+          },
+          {
+            "name": "accounts",
+            "docs": [
+              "Metadata describing accounts that should be passed to the program."
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "AcctMeta"
+                }
+              }
+            }
+          },
+          {
+            "name": "data",
+            "docs": [
+              "Opaque data passed to the program for its own interpretation."
+            ],
+            "type": "bytes"
+          }
+        ]
+      }
+    }
+  ]
+}

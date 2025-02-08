@@ -1,14 +1,24 @@
+import { AnchorProvider, Program, Wallet, web3 } from "@coral-xyz/anchor";
+import { deserialize } from "@wormhole-foundation/sdk-definitions";
+import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 import axios from "axios";
 import bs58 from "bs58";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
+import {
+  ModularMessageRequest,
+  RequestForExecution,
+  VAAv1Request,
+} from "../requestForExecution";
 import { SignedQuote } from "../signedQuote";
-import { RequestForExecution } from "../requestForExecution";
+import { ChainInfo } from "../types";
+import { Relayer } from "./svm/relayer";
+import RelayerIdl from "./svm/relayer.json";
 
 function parseInstructionData(data: string): RequestForExecution | null {
   const reader = new BinaryReader(bs58.decode(data));
-  const descriminator = reader.readHex(8);
-  if (descriminator === "0x6d6b572597c07773") {
+  const discriminator = reader.readHex(8);
+  if (discriminator === "0x6d6b572597c07773") {
     // amount: u64,
     const amtPaid = reader.readUint64LE();
     // dst_chain: u16,
@@ -83,5 +93,82 @@ export const svmHandler: Handler = {
       }
     }
     return null;
+  },
+  relayVAAv1: async (
+    c: ChainInfo,
+    r: RequestForExecution,
+    v: VAAv1Request,
+    b: string,
+  ) => {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    const vaa = Buffer.from(b, "base64");
+    const sigStart = 6;
+    const numSigners = vaa[5];
+    const sigLength = 66;
+    const vaaBody = vaa.subarray(sigStart + sigLength * numSigners);
+    const connection = new web3.Connection(c.rpc, "confirmed");
+    const payer = web3.Keypair.fromSecretKey(
+      new Uint8Array(Buffer.from(c.privateKey.substring(2), "hex")),
+    );
+    const provider = new AnchorProvider(connection, new Wallet(payer));
+    const overrideIdl = {
+      ...RelayerIdl,
+      address: new web3.PublicKey(
+        Buffer.from(r.dstAddr.substring(2), "hex"),
+      ).toString(),
+    };
+    const program = new Program<Relayer>(overrideIdl as Relayer, provider);
+    const result = await program.methods.executeVaaV1(vaaBody).view();
+    const PAYER = new web3.PublicKey(
+      Buffer.from("payer000000000000000000000000000"),
+    ).toString();
+    const payerIdx = result.accounts.findIndex(
+      (a: any) => a.pubkey.toString() === PAYER,
+    );
+    if (payerIdx === -1) {
+      throw new Error("Cannot find payer placeholder");
+    }
+    // TODO: fund, use, and destroy ephemeral keypair for relay
+    result.accounts[payerIdx].pubkey = payer.publicKey;
+    const sigs: string[] = [];
+    // TODO: check for derived VAA address and only post if it exists
+    const VAA = deserialize("Uint8Array", Buffer.from(b, "base64"));
+    // TODO: don't hardcode core bridge address
+    const wh = new SolanaWormholeCore("Testnet", "Solana", connection, {
+      coreBridge: "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5",
+    });
+    const txs = wh.verifyMessage(payer.publicKey, VAA);
+    for await (const tx of txs) {
+      sigs.push(
+        await provider.sendAndConfirm(
+          tx.transaction.transaction,
+          tx.transaction.signers,
+          { commitment: "confirmed" },
+        ),
+      );
+    }
+    const tx = new web3.Transaction();
+    const ix = new web3.TransactionInstruction({
+      programId: result.programId,
+      keys: result.accounts,
+      data: result.data,
+    });
+    tx.add(ix);
+    sigs.push(
+      await provider.sendAndConfirm(tx, [], { commitment: "confirmed" }),
+    );
+    return sigs;
+  },
+  relayMM: async (
+    c: ChainInfo,
+    r: RequestForExecution,
+    m: ModularMessageRequest,
+  ) => {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    throw new Error("Unsupported");
   },
 };
