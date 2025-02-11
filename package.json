@@ -1,8 +1,8 @@
 {
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "tsx watch --include app app/server.ts",
-    "start": "tsx app/server.ts"
+    "dev": "bun --watch app/server.ts",
+    "start": "bun app/server.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
@@ -10,10 +10,8 @@
     "@wormhole-foundation/sdk-solana-core": "1.5.2",
     "axios": "^1.7.7",
     "bs58": "^6.0.0",
-    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "prettier": "^3.3.3",
-    "tsx": "^4.19.2",
     "viem": "^2.21.49",
     "winston": "^3.17.0"
   },

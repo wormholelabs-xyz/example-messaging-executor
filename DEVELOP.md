@@ -13,11 +13,11 @@ This repository is generated from this [multi-chain template](https://github.com
 
 ## Developer Dependencies
 
-### Miscellaneous
+### Off-Chain
 
-- [Node.js](https://nodejs.org/en/download/package-manager)
+- [Bun](https://bun.sh/docs/installation)
 
-Run `npm ci` at the root of this repo to install the off-chain app dependencies.
+Run `bun install --frozen-lockfile` at the root of this repo to install the off-chain app dependencies.
 
 ### EVM
 
