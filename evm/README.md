@@ -27,7 +27,8 @@ import "example-messaging-executor/evm/src/interfaces/IExecutor.sol";
 import "example-messaging-executor/evm/src/libraries/ExecutorMessages.sol";
 ...
 uint256 wormholeFee = wormhole.messageFee();
-require(msg.value == wormholeFee + executionAmount, "insufficient value");
+require(msg.value >= wormholeFee, "insufficient value");
+uint256 executionAmount = msg.value - wormholeFee;
 
 sequence = wormhole.publishMessage{
     value : wormholeFee

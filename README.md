@@ -81,7 +81,7 @@ Fundamentally, this design offers a re-imagining of servicing similar goals as W
 - A decentralized way to facilitate the delivery of verifiable messages
 - An on-chain API to request delivery of and receive messages
 
-However, in an effort to drastically reduce costs both for relayers, integrators, and end-users, as well as increase flexibility, the on-chain footprint will be significantly reduced.
+However, in an effort to drastically reduce costs for relayers, integrators, and end-users, as well as increase flexibility, the on-chain footprint will be significantly reduced.
 
 - No additional on-chain state required
 - Minimal on-chain verification for requests
@@ -105,25 +105,28 @@ Payee - The wallet address on the source chain, designated by the Quoter, to rec
 
 #### Relay Provider
 
-Each independent party who wants to serve as a Relay Provider MUST run at least one Quoter service. This service provides signed quotes between source and destination chain gas. It includes an expiry time, before which the quote will be accepted by the Executor Contract. This allows an Executor to limit the risk of stale quotes to a short time frame. Setting this to a short time in the future should be balanced against the ability of end-users to land transactions on the source chain within that amount of time - e.g. if set to 1 minute, it may not be possible for end-users to land a transaction on Ethereum within 1 minute of fetching the quote.
+Each independent party who wants to serve as a Relay Provider MUST run at least one Quoter service. This service provides signed quotes between source and destination chain gas. It includes an expiry time, before which the quote will be accepted by the Executor Contract. This allows a Relay Provider to limit the risk of stale quotes to a short time frame. Setting this to a short time in the future should be balanced against the ability of end-users to land transactions on the source chain within that amount of time - e.g. if set to 1 minute, it may not be possible for end-users to land a transaction on Ethereum within 1 minute of fetching the quote.
 
-An Executor MAY manage any number of wallets to perform execution, and they MAY have the Quoter balance between using those wallets as the `payeeAddress` or they MAY collect payments in a separate address entirely.
+A Relay Provider MAY manage any number of wallets to perform execution, and they MAY have the Quoter balance between using those wallets as the `payeeAddress` or they MAY collect payments in a separate address entirely.
 
-An Executor SHOULD provide a public API for reporting the status of an Execution Request, including
+A Relay Provider SHOULD provide a public API for reporting the status of an Execution Request, including
 
 - the time and transaction in which the request was initiated and its details
 - the time and transactions of any Add Gas events associated with the request and their details
 - the time and transactions of the execution associated with the request
 - the time and transactions of any refunds associated with the request (or reason for a lack of refund) and their amounts
 
-An Executor SHOULD publish a service-level agreement (SLA) for execution and refunds. For example
+A Relay Provider SHOULD publish a service-level agreement (SLA) for execution and refunds. For example
 
 - What type of executions do they support?
 - How long will they attempt valid execution requests for?
 - Under what conditions will they refund fees?
 - How, exactly, will they attempt to execute each type of request?
 
-An Executor MUST watch for or otherwise status Request for Execution and Add Relay Instructions events in order to perform the requested executions per their SLA and support providing additional payment for transactions which are invalid due to underpayment or fail due to insufficient gas errors.
+A Relay Provider MUST watch for or otherwise status:
+
+- Request for Execution events in order to perform the requested executions per their SLA.
+- Add Relay Instructions events in order to support providing additional payment for transactions which are invalid due to underpayment or fail due to insufficient gas errors.
 
 #### Executor Contract
 
@@ -236,4 +239,4 @@ Maintaining up-to-date quotes on-chain while providing cost guarantees would req
 
 ## Security Considerations
 
-Unlike the [Wormhole Relayer](https://wormhole.com/docs/build/contract-integrations/wormhole-relayers/) contract, the Executor Contract is explicitly design to be immutable and sit outside an integrator's security stack. Executor is designed to be used as a mechanism to permissionlessly deliver cross-chain data that includes an independent attestation source, such as Wormhole v1 VAAs.
+Unlike the [Wormhole Relayer](https://wormhole.com/docs/build/contract-integrations/wormhole-relayers/) contract, the Executor Contract is explicitly designed to be immutable and sit outside an integrator's security stack. Executor is designed to be used as a mechanism to permissionlessly deliver cross-chain data that includes an independent attestation source, such as Wormhole v1 VAAs.
