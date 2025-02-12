@@ -1,21 +1,107 @@
-## EVM Testing
+# Off-Chain Executor Service
 
+## Integration
+
+> 🚧 The off-chain Executor service is under active development and subject to change!
+
+### Quote
+
+#### Request
+
+GET `/v0/quote/:srcChain/:dstChain`
+
+##### Example
+
+http://localhost:3000/v0/quote/1/6
+
+#### Response
+
+```typescript
+{
+  signedQuote: `0x${string}`;
+}
 ```
-anvil --fork-url https://ethereum-rpc.publicnode.com
-EVM_CHAIN_ID=1 MNEMONIC=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 ./sh/deployExecutor.sh
+
+### Estimate
+
+#### Request
+
+GET `/v0/estimate/:quote/:relayInstructions`
+
+##### Example
+
+http://localhost:3000/v0/estimate/0x455130318f26a0025dccc6cfc07a7d38756280a10e295ad783718b7ec89617b7040685e01bdcca03214022980daae91340e0c3f840c005ef000100060000000067accbbf00000000000003e8000000003b9aca01000001c0ebb731000000003a3b1f25001c2af602e16e0759010a636057216e8e1759dea0b8eefa33389828dbc5fdac435e08fa02542ed6cb337f0af86b43b1502468370547d8476403f3b49a47cc05c11c/0x010000000000000000000000000003d09000000000000000000000000000000000
+
+#### Response
+
+```typescript
+{
+    quote: SignedQuote,
+    estimate: string
+}
 ```
 
-update the address in `evm.ts`
+### Request For Execution
 
-http://localhost:3000/v0/quote/2/2
+#### Request
+
+GET `/v0/request/VAAv1/:chain/:emitter/:sequence`
+
+##### Example
+
 http://localhost:3000/v0/request/VAAv1/30/000000000000000000000000706f82e9bb5b0813501714ab5974216704980e31/137279
-http://localhost:3000/v0/request/MM/2/000000000000000000000000706f82e9bb5b0813501714ab5974216704980e31/1/48656C6C6F20576F726C6421
-http://localhost:3000/v0/estimate/{quote}/250000/0
 
+#### Response
+
+```typescript
+{
+  bytes: `0x${string}`;
+}
 ```
-cast send --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --value {estimate} {executorAddress} "requestExecution(uint16,bytes32,uint256,uint256,address,bytes,bytes)" 2 0x000000000000000000000000F94AB55a20B32AC37c3A105f12dB535986697945 250000 0 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 {quote} 0x45525631001e000000000000000000000000706f82e9bb5b0813501714ab5974216704980e31000000000002183f
+
+### Status
+
+Fetching status also kicks off the relay.
+
+#### Request
+
+GET `/v0/status/:id`
+
+##### Example
+
+SVM - http://localhost:3000/v0/status/00011bec45bbd344eb129ca620ed4cf59ecd56ad25413fc8b5db1aa51029028986308da4bdb4560e12d8a363132c0bb8bf86459da3dbd7b444f4895221165b826d0b
+
+EVM - http://localhost:3000/v0/status/0002f80e39f3163f679737deef86527ef9372f5d54abfe5cfc509fc9c529d6aa36ea0000000000000000000000000000000000000000000000000000000000000007
+
+#### Response
+
+```typescript
+{
+    status: string;
+    requestForExecution: RequestForExecution;
+    txs: string[];
+    instruction?: VAAv1Request | ModularMessageRequest;
+}
 ```
 
-fetching status also kicks off the relay (which right now just logs the cast command to run)
+## Run
 
-http://localhost:3000/v0/status/0002{txhashWithout0x}
+Install dependencies with `npm ci`.
+
+Create a `.env` file with the following key/value pairs.
+
+```bash
+QUOTER_KEY=0x<privateKeyHex>
+ETH_KEY=0x<privateKeyHex>
+SOL_KEY=0x<privateKeyHex>
+GUARDIAN_URL=https://api.testnet.wormholescan.io
+```
+
+The following environment variables are supported.
+
+- `QUOTER_KEY` - The private key used to sign quotes for this service. This is only for off-chain use and does not need to custody any funds.
+- `ETH_KEY` - The private key used for relaying to EVM destination chains. It requires funds on every supported EVM destination chain.
+- `SOL_KEY` - The private key used for relaying to SVM destination chains. It requires funds on every supported SVM destination chain.
+- `GUARDIAN_URL` - The base URL used for fetching v1 VAAs.
+- `LOG_LEVEL` - The [winston log level](https://github.com/winstonjs/winston?tab=readme-ov-file#logging-levels) to use. Defaults to `info`.
+- `PORT` - The port for the express server to use. Defaults to `3000`
