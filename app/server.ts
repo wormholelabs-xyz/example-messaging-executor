@@ -1,6 +1,5 @@
 import { web3 } from "@coral-xyz/anchor";
 import axios from "axios";
-import "dotenv/config";
 import express from "express";
 import { privateKeyToAddress } from "viem/accounts";
 import { avalancheFuji, sepolia } from "viem/chains";

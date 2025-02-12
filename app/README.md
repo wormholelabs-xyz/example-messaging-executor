@@ -86,7 +86,7 @@ EVM - http://localhost:3000/v0/status/0002f80e39f3163f679737deef86527ef9372f5d54
 
 ## Run
 
-Install dependencies with `npm ci`.
+Install dependencies with `bun install --frozen-lockfile`.
 
 Create a `.env` file with the following key/value pairs.
 
@@ -96,6 +96,8 @@ ETH_KEY=0x<privateKeyHex>
 SOL_KEY=0x<privateKeyHex>
 GUARDIAN_URL=https://api.testnet.wormholescan.io
 ```
+
+Run with `bun run start` or `bun run dev` to watch for changes.
 
 The following environment variables are supported.
 
