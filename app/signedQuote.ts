@@ -46,7 +46,13 @@ export class SignedQuote {
     dstPrice: bigint,
     signature?: string,
   ) {
+    if (quoterAddress.replace("0x", "").length !== 40) {
+      throw new Error("invalid quoterAddress length");
+    }
     if (payeeAddress.replace("0x", "").length !== 64) {
+      throw new Error("invalid payeeAddress length");
+    }
+    if (signature && signature.replace("0x", "").length !== 130) {
       throw new Error("invalid payeeAddress length");
     }
     this.quoterAddress = quoterAddress;
@@ -125,7 +131,7 @@ export class SignedQuote {
         signature: this.signature,
       })
     ).toLowerCase();
-    if (recoveredPublicKey !== this.quoterAddress) {
+    if (recoveredPublicKey !== this.quoterAddress.toLowerCase()) {
       throw new Error(
         `Bad quote signature recovery. Expected: ${this.quoterAddress}, Received: ${recoveredPublicKey}`,
       );
