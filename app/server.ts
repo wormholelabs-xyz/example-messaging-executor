@@ -20,6 +20,13 @@ import {
 } from "./requestForExecution";
 import { SignedQuote } from "./signedQuote";
 import { ChainInfo } from "./types";
+import { get } from "http";
+import { addRelayToQueue, getRelay, saveRelay } from "./redis";
+import {
+  CHAIN_TO_INFO,
+  env0xStringRequired,
+  envStringRequired,
+} from "./chainInfo";
 
 // Serialize BigInts as strings in responses
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -28,79 +35,80 @@ BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
-const envStringRequired = (name: string): string => {
-  let s = process.env[name];
-  if (!s) {
-    throw new Error(`${name} is required!`);
-  }
-  return s;
-};
+// const envStringRequired = (name: string): string => {
+//   let s = process.env[name];
+//   if (!s) {
+//     throw new Error(`${name} is required!`);
+//   }
+//   return s;
+// };
 
-const env0xStringRequired = (name: string): `0x${string}` => {
-  // check hex regex?
-  let s = envStringRequired(name);
-  if (!s.startsWith("0x")) {
-    throw new Error(`${name} must start with 0x!`);
-  }
-  return s as `0x${string}`;
-};
+// const env0xStringRequired = (name: string): `0x${string}` => {
+//   // check hex regex?
+//   let s = envStringRequired(name);
+//   if (!s.startsWith("0x")) {
+//     throw new Error(`${name} must start with 0x!`);
+//   }
+//   return s as `0x${string}`;
+// };
 
 const RELAY_SLEEP = 5000;
-const ETH_KEY = env0xStringRequired("ETH_KEY");
-const ETH_PUBLIC_KEY = privateKeyToAddress(ETH_KEY);
-const SOL_KEY = env0xStringRequired("SOL_KEY");
-const SOL_PUBLIC_KEY = `0x${web3.Keypair.fromSecretKey(
-  new Uint8Array(Buffer.from(SOL_KEY.substring(2), "hex")),
-)
-  .publicKey.toBuffer()
-  .toString("hex")}`;
+// const ETH_KEY = env0xStringRequired("ETH_KEY");
+// const ETH_PUBLIC_KEY = privateKeyToAddress(ETH_KEY);
+// const SOL_KEY = env0xStringRequired("SOL_KEY");
+// const SOL_PUBLIC_KEY = SOL_KEY;
+// const SOL_PUBLIC_KEY = `0x${web3.Keypair.fromSecretKey(
+//   new Uint8Array(Buffer.from(SOL_KEY.substring(2), "hex")),
+// )
+//   .publicKey.toBuffer()
+//   .toString("hex")}`;
 const QUOTER_KEY = env0xStringRequired("QUOTER_KEY");
 const QUOTER_PUBLIC_KEY = privateKeyToAddress(QUOTER_KEY);
 const GUARDIAN_URL = envStringRequired("GUARDIAN_URL");
 const SUPPORTED_SRC_CHAINS = [1, 6, 10002];
 const SUPPORTED_DST_CHAINS = [1, 6, 10002];
-interface ChainInfoWithHandler extends ChainInfo {
-  handler: Handler;
-}
-const CHAIN_TO_INFO: {
-  [id: number]: ChainInfoWithHandler;
-} = {
-  1: {
-    rpc: "https://api.devnet.solana.com",
-    handler: svmHandler,
-    baseFee: 1000n,
-    coingeckoId: "solana",
-    payeeAddress: SOL_PUBLIC_KEY,
-    executorAddress: "Ax7mtQPbNPQmghd7C3BHrMdwwmkAXBDq7kNGfXNcc7dg",
-    gasPriceDecimals: 9 + 6, // microlamports
-    nativeDecimals: 9,
-    privateKey: SOL_KEY,
-  },
-  6: {
-    rpc: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
-    handler: evmHandler,
-    baseFee: 1000n,
-    coingeckoId: "avalanche-2",
-    payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
-    gasPriceDecimals: 18,
-    nativeDecimals: 18,
-    executorAddress: "0x6bF4A0291ADE28ccBD0f9E1aF551c9218644Ab4a",
-    evmChain: avalancheFuji,
-    privateKey: ETH_KEY,
-  },
-  10002: {
-    rpc: "https://ethereum-sepolia-rpc.publicnode.com",
-    handler: evmHandler,
-    baseFee: 1000n,
-    coingeckoId: "ethereum",
-    payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
-    gasPriceDecimals: 18,
-    nativeDecimals: 18,
-    executorAddress: "0xB67841A38bF16EB9999dC7B6015746506e20F0aA",
-    evmChain: sepolia,
-    privateKey: ETH_KEY,
-  },
-};
+// interface ChainInfoWithHandler extends ChainInfo {
+//   handler: Handler;
+// }
+// const CHAIN_TO_INFO: {
+//   [id: number]: ChainInfoWithHandler;
+// } = {
+//   1: {
+//     rpc: "https://api.devnet.solana.com",
+//     handler: svmHandler,
+//     baseFee: 1000n,
+//     coingeckoId: "solana",
+//     payeeAddress: SOL_PUBLIC_KEY,
+//     executorAddress: "Ax7mtQPbNPQmghd7C3BHrMdwwmkAXBDq7kNGfXNcc7dg",
+//     gasPriceDecimals: 9 + 6, // microlamports
+//     nativeDecimals: 9,
+//     privateKey: SOL_KEY,
+//   },
+//   6: {
+//     rpc: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+//     handler: evmHandler,
+//     baseFee: 1000n,
+//     coingeckoId: "avalanche-2",
+//     payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
+//     gasPriceDecimals: 18,
+//     nativeDecimals: 18,
+//     executorAddress: "0x6bF4A0291ADE28ccBD0f9E1aF551c9218644Ab4a",
+//     evmChain: avalancheFuji,
+//     privateKey: ETH_KEY,
+//   },
+//   10002: {
+//     rpc: "https://ethereum-sepolia-rpc.publicnode.com",
+//     handler: evmHandler,
+//     baseFee: 1000n,
+//     coingeckoId: "ethereum",
+//     payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
+//     gasPriceDecimals: 18,
+//     nativeDecimals: 18,
+//     executorAddress: "0xB67841A38bF16EB9999dC7B6015746506e20F0aA",
+//     evmChain: sepolia,
+//     privateKey: ETH_KEY,
+//   },
+// };
 
 const logger = createLogger({
   level: process.env.LOG_LEVEL || "info",
@@ -172,86 +180,95 @@ async function getPrices(
   return { srcPrice, dstPrice };
 }
 
-async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
-  const vaaId = `${v.chain}/${v.address.slice(2)}/${v.sequence.toString()}`;
-  const bytes = (await axios.get(`${GUARDIAN_URL}/v1/signed_vaa/${vaaId}`)).data
-    ?.vaaBytes;
-  if (!bytes) {
-    throw new Error(`unable to fetch VAA ${vaaId}`);
-  }
-  const dstInfo = CHAIN_TO_INFO[r.dstChain];
-  return dstInfo.handler.relayVAAv1(dstInfo, r, v, bytes);
-}
-async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
-  const dstInfo = CHAIN_TO_INFO[r.dstChain];
-  return dstInfo.handler.relayMM(dstInfo, r, m);
-}
-const relays: {
-  [id: string]: {
-    status: string;
-    requestForExecution: RequestForExecution;
-    txs: string[];
-    instruction?: VAAv1Request | ModularMessageRequest;
-  };
-} = {};
-const pendingRelays: string[] = [];
-async function relayNext(logger: Logger) {
-  const id = pendingRelays.shift();
-  if (id === undefined) {
-    return;
-  }
-  const r = relays[id];
-  logger.info(JSON.stringify(r));
-  if (r.instruction) {
-    try {
-      if (r.instruction instanceof VAAv1Request) {
-        const txs = await relayVAAv1(r.requestForExecution, r.instruction);
-        relays[id].status = "submitted";
-        relays[id].txs.push(...txs);
-      } else if (r.instruction instanceof ModularMessageRequest) {
-        const txs = await relayMM(r.requestForExecution, r.instruction);
-        relays[id].status = "submitted";
-        relays[id].txs.push(...txs);
-      } else {
-        relays[id].status = "unsupported";
-      }
-    } catch (e: any) {
-      logger.error(e);
-      // TODO: handle this better
-      if (e?.message?.includes("reverted")) {
-        relays[id].status = "failed";
-      } else {
-        pendingRelays.push(id);
-      }
-    }
-  } else {
-    relays[id].status = "unsupported";
-  }
-}
-async function sleep(timeout: number) {
-  return new Promise((resolve) => setTimeout(resolve, timeout));
-}
-async function runWithRetry(
-  fn: (logger: Logger) => Promise<void>,
-  timeout: number,
-  logger: Logger,
-) {
-  let retry = 0;
-  while (true) {
-    try {
-      await fn(logger);
-      retry = 0;
-      await sleep(timeout);
-    } catch (e) {
-      retry++;
-      logger.error(e);
-      const expoBacko = timeout * 2 ** retry;
-      logger.warn(`backing off for ${expoBacko}ms`);
-      await sleep(expoBacko);
-    }
-  }
-}
-runWithRetry(relayNext, RELAY_SLEEP, logger.child({ source: "relay" }));
+// export async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
+//   const vaaId = `${v.chain}/${v.address.slice(2)}/${v.sequence.toString()}`;
+//   const bytes = (await axios.get(`${GUARDIAN_URL}/v1/signed_vaa/${vaaId}`)).data
+//     ?.vaaBytes;
+//   if (!bytes) {
+//     throw new Error(`unable to fetch VAA ${vaaId}`);
+//   }
+//   const dstInfo = CHAIN_TO_INFO[r.dstChain];
+//   return dstInfo.handler.relayVAAv1(dstInfo, r, v, bytes);
+// }
+// export async function relayMM(
+//   r: RequestForExecution,
+//   m: ModularMessageRequest,
+// ) {
+//   const dstInfo = CHAIN_TO_INFO[r.dstChain];
+//   return dstInfo.handler.relayMM(dstInfo, r, m);
+// }
+export type relay = {
+  status: string;
+  requestForExecution: RequestForExecution;
+  txs: string[];
+  instruction?: VAAv1Request | ModularMessageRequest;
+};
+// const relays: {
+//   [id: string]: {
+//     status: string;
+//     requestForExecution: RequestForExecution;
+//     txs: string[];
+//     instruction?: VAAv1Request | ModularMessageRequest;
+//   };
+// } = {};
+// const pendingRelays: string[] = [];
+// async function relayNext(logger: Logger) {
+//   const id = pendingRelays.shift();
+//   if (id === undefined) {
+//     return;
+//   }
+//   const r = relays[id];
+//   logger.info(JSON.stringify(r));
+//   if (r.instruction) {
+//     try {
+//       if (r.instruction instanceof VAAv1Request) {
+//         const txs = await relayVAAv1(r.requestForExecution, r.instruction);
+//         relays[id].status = "submitted";
+//         relays[id].txs.push(...txs);
+//       } else if (r.instruction instanceof ModularMessageRequest) {
+//         const txs = await relayMM(r.requestForExecution, r.instruction);
+//         relays[id].status = "submitted";
+//         relays[id].txs.push(...txs);
+//       } else {
+//         relays[id].status = "unsupported";
+//       }
+//     } catch (e: any) {
+//       logger.error(e);
+//       // TODO: handle this better
+//       if (e?.message?.includes("reverted")) {
+//         relays[id].status = "failed";
+//       } else {
+//         pendingRelays.push(id);
+//       }
+//     }
+//   } else {
+//     relays[id].status = "unsupported";
+//   }
+// }
+// async function sleep(timeout: number) {
+//   return new Promise((resolve) => setTimeout(resolve, timeout));
+// }
+// async function runWithRetry(
+//   fn: (logger: Logger) => Promise<void>,
+//   timeout: number,
+//   logger: Logger,
+// ) {
+//   let retry = 0;
+//   while (true) {
+//     try {
+//       await fn(logger);
+//       retry = 0;
+//       await sleep(timeout);
+//     } catch (e) {
+//       retry++;
+//       logger.error(e);
+//       const expoBacko = timeout * 2 ** retry;
+//       logger.warn(`backing off for ${expoBacko}ms`);
+//       await sleep(expoBacko);
+//     }
+//   }
+// }
+// runWithRetry(relayNext, RELAY_SLEEP, logger.child({ source: "relay" }));
 
 app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
   let srcChain = 0;
@@ -402,10 +419,15 @@ app.get("/v0/request/MM/:chain/:emitter/:sequence/:payload", (req, res) => {
 // TODO: status an entire transaction
 app.get("/v0/status/:id", async (req, res) => {
   // TODO: normalize id
-  if (relays[req.params.id]) {
-    res.send(relays[req.params.id]);
+  const relayInfo = getRelay(req.params.id);
+  if (relayInfo) {
+    res.send(relayInfo);
     return;
   }
+  // if (relays[req.params.id]) {
+  //   res.send(relays[req.params.id]);
+  //   return;
+  // }
   try {
     const reader = new BinaryReader(hexToUint8Array(req.params.id));
     const chainId = reader.readUint16();
@@ -480,15 +502,23 @@ app.get("/v0/status/:id", async (req, res) => {
           : "unsupported";
     if (status === "pending") {
       // TODO: standardize id on RFE and use here
-      if (!relays[req.params.id]) {
-        relays[req.params.id] = {
+      if (!getRelay(req.params.id)) {
+        saveRelay(req.params.id, {
           status,
           requestForExecution,
           instruction,
           txs: [],
-        };
-        pendingRelays.push(req.params.id);
+        });
       }
+      // if (!relays[req.params.id]) {
+      //   relays[req.params.id] = {
+      //     status,
+      //     requestForExecution,
+      //     instruction,
+      //     txs: [],
+      //   };
+      //   pendingRelays.push(req.params.id);
+      // }
     }
     res.send({
       requestForExecution,
@@ -501,6 +531,45 @@ app.get("/v0/status/:id", async (req, res) => {
   } catch (e) {
     res.status(400).send(`Bad request id`);
     return;
+  }
+});
+
+app.get("/v0/relay/:id", async (req, res) => {
+  try {
+    console.log(`Relay ${req.params.id} added`);
+    // Create relay object
+    const relay = {
+      status: "pending",
+      requestForExecution: {},
+      txs: [],
+      instruction: {},
+    };
+    const id = req.params.id;
+
+    // Save relay in Redis
+    await saveRelay(id, relay);
+    console.log("Calling addRelayToQueue");
+    await addRelayToQueue(id);
+
+    res.send({ message: `Relay ${id} added`, relay });
+    return;
+  } catch (e) {
+    res.status(400).send(`Bad request id`);
+  }
+});
+
+app.get("/v0/relayStatus/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const relay = await getRelay(id);
+
+    if (!relay) {
+      res.status(404).json({ error: "Relay not found" });
+    }
+
+    // res.json({ message: `Relay ${id} found`, relay });
+  } catch (e) {
+    res.sendStatus(400);
   }
 });
 
