@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 library ExecutorMessages {
     bytes4 private constant REQ_MM = "ERM1";
     bytes4 private constant REQ_VAA_V1 = "ERV1";
+    bytes4 private constant REQ_NTT_V1 = "ERN1";
 
     /// @notice Payload length will not fit in a uint32.
     /// @dev Selector: 492f620d.
@@ -30,14 +31,27 @@ library ExecutorMessages {
 
     /// @notice Encodes a version 1 VAA request payload.
     /// @param emitterChain The emitter chain from the VAA.
-    /// @param emitterAddress The mitter address from the VAA.
+    /// @param emitterAddress The emitter address from the VAA.
     /// @param sequence The sequence number from the VAA.
     /// @return bytes The encoded request.
-    function makeVAAV1Request(uint16 emitterChain, bytes32 emitterAddress, uint64 sequence)
+    function makeVAAv1Request(uint16 emitterChain, bytes32 emitterAddress, uint64 sequence)
         internal
         pure
         returns (bytes memory)
     {
         return abi.encodePacked(REQ_VAA_V1, emitterChain, emitterAddress, sequence);
+    }
+
+    /// @notice Encodes a version 1 NTT request payload.
+    /// @param srcChain The source chain for the NTT transfer.
+    /// @param srcManager The source manager for the NTT transfer.
+    /// @param messageId The manager message id for the NTT transfer.
+    /// @return bytes The encoded request.
+    function makeNTTv1Request(uint16 srcChain, bytes32 srcManager, bytes32 messageId)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(REQ_NTT_V1, srcChain, srcManager, messageId);
     }
 }

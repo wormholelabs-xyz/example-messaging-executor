@@ -22,11 +22,20 @@ contract ExecutorMessagesTest is Test {
         assertEq(keccak256(expected), keccak256(buf));
     }
 
-    function test_makeVAAV1Request() public pure {
+    function test_makeVAAv1Request() public pure {
         uint16 emitterChain = 7;
         bytes32 emitterAddress = bytes32(uint256(uint160(0xdeadbeef)));
         bytes memory expected = abi.encodePacked("ERV1", emitterChain, emitterAddress, uint64(42));
-        bytes memory buf = ExecutorMessages.makeVAAV1Request(emitterChain, emitterAddress, 42);
+        bytes memory buf = ExecutorMessages.makeVAAv1Request(emitterChain, emitterAddress, 42);
+        assertEq(keccak256(expected), keccak256(buf));
+    }
+
+    function test_makeNTTv1Request() public pure {
+        uint16 srcChain = 7;
+        bytes32 srcManager = bytes32(uint256(uint160(0xdeadbeef)));
+        bytes32 messageId = bytes32(uint256(42));
+        bytes memory expected = abi.encodePacked("ERN1", srcChain, srcManager, messageId);
+        bytes memory buf = ExecutorMessages.makeNTTv1Request(srcChain, srcManager, messageId);
         assertEq(keccak256(expected), keccak256(buf));
     }
 }
