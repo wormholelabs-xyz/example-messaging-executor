@@ -1,4 +1,4 @@
-import { isHex, keccak256, recoverAddress } from "viem";
+import { isAddressEqual, isHex, keccak256, recoverAddress } from "viem";
 import { sign } from "viem/accounts";
 import { BinaryReader } from "./BinaryReader";
 import { BinaryWriter } from "./BinaryWriter";
@@ -23,7 +23,7 @@ export class SignedQuote {
   static prefix = "EQ01";
   static byteLength = 4 + 20 + 32 + 2 + 2 + 8 + 8 + 8 + 8 + 8 + 65;
   static decimals = 10;
-  quoterAddress: string;
+  quoterAddress: `0x${string}`;
   payeeAddress: string;
   srcChain: number;
   dstChain: number;
@@ -46,6 +46,9 @@ export class SignedQuote {
     dstPrice: bigint,
     signature?: string,
   ) {
+    if (!quoterAddress.startsWith("0x")) {
+      throw new Error("invalid quoterAddress, must start with 0x");
+    }
     if (quoterAddress.replace("0x", "").length !== 40) {
       throw new Error("invalid quoterAddress length");
     }
@@ -55,7 +58,7 @@ export class SignedQuote {
     if (signature && signature.replace("0x", "").length !== 130) {
       throw new Error("invalid payeeAddress length");
     }
-    this.quoterAddress = quoterAddress;
+    this.quoterAddress = quoterAddress as `0x${string}`;
     this.payeeAddress = payeeAddress;
     this.srcChain = srcChain;
     this.dstChain = dstChain;
@@ -125,13 +128,11 @@ export class SignedQuote {
     if (!isHex(this.signature)) {
       throw new Error(`Bad signature`);
     }
-    const recoveredPublicKey = (
-      await recoverAddress({
-        hash: keccak256(this.serializeBody()),
-        signature: this.signature,
-      })
-    ).toLowerCase();
-    if (recoveredPublicKey !== this.quoterAddress.toLowerCase()) {
+    const recoveredPublicKey = await recoverAddress({
+      hash: keccak256(this.serializeBody()),
+      signature: this.signature,
+    });
+    if (!isAddressEqual(recoveredPublicKey, this.quoterAddress)) {
       throw new Error(
         `Bad quote signature recovery. Expected: ${this.quoterAddress}, Received: ${recoveredPublicKey}`,
       );

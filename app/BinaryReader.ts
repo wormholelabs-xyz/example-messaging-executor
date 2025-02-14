@@ -29,11 +29,7 @@ export class BinaryReader {
   private _buffer: Buffer;
   private _offset: number;
 
-  constructor(
-    arrayBufferOrString:
-      | WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
-      | string,
-  ) {
+  constructor(arrayBufferOrString: Uint8Array<ArrayBufferLike> | string) {
     if (typeof arrayBufferOrString === "string") {
       this._buffer = hexToBuffer(arrayBufferOrString);
     } else {

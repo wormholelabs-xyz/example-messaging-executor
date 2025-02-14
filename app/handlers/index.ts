@@ -7,10 +7,9 @@ import {
 import { ChainInfo } from "../types";
 
 export type Handler = {
-  getGasPrice: (rpc: string) => Promise<bigint>;
+  getGasPrice: (c: ChainInfo) => Promise<bigint>;
   getRequest: (
-    rpc: string,
-    executorAddress: string,
+    c: ChainInfo,
     id: BinaryReader,
   ) => Promise<RequestForExecution | null>;
   relayVAAv1(

@@ -66,6 +66,7 @@ const CHAIN_TO_INFO: {
   [id: number]: ChainInfoWithHandler;
 } = {
   1: {
+    chainId: 1,
     rpc: "https://api.devnet.solana.com",
     handler: svmHandler,
     baseFee: 1000n,
@@ -77,6 +78,7 @@ const CHAIN_TO_INFO: {
     privateKey: SOL_KEY,
   },
   6: {
+    chainId: 6,
     rpc: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
     handler: evmHandler,
     baseFee: 1000n,
@@ -89,6 +91,7 @@ const CHAIN_TO_INFO: {
     privateKey: ETH_KEY,
   },
   10002: {
+    chainId: 10002,
     rpc: "https://ethereum-sepolia-rpc.publicnode.com",
     handler: evmHandler,
     baseFee: 1000n,
@@ -297,7 +300,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     return;
   }
   try {
-    const dstGasPrice = await dstInfo.handler.getGasPrice(dstInfo.rpc);
+    const dstGasPrice = await dstInfo.handler.getGasPrice(dstInfo);
     const { srcPrice, dstPrice } = await getPrices(
       srcInfo.coingeckoId,
       dstInfo.coingeckoId,
@@ -427,8 +430,7 @@ app.get("/v0/status/:id", async (req, res) => {
       return;
     }
     const requestForExecution = await srcInfo.handler.getRequest(
-      srcInfo.rpc,
-      srcInfo.executorAddress,
+      srcInfo,
       reader,
     );
     if (!requestForExecution) {

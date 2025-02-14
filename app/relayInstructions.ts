@@ -23,9 +23,7 @@ interface GasDropOffInstruction extends RelayInstruction {
 type RelayInstructions = (GasInstruction | GasDropOffInstruction)[];
 
 export function decodeRelayInstructions(
-  relayInstructionsBytes:
-    | WithImplicitCoercion<ArrayBuffer | SharedArrayBuffer>
-    | string,
+  relayInstructionsBytes: Uint8Array | string,
 ): RelayInstructions {
   const relayInstructions: RelayInstructions = [];
   const reader = new BinaryReader(relayInstructionsBytes);

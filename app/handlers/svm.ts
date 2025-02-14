@@ -52,18 +52,14 @@ function parseInstructionData(data: string): RequestForExecution | null {
 }
 
 export const svmHandler: Handler = {
-  getGasPrice: async (rpc: string) => {
+  getGasPrice: async (c: ChainInfo) => {
     // TODO: get priority fee
     return BigInt("1000000");
   },
-  getRequest: async (
-    rpc: string,
-    executorAddress: string,
-    id: BinaryReader,
-  ) => {
+  getRequest: async (c: ChainInfo, id: BinaryReader) => {
     const transactionHash = bs58.encode(id.readUint8Array(64));
     // TODO: fetch with sdk / handle versioned transactions
-    const response = await axios.post(rpc, {
+    const response = await axios.post(c.rpc, {
       jsonrpc: "2.0",
       id: 1,
       method: "getTransaction",
@@ -74,7 +70,7 @@ export const svmHandler: Handler = {
       // TODO: use account lookup code from watcher
       const accountKeys =
         response.data.result.transaction?.message?.accountKeys;
-      const executorIndex = accountKeys.indexOf(executorAddress);
+      const executorIndex = accountKeys.indexOf(c.executorAddress);
       if (executorIndex >= 0) {
         const topIxs = response.data.result.transaction.message.instructions;
         for (const ix of topIxs) {
