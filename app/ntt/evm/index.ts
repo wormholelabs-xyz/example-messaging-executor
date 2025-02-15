@@ -12,7 +12,7 @@ import {
 import { NttHandler } from "..";
 
 export const evmNttHandler: NttHandler = {
-  async getTransceivers(chainInfo, address, blockNumber) {
+  async getEnabledTransceivers(chainInfo, address, blockNumber) {
     const client = createPublicClient({
       chain: chainInfo.evmChain,
       transport: http(chainInfo.rpc),
@@ -75,7 +75,7 @@ export const evmNttHandler: NttHandler = {
       },
     });
     const transaction = await client.getTransactionReceipt({ hash });
-    const transceivers = await this.getTransceivers(
+    const transceivers = await this.getEnabledTransceivers(
       chainInfo,
       address,
       // may result in `missing trie node` if not an archive node

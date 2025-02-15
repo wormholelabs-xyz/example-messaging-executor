@@ -21,7 +21,7 @@ test("getTransceivers", async () => {
     "hex",
   );
   expect(
-    await svmNttHandler.getTransceivers(solanaChainInfo, programIdHex),
+    await svmNttHandler.getEnabledTransceivers(solanaChainInfo, programIdHex),
   ).toEqual([{ address: programIdHex, type: "wormhole" }]);
 });
 

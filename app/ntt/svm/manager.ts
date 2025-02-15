@@ -1,0 +1,2227 @@
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/manager.json`.
+ */
+export type Manager = {
+  address: "nttiK1SepaQt6sZ4WGW5whvc9tEnGXGxuKeptcQPCcS";
+  metadata: {
+    name: "example_native_token_transfers";
+    version: "3.0.0";
+    spec: "0.1.0";
+  };
+  instructions: [
+    {
+      name: "initialize";
+      discriminator: [175, 175, 109, 31, 13, 152, 155, 237];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "deployer";
+          signer: true;
+        },
+        {
+          name: "program_data";
+        },
+        {
+          name: "config";
+          writable: true;
+        },
+        {
+          name: "mint";
+        },
+        {
+          name: "rate_limit";
+          writable: true;
+        },
+        {
+          name: "token_authority";
+          docs: [
+            "In any case, this function is used to set the Config and initialize the program so we",
+            "assume the caller of this function will have total control over the program.",
+            "",
+            'TODO: Using `UncheckedAccount` here leads to "Access violation in stack frame ...".',
+            "Could refactor code to use `Box<_>` to reduce stack size.",
+          ];
+        },
+        {
+          name: "custody";
+          docs: [
+            "The custody account that holds tokens in locking mode and temporarily",
+            "holds tokens in burning mode.",
+            "function if the token account has already been created.",
+          ];
+          writable: true;
+        },
+        {
+          name: "token_program";
+          docs: ["associated token account for the given mint."];
+        },
+        {
+          name: "associated_token_program";
+        },
+        {
+          name: "bpf_loader_upgradeable_program";
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "InitializeArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "initialize_multisig";
+      discriminator: [220, 130, 117, 21, 27, 227, 78, 213];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "deployer";
+              signer: true;
+            },
+            {
+              name: "program_data";
+            },
+            {
+              name: "config";
+              writable: true;
+            },
+            {
+              name: "mint";
+            },
+            {
+              name: "rate_limit";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+              docs: [
+                "In any case, this function is used to set the Config and initialize the program so we",
+                "assume the caller of this function will have total control over the program.",
+                "",
+                'TODO: Using `UncheckedAccount` here leads to "Access violation in stack frame ...".',
+                "Could refactor code to use `Box<_>` to reduce stack size.",
+              ];
+            },
+            {
+              name: "custody";
+              docs: [
+                "The custody account that holds tokens in locking mode and temporarily",
+                "holds tokens in burning mode.",
+                "function if the token account has already been created.",
+              ];
+              writable: true;
+            },
+            {
+              name: "token_program";
+              docs: ["associated token account for the given mint."];
+            },
+            {
+              name: "associated_token_program";
+            },
+            {
+              name: "bpf_loader_upgradeable_program";
+            },
+            {
+              name: "system_program";
+            },
+          ];
+        },
+        {
+          name: "multisig";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "InitializeArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "initialize_lut";
+      discriminator: [155, 112, 198, 112, 126, 145, 105, 93];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "authority";
+        },
+        {
+          name: "lut_address";
+          writable: true;
+        },
+        {
+          name: "lut";
+          writable: true;
+        },
+        {
+          name: "lut_program";
+        },
+        {
+          name: "system_program";
+        },
+        {
+          name: "entries";
+          accounts: [
+            {
+              name: "config";
+            },
+            {
+              name: "custody";
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "mint";
+            },
+            {
+              name: "token_authority";
+            },
+            {
+              name: "outbox_rate_limit";
+            },
+            {
+              name: "wormhole";
+              accounts: [
+                {
+                  name: "bridge";
+                  writable: true;
+                },
+                {
+                  name: "fee_collector";
+                  writable: true;
+                },
+                {
+                  name: "sequence";
+                  writable: true;
+                },
+                {
+                  name: "program";
+                },
+                {
+                  name: "system_program";
+                },
+                {
+                  name: "clock";
+                },
+                {
+                  name: "rent";
+                },
+              ];
+            },
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "recent_slot";
+          type: "u64";
+        },
+      ];
+    },
+    {
+      name: "version";
+      discriminator: [118, 65, 195, 198, 129, 216, 252, 192];
+      accounts: [];
+      args: [];
+      returns: "string";
+    },
+    {
+      name: "transfer_burn";
+      discriminator: [75, 144, 26, 232, 39, 12, 75, 222];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "config";
+              accounts: [
+                {
+                  name: "config";
+                },
+              ];
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "from";
+              docs: ["account can spend these tokens."];
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "outbox_item";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "outbox_rate_limit";
+              writable: true;
+            },
+            {
+              name: "custody";
+              docs: [
+                "Tokens are always transferred to the custody account first regardless of",
+                "the mode.",
+                "For an explanation, see the note in [`transfer_burn`].",
+              ];
+              writable: true;
+            },
+            {
+              name: "system_program";
+            },
+          ];
+        },
+        {
+          name: "inbox_rate_limit";
+          writable: true;
+        },
+        {
+          name: "peer";
+        },
+        {
+          name: "session_authority";
+          docs: [
+            "See [`crate::SESSION_AUTHORITY_SEED`] for an explanation of the flow.",
+          ];
+        },
+        {
+          name: "token_authority";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "TransferArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "transfer_lock";
+      discriminator: [179, 158, 146, 148, 151, 46, 176, 200];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "config";
+              accounts: [
+                {
+                  name: "config";
+                },
+              ];
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "from";
+              docs: ["account can spend these tokens."];
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "outbox_item";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "outbox_rate_limit";
+              writable: true;
+            },
+            {
+              name: "custody";
+              docs: [
+                "Tokens are always transferred to the custody account first regardless of",
+                "the mode.",
+                "For an explanation, see the note in [`transfer_burn`].",
+              ];
+              writable: true;
+            },
+            {
+              name: "system_program";
+            },
+          ];
+        },
+        {
+          name: "inbox_rate_limit";
+          writable: true;
+        },
+        {
+          name: "peer";
+        },
+        {
+          name: "session_authority";
+          docs: [
+            "See [`crate::SESSION_AUTHORITY_SEED`] for an explanation of the flow.",
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "TransferArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "redeem";
+      discriminator: [184, 12, 86, 149, 70, 196, 97, 225];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "config";
+        },
+        {
+          name: "peer";
+        },
+        {
+          name: "transceiver_message";
+          docs: ["`Account<T>` and `owner` constraints are mutually-exclusive"];
+        },
+        {
+          name: "transceiver";
+        },
+        {
+          name: "mint";
+        },
+        {
+          name: "inbox_item";
+          docs: [
+            "NOTE: This account is content-addressed (PDA seeded by the message hash).",
+            "This is because in a multi-transceiver configuration, the different",
+            'transceivers "vote" on messages (by delivering them). By making the inbox',
+            "items content-addressed, we can ensure that disagreeing votes don't",
+            "interfere with each other.",
+            "On the first call to [`redeem()`], [`InboxItem`] will be allocated and initialized with",
+            "default values.",
+            'On subsequent calls, we want to modify the `InboxItem` by "voting" on it. Therefore the',
+            "program should not fail which would occur when using the `init` constraint.",
+            "The [`InboxItem::init`] field is used to guard against malicious or accidental modification",
+            "InboxItem fields that should remain constant.",
+          ];
+          writable: true;
+        },
+        {
+          name: "inbox_rate_limit";
+          writable: true;
+        },
+        {
+          name: "outbox_rate_limit";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "RedeemArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "release_inbound_mint";
+      discriminator: [12, 233, 74, 65, 60, 168, 49, 120];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "config";
+              accounts: [
+                {
+                  name: "config";
+                },
+              ];
+            },
+            {
+              name: "inbox_item";
+              writable: true;
+            },
+            {
+              name: "recipient";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+              docs: [
+                "CHECK The seeds constraint ensures that this is the correct address",
+              ];
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "custody";
+              writable: true;
+            },
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "ReleaseInboundArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "release_inbound_mint_multisig";
+      discriminator: [198, 49, 214, 149, 50, 73, 233, 209];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "config";
+              accounts: [
+                {
+                  name: "config";
+                },
+              ];
+            },
+            {
+              name: "inbox_item";
+              writable: true;
+            },
+            {
+              name: "recipient";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+              docs: [
+                "CHECK The seeds constraint ensures that this is the correct address",
+              ];
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "custody";
+              writable: true;
+            },
+          ];
+        },
+        {
+          name: "multisig";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "ReleaseInboundArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "release_inbound_unlock";
+      discriminator: [182, 162, 62, 206, 197, 137, 83, 98];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "payer";
+              writable: true;
+              signer: true;
+            },
+            {
+              name: "config";
+              accounts: [
+                {
+                  name: "config";
+                },
+              ];
+            },
+            {
+              name: "inbox_item";
+              writable: true;
+            },
+            {
+              name: "recipient";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+              docs: [
+                "CHECK The seeds constraint ensures that this is the correct address",
+              ];
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "custody";
+              writable: true;
+            },
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "ReleaseInboundArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "transfer_ownership";
+      discriminator: [65, 177, 215, 73, 53, 45, 99, 47];
+      accounts: [
+        {
+          name: "config";
+          writable: true;
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "new_owner";
+        },
+        {
+          name: "upgrade_lock";
+        },
+        {
+          name: "program_data";
+          writable: true;
+        },
+        {
+          name: "bpf_loader_upgradeable_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "transfer_ownership_one_step_unchecked";
+      discriminator: [130, 225, 134, 241, 78, 158, 4, 247];
+      accounts: [
+        {
+          name: "config";
+          writable: true;
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "new_owner";
+        },
+        {
+          name: "upgrade_lock";
+        },
+        {
+          name: "program_data";
+          writable: true;
+        },
+        {
+          name: "bpf_loader_upgradeable_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "claim_ownership";
+      discriminator: [236, 166, 239, 222, 14, 45, 143, 254];
+      accounts: [
+        {
+          name: "config";
+          writable: true;
+        },
+        {
+          name: "upgrade_lock";
+        },
+        {
+          name: "new_owner";
+          signer: true;
+        },
+        {
+          name: "program_data";
+          writable: true;
+        },
+        {
+          name: "bpf_loader_upgradeable_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "accept_token_authority";
+      discriminator: [1, 86, 20, 34, 249, 90, 135, 227];
+      accounts: [
+        {
+          name: "config";
+        },
+        {
+          name: "mint";
+          writable: true;
+        },
+        {
+          name: "token_authority";
+        },
+        {
+          name: "current_authority";
+          signer: true;
+        },
+        {
+          name: "token_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "set_token_authority";
+      discriminator: [252, 249, 189, 177, 91, 10, 198, 194];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "config";
+            },
+            {
+              name: "owner";
+              signer: true;
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+            },
+            {
+              name: "new_authority";
+            },
+          ];
+        },
+        {
+          name: "rent_payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "pending_token_authority";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "set_token_authority_one_step_unchecked";
+      discriminator: [95, 71, 121, 160, 158, 175, 104, 40];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "config";
+            },
+            {
+              name: "owner";
+              signer: true;
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+            },
+            {
+              name: "new_authority";
+            },
+          ];
+        },
+        {
+          name: "token_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "revert_token_authority";
+      discriminator: [252, 133, 255, 7, 91, 122, 244, 191];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "config";
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+            },
+            {
+              name: "rent_payer";
+              writable: true;
+            },
+            {
+              name: "pending_token_authority";
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "system_program";
+            },
+          ];
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "claim_token_authority";
+      discriminator: [79, 88, 31, 151, 247, 235, 106, 175];
+      accounts: [
+        {
+          name: "common";
+          accounts: [
+            {
+              name: "config";
+            },
+            {
+              name: "mint";
+              writable: true;
+            },
+            {
+              name: "token_authority";
+            },
+            {
+              name: "rent_payer";
+              writable: true;
+            },
+            {
+              name: "pending_token_authority";
+              writable: true;
+            },
+            {
+              name: "token_program";
+            },
+            {
+              name: "system_program";
+            },
+          ];
+        },
+        {
+          name: "new_authority";
+          signer: true;
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "set_paused";
+      discriminator: [91, 60, 125, 192, 176, 225, 166, 218];
+      accounts: [
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "config";
+          writable: true;
+        },
+      ];
+      args: [
+        {
+          name: "pause";
+          type: "bool";
+        },
+      ];
+    },
+    {
+      name: "set_peer";
+      discriminator: [32, 70, 184, 229, 200, 115, 227, 177];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "config";
+        },
+        {
+          name: "peer";
+          writable: true;
+        },
+        {
+          name: "inbox_rate_limit";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "SetPeerArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "register_transceiver";
+      discriminator: [172, 141, 32, 200, 110, 135, 174, 119];
+      accounts: [
+        {
+          name: "config";
+          writable: true;
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "transceiver";
+          docs: ["used here that wraps the Transceiver account type."];
+        },
+        {
+          name: "registered_transceiver";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "set_outbound_limit";
+      discriminator: [218, 8, 1, 204, 167, 233, 10, 158];
+      accounts: [
+        {
+          name: "config";
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "rate_limit";
+          writable: true;
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "SetOutboundLimitArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "set_inbound_limit";
+      discriminator: [45, 97, 172, 137, 164, 31, 209, 89];
+      accounts: [
+        {
+          name: "config";
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "rate_limit";
+          writable: true;
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "SetInboundLimitArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "mark_outbox_item_as_released";
+      discriminator: [93, 152, 147, 221, 52, 245, 124, 107];
+      accounts: [
+        {
+          name: "signer";
+          signer: true;
+        },
+        {
+          name: "config";
+          accounts: [
+            {
+              name: "config";
+            },
+          ];
+        },
+        {
+          name: "outbox_item";
+          writable: true;
+        },
+        {
+          name: "transceiver";
+        },
+      ];
+      args: [];
+      returns: "bool";
+    },
+    {
+      name: "set_wormhole_peer";
+      discriminator: [97, 196, 136, 33, 56, 25, 65, 109];
+      accounts: [
+        {
+          name: "config";
+        },
+        {
+          name: "owner";
+          signer: true;
+        },
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "peer";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "SetTransceiverPeerArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "receive_wormhole_message";
+      discriminator: [134, 213, 143, 68, 235, 102, 232, 96];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "config";
+          accounts: [
+            {
+              name: "config";
+            },
+          ];
+        },
+        {
+          name: "peer";
+        },
+        {
+          name: "vaa";
+        },
+        {
+          name: "transceiver_message";
+          writable: true;
+        },
+        {
+          name: "system_program";
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "release_wormhole_outbound";
+      discriminator: [202, 87, 51, 173, 142, 160, 188, 204];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "config";
+          accounts: [
+            {
+              name: "config";
+            },
+          ];
+        },
+        {
+          name: "outbox_item";
+          writable: true;
+        },
+        {
+          name: "transceiver";
+        },
+        {
+          name: "wormhole_message";
+          writable: true;
+        },
+        {
+          name: "emitter";
+        },
+        {
+          name: "wormhole";
+          accounts: [
+            {
+              name: "bridge";
+              writable: true;
+            },
+            {
+              name: "fee_collector";
+              writable: true;
+            },
+            {
+              name: "sequence";
+              writable: true;
+            },
+            {
+              name: "program";
+            },
+            {
+              name: "system_program";
+            },
+            {
+              name: "clock";
+            },
+            {
+              name: "rent";
+            },
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "ReleaseOutboundArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "broadcast_wormhole_id";
+      discriminator: [199, 150, 145, 110, 189, 250, 86, 15];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "config";
+        },
+        {
+          name: "mint";
+        },
+        {
+          name: "wormhole_message";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "emitter";
+        },
+        {
+          name: "wormhole";
+          accounts: [
+            {
+              name: "bridge";
+              writable: true;
+            },
+            {
+              name: "fee_collector";
+              writable: true;
+            },
+            {
+              name: "sequence";
+              writable: true;
+            },
+            {
+              name: "program";
+            },
+            {
+              name: "system_program";
+            },
+            {
+              name: "clock";
+            },
+            {
+              name: "rent";
+            },
+          ];
+        },
+      ];
+      args: [];
+    },
+    {
+      name: "broadcast_wormhole_peer";
+      discriminator: [201, 172, 42, 33, 200, 176, 49, 27];
+      accounts: [
+        {
+          name: "payer";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "config";
+        },
+        {
+          name: "peer";
+        },
+        {
+          name: "wormhole_message";
+          writable: true;
+          signer: true;
+        },
+        {
+          name: "emitter";
+        },
+        {
+          name: "wormhole";
+          accounts: [
+            {
+              name: "bridge";
+              writable: true;
+            },
+            {
+              name: "fee_collector";
+              writable: true;
+            },
+            {
+              name: "sequence";
+              writable: true;
+            },
+            {
+              name: "program";
+            },
+            {
+              name: "system_program";
+            },
+            {
+              name: "clock";
+            },
+            {
+              name: "rent";
+            },
+          ];
+        },
+      ];
+      args: [
+        {
+          name: "args";
+          type: {
+            defined: {
+              name: "BroadcastPeerArgs";
+            };
+          };
+        },
+      ];
+    },
+  ];
+  accounts: [
+    {
+      name: "config";
+      discriminator: [155, 12, 170, 224, 30, 250, 204, 130];
+    },
+    {
+      name: "LUT";
+      discriminator: [112, 62, 48, 33, 152, 111, 231, 21];
+    },
+    {
+      name: "NttManagerPeer";
+      discriminator: [68, 173, 180, 96, 108, 182, 27, 82];
+    },
+    {
+      name: "PendingTokenAuthority";
+      discriminator: [38, 115, 222, 101, 171, 12, 242, 169];
+    },
+    {
+      name: "InboxItem";
+      discriminator: [237, 141, 204, 103, 187, 122, 57, 92];
+    },
+    {
+      name: "InboxRateLimit";
+      discriminator: [239, 208, 232, 202, 74, 7, 235, 252];
+    },
+    {
+      name: "OutboxItem";
+      discriminator: [8, 26, 126, 68, 121, 204, 188, 198];
+    },
+    {
+      name: "OutboxRateLimit";
+      discriminator: [90, 54, 0, 72, 47, 186, 27, 88];
+    },
+    {
+      name: "registeredTransceiver";
+      discriminator: [231, 104, 182, 96, 168, 43, 216, 20];
+    },
+    {
+      name: "TransceiverPeer";
+      discriminator: [178, 48, 7, 70, 2, 108, 85, 201];
+    },
+    {
+      name: "BridgeData";
+      discriminator: [44, 150, 210, 208, 130, 71, 35, 174];
+    },
+  ];
+  errors: [
+    {
+      code: 6000;
+      name: "CantReleaseYet";
+      msg: "CantReleaseYet";
+    },
+    {
+      code: 6001;
+      name: "InvalidPendingOwner";
+      msg: "InvalidPendingOwner";
+    },
+    {
+      code: 6002;
+      name: "InvalidChainId";
+      msg: "InvalidChainId";
+    },
+    {
+      code: 6003;
+      name: "InvalidRecipientAddress";
+      msg: "InvalidRecipientAddress";
+    },
+    {
+      code: 6004;
+      name: "InvalidTransceiverPeer";
+      msg: "InvalidTransceiverPeer";
+    },
+    {
+      code: 6005;
+      name: "InvalidNttManagerPeer";
+      msg: "InvalidNttManagerPeer";
+    },
+    {
+      code: 6006;
+      name: "InvalidRecipientNttManager";
+      msg: "InvalidRecipientNttManager";
+    },
+    {
+      code: 6007;
+      name: "TransferAlreadyRedeemed";
+      msg: "TransferAlreadyRedeemed";
+    },
+    {
+      code: 6008;
+      name: "TransferCannotBeRedeemed";
+      msg: "TransferCannotBeRedeemed";
+    },
+    {
+      code: 6009;
+      name: "TransferNotApproved";
+      msg: "TransferNotApproved";
+    },
+    {
+      code: 6010;
+      name: "MessageAlreadySent";
+      msg: "MessageAlreadySent";
+    },
+    {
+      code: 6011;
+      name: "InvalidMode";
+      msg: "InvalidMode";
+    },
+    {
+      code: 6012;
+      name: "InvalidMintAuthority";
+      msg: "InvalidMintAuthority";
+    },
+    {
+      code: 6013;
+      name: "TransferExceedsRateLimit";
+      msg: "TransferExceedsRateLimit";
+    },
+    {
+      code: 6014;
+      name: "Paused";
+      msg: "Paused";
+    },
+    {
+      code: 6015;
+      name: "DisabledTransceiver";
+      msg: "DisabledTransceiver";
+    },
+    {
+      code: 6016;
+      name: "InvalidDeployer";
+      msg: "InvalidDeployer";
+    },
+    {
+      code: 6017;
+      name: "BadAmountAfterTransfer";
+      msg: "BadAmountAfterTransfer";
+    },
+    {
+      code: 6018;
+      name: "BadAmountAfterBurn";
+      msg: "BadAmountAfterBurn";
+    },
+    {
+      code: 6019;
+      name: "ZeroThreshold";
+      msg: "ZeroThreshold";
+    },
+    {
+      code: 6020;
+      name: "OverflowExponent";
+      msg: "OverflowExponent";
+    },
+    {
+      code: 6021;
+      name: "OverflowScaledAmount";
+      msg: "OverflowScaledAmount";
+    },
+    {
+      code: 6022;
+      name: "BitmapIndexOutOfBounds";
+      msg: "BitmapIndexOutOfBounds";
+    },
+    {
+      code: 6023;
+      name: "NoregisteredTransceivers";
+      msg: "NoregisteredTransceivers";
+    },
+    {
+      code: 6024;
+      name: "NotPaused";
+      msg: "NotPaused";
+    },
+    {
+      code: 6025;
+      name: "InvalidPendingTokenAuthority";
+      msg: "InvalidPendingTokenAuthority";
+    },
+    {
+      code: 6026;
+      name: "IncorrectRentPayer";
+      msg: "IncorrectRentPayer";
+    },
+    {
+      code: 6027;
+      name: "InvalidMultisig";
+      msg: "InvalidMultisig";
+    },
+  ];
+  types: [
+    {
+      name: "Bitmap";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "map";
+            type: "u128";
+          },
+        ];
+      };
+    },
+    {
+      name: "SetInboundLimitArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "limit";
+            type: "u64";
+          },
+          {
+            name: "chain_id";
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "SetOutboundLimitArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "limit";
+            type: "u64";
+          },
+        ];
+      };
+    },
+    {
+      name: "SetPeerArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "chain_id";
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+          {
+            name: "address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "limit";
+            type: "u64";
+          },
+          {
+            name: "token_decimals";
+            docs: ["The token decimals on the peer chain."];
+            type: "u8";
+          },
+        ];
+      };
+    },
+    {
+      name: "InitializeArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "chain_id";
+            type: "u16";
+          },
+          {
+            name: "limit";
+            type: "u64";
+          },
+          {
+            name: "mode";
+            type: {
+              defined: {
+                name: "Mode";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "RedeemArgs";
+      type: {
+        kind: "struct";
+      };
+    },
+    {
+      name: "ReleaseInboundArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "revert_on_delay";
+            type: "bool";
+          },
+        ];
+      };
+    },
+    {
+      name: "TransferArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "amount";
+            type: "u64";
+          },
+          {
+            name: "recipient_chain";
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+          {
+            name: "recipient_address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "should_queue";
+            type: "bool";
+          },
+        ];
+      };
+    },
+    {
+      name: "ReleaseStatus";
+      docs: [
+        "The status of an InboxItem. This determines whether the tokens are minted/unlocked to the recipient. As",
+        "such, this must be used as a state machine that moves forward in a linear manner. A state",
+        'should never "move backward" to a previous state (e.g. should never move from `Released` to',
+        "`ReleaseAfter`).",
+      ];
+      type: {
+        kind: "enum";
+        variants: [
+          {
+            name: "NotApproved";
+          },
+          {
+            name: "ReleaseAfter";
+            fields: ["i64"];
+          },
+          {
+            name: "Released";
+          },
+        ];
+      };
+    },
+    {
+      name: "RateLimitState";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "limit";
+            docs: ["The maximum capacity of the rate limiter."];
+            type: "u64";
+          },
+          {
+            name: "capacity_at_last_tx";
+            docs: [
+              "The capacity of the rate limiter at `last_tx_timestamp`.",
+              "The actual current capacity is calculated in `capacity_at`, by",
+              "accounting for the time that has passed since `last_tx_timestamp` and",
+              "the refill rate.",
+            ];
+            type: "u64";
+          },
+          {
+            name: "last_tx_timestamp";
+            docs: [
+              "The timestamp of the last transaction that counted towards the current",
+              "capacity. Transactions that exceeded the capacity do not count, they are",
+              "just delayed.",
+            ];
+            type: "i64";
+          },
+        ];
+      };
+    },
+    {
+      name: "SetTransceiverPeerArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "chain_id";
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+          {
+            name: "address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "BroadcastPeerArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "chain_id";
+            type: "u16";
+          },
+        ];
+      };
+    },
+    {
+      name: "ReleaseOutboundArgs";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "revert_on_delay";
+            type: "bool";
+          },
+        ];
+      };
+    },
+    {
+      name: "ChainId";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "id";
+            type: "u16";
+          },
+        ];
+      };
+    },
+    {
+      name: "Mode";
+      type: {
+        kind: "enum";
+        variants: [
+          {
+            name: "Locking";
+          },
+          {
+            name: "Burning";
+          },
+        ];
+      };
+    },
+    {
+      name: "TrimmedAmount";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "amount";
+            type: "u64";
+          },
+          {
+            name: "decimals";
+            type: "u8";
+          },
+        ];
+      };
+    },
+    {
+      name: "BridgeConfig";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "guardian_set_expiration_time";
+            docs: [
+              "Period for how long a guardian set is valid after it has been replaced by a new one.  This",
+              "guarantees that VAAs issued by that set can still be submitted for a certain period.  In",
+              "this period we still trust the old guardian set.",
+            ];
+            type: "u32";
+          },
+          {
+            name: "fee";
+            docs: [
+              "Amount of lamports that needs to be paid to the protocol to post a message",
+            ];
+            type: "u64";
+          },
+        ];
+      };
+    },
+    {
+      name: "config";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "owner";
+            docs: ["Owner of the program."];
+            type: "pubkey";
+          },
+          {
+            name: "pending_owner";
+            docs: ["Pending next owner (before claiming ownership)."];
+            type: {
+              option: "pubkey";
+            };
+          },
+          {
+            name: "mint";
+            docs: ["Mint address of the token managed by this program."];
+            type: "pubkey";
+          },
+          {
+            name: "token_program";
+            docs: [
+              "Address of the token program (token or token22). This could always be queried",
+              "from the [`mint`] account's owner, but storing it here avoids an indirection",
+              "on the client side.",
+            ];
+            type: "pubkey";
+          },
+          {
+            name: "mode";
+            docs: [
+              "The mode that this program is running in. This is used to determine",
+              "whether the program is burning tokens or locking tokens.",
+            ];
+            type: {
+              defined: {
+                name: "Mode";
+              };
+            };
+          },
+          {
+            name: "chain_id";
+            docs: [
+              "The chain id of the chain that this program is running on. We don't",
+              "hardcode this so that the program is deployable on any potential SVM",
+              "forks.",
+            ];
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+          {
+            name: "next_transceiver_id";
+            docs: [
+              "The next transceiver id to use when registering an transceiver.",
+            ];
+            type: "u8";
+          },
+          {
+            name: "threshold";
+            docs: [
+              "The number of transceivers that must attest to a transfer before it is",
+              "accepted.",
+            ];
+            type: "u8";
+          },
+          {
+            name: "enabledTransceivers";
+            docs: [
+              "Bitmap of enabled transceivers.",
+              "The maximum number of transceivers is equal to [`Bitmap::BITS`].",
+            ];
+            type: {
+              defined: {
+                name: "Bitmap";
+              };
+            };
+          },
+          {
+            name: "paused";
+            docs: [
+              "Pause the program. This is useful for upgrades and other maintenance.",
+            ];
+            type: "bool";
+          },
+          {
+            name: "custody";
+            docs: ["The custody account that holds tokens in locking mode."];
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "LUT";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "address";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "NttManagerPeer";
+      docs: [
+        "A peer on another chain. Stored in a PDA seeded by the chain id.",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "token_decimals";
+            type: "u8";
+          },
+        ];
+      };
+    },
+    {
+      name: "PendingTokenAuthority";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "pending_authority";
+            type: "pubkey";
+          },
+          {
+            name: "rent_payer";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "InboxItem";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "init";
+            type: "bool";
+          },
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "amount";
+            type: "u64";
+          },
+          {
+            name: "recipient_address";
+            type: "pubkey";
+          },
+          {
+            name: "votes";
+            type: {
+              defined: {
+                name: "Bitmap";
+              };
+            };
+          },
+          {
+            name: "release_status";
+            type: {
+              defined: {
+                name: "ReleaseStatus";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "InboxRateLimit";
+      docs: [
+        "Inbound rate limit per chain.",
+        "SECURITY: must check the PDA (since there are multiple PDAs, namely one for each chain.)",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "rate_limit";
+            type: {
+              defined: {
+                name: "RateLimitState";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "OutboxItem";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "amount";
+            type: {
+              defined: {
+                name: "TrimmedAmount";
+              };
+            };
+          },
+          {
+            name: "sender";
+            type: "pubkey";
+          },
+          {
+            name: "recipient_chain";
+            type: {
+              defined: {
+                name: "ChainId";
+              };
+            };
+          },
+          {
+            name: "recipient_ntt_manager";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "recipient_address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+          {
+            name: "release_timestamp";
+            type: "i64";
+          },
+          {
+            name: "released";
+            type: {
+              defined: {
+                name: "Bitmap";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "OutboxRateLimit";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "rate_limit";
+            type: {
+              defined: {
+                name: "RateLimitState";
+              };
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "registeredTransceiver";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "id";
+            type: "u8";
+          },
+          {
+            name: "transceiverAddress";
+            type: "pubkey";
+          },
+        ];
+      };
+    },
+    {
+      name: "TransceiverPeer";
+      docs: [
+        "A peer on another chain. Stored in a PDA seeded by the chain id.",
+      ];
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "bump";
+            type: "u8";
+          },
+          {
+            name: "address";
+            type: {
+              array: ["u8", 32];
+            };
+          },
+        ];
+      };
+    },
+    {
+      name: "BridgeData";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "guardian_set_index";
+            docs: [
+              "The current guardian set index, used to decide which signature sets to accept.",
+            ];
+            type: "u32";
+          },
+          {
+            name: "last_lamports";
+            docs: ["Lamports in the collection account"];
+            type: "u64";
+          },
+          {
+            name: "config";
+            docs: [
+              "Bridge configuration, which is set once upon initialization.",
+            ];
+            type: {
+              defined: {
+                name: "BridgeConfig";
+              };
+            };
+          },
+        ];
+      };
+    },
+  ];
+};

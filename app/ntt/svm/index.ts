@@ -1,6 +1,7 @@
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import {
   Connection,
+  Keypair,
   Message,
   MessageV0,
   PublicKey,
@@ -11,6 +12,10 @@ import "@wormhole-foundation/sdk-definitions-ntt"; // register definition for pa
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { fromBytes, fromHex, padHex, sha256 } from "viem";
 import { NttHandler } from "..";
+
+import { Manager } from "./manager";
+import ManagerIdl from "./manager.json";
+import { AnchorProvider, BN, Program, Wallet, web3 } from "@coral-xyz/anchor";
 
 // borrowed from https://github.com/wormhole-foundation/wormhole-dashboard/blob/7ca085ed94a2573bcb2247e7e2d536c4989e47f1/watcher/src/utils/solana.ts
 export const isLegacyMessage = (
@@ -67,45 +72,46 @@ export async function getAllKeys(
   return accountKeys;
 }
 
+function checkBit(bn: BN, bitIndex: number) {
+  const mask = new BN(1).shln(bitIndex);
+  return bn.and(mask).gtn(0);
+}
+
 export const svmNttHandler: NttHandler = {
-  async getTransceivers(chainInfo, address, blockNumber) {
+  async getEnabledTransceivers(chainInfo, address, blockNumber) {
     const connection = new Connection(chainInfo.rpc);
     const programId = new PublicKey(fromHex(address, "bytes"));
-    // spec https://github.com/wormhole-foundation/native-token-transfers/blob/3311787ab22087f5c10ab08edb6a2a5e3f7afd77/solana/programs/example-native-token-transfers/src/registered_transceiver.rs#L3-L10
-    const registeredTransceiverDiscriminator = fromHex(
-      sha256(Buffer.from("account:RegisteredTransceiver")),
-      "bytes",
-    ).subarray(0, 8);
-    const registeredTransceiverAccounts = await connection.getProgramAccounts(
-      programId,
-      {
-        filters: [
-          { dataSize: 42 },
-          {
-            memcmp: {
-              offset: 0,
-              bytes: bs58.encode(registeredTransceiverDiscriminator),
-            },
-          },
-        ],
-      },
+    // create provider with dummy wallet
+    const provider = new AnchorProvider(
+      connection,
+      new Wallet(Keypair.generate()),
     );
-    const transceiverPubkeys = registeredTransceiverAccounts.map(
-      (t) => new PublicKey(t.account.data.subarray(10, 42)),
+    const overrideIdl = {
+      ...ManagerIdl,
+      address: programId.toString(),
+    };
+    const program = new Program<Manager>(overrideIdl as Manager, provider);
+    const config = await program.account.config.fetch(
+      PublicKey.findProgramAddressSync([Buffer.from("config")], programId)[0],
     );
-    const transceivers = [];
-    for (const pubkey of transceiverPubkeys) {
+    const registeredTransceiverAccounts =
+      await program.account.registeredTransceiver.all();
+    const enabledTransceiverPubkeys = registeredTransceiverAccounts
+      .filter((t) => checkBit(config.enabledTransceivers.map, t.account.id))
+      .map((t) => t.account.transceiverAddress);
+    const enabledTransceivers = [];
+    for (const pubkey of enabledTransceiverPubkeys) {
       // TODO: try calling transceiverType
       // https://github.com/wormhole-foundation/native-token-transfers/blob/3311787ab22087f5c10ab08edb6a2a5e3f7afd77/solana/ts/sdk/ntt.ts#L142-L143
       if (pubkey.equals(programId)) {
         // a self-referencing NTT program is assumed to be wormhole
-        transceivers.push({
+        enabledTransceivers.push({
           address: fromBytes(pubkey.toBytes(), "hex"),
           type: "wormhole",
         });
       }
     }
-    return transceivers;
+    return enabledTransceivers;
   },
   async getTransferMessages(chainInfo, hash, address, messageId) {
     const connection = new Connection(chainInfo.rpc);

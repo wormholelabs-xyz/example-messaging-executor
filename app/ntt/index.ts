@@ -1,7 +1,7 @@
 import { ChainInfo } from "../types";
 
 export type NttHandler = {
-  getTransceivers(
+  getEnabledTransceivers(
     chainInfo: ChainInfo,
     address: `0x${string}`,
     blockNumber?: bigint,

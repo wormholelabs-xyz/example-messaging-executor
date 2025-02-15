@@ -16,7 +16,7 @@ const sepoliaChainInfo = {
 
 test("getTransceivers", async () => {
   expect(
-    await evmNttHandler.getTransceivers(
+    await evmNttHandler.getEnabledTransceivers(
       sepoliaChainInfo,
       "0x06413c42e913327Bc9a08B7C1E362BAE7C0b9598",
       // 7707338n, // missing trie node
