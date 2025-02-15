@@ -1,8 +1,8 @@
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import { PublicKey } from "@solana/web3.js";
 import { expect, test } from "bun:test";
 import { fromBytes } from "viem";
-import { getTransferMessages } from ".";
-import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
+import { svmNttHandler } from ".";
 
 const solanaChainInfo = {
   chainId: 1,
@@ -15,11 +15,26 @@ const solanaChainInfo = {
   nativeDecimals: 9,
 };
 
+test("getTransceivers", async () => {
+  const programIdHex = fromBytes(
+    new PublicKey("nTTKNtbdt6WkS3igaGip9tezrBMzWHs4xeeqErDpUe4").toBytes(),
+    "hex",
+  );
+  expect(
+    await svmNttHandler.getTransceivers(solanaChainInfo, programIdHex),
+  ).toEqual([{ address: programIdHex, type: "wormhole" }]);
+});
+
 test("getTransactionMessages", async () => {
   expect(
-    await getTransferMessages(
+    await svmNttHandler.getTransferMessages(
       solanaChainInfo,
-      "44EAFCgtLZYkbw2yy8RJ2XuZaAvwMnNQPJuVYjcC1xvUwVWrzBvX3U4aGTTsNkGdAuEZEGh69f76Qt8V9u8kovLB",
+      fromBytes(
+        bs58.decode(
+          "44EAFCgtLZYkbw2yy8RJ2XuZaAvwMnNQPJuVYjcC1xvUwVWrzBvX3U4aGTTsNkGdAuEZEGh69f76Qt8V9u8kovLB",
+        ),
+        "hex",
+      ),
       fromBytes(
         new PublicKey("nTTKNtbdt6WkS3igaGip9tezrBMzWHs4xeeqErDpUe4").toBytes(),
         "hex",
