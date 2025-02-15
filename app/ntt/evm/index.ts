@@ -173,7 +173,7 @@ export async function getTransferMessages(
             if (messageId === hexId) {
               supportedMessages.push({
                 ...transceiver,
-                id: `${chainInfo.chainId}/${padHex(transceiver.address, { dir: "left", size: 32 }).substring(2)}/${(topic.args as any).sequence}`,
+                id: `${chainInfo.chainId}/${padHex(transceiver.address, { dir: "left", size: 32 }).substring(2)}/${(topic.args as any).sequence.toString()}`,
               });
             }
           }
