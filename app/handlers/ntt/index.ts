@@ -1,4 +1,4 @@
-import { ChainInfo } from "../types";
+import { ChainInfo } from "../../types";
 
 export type NttHandler = {
   getEnabledTransceivers(
