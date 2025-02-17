@@ -5,7 +5,7 @@ export type RequestForExecution = {
   quoterAddress: string;
   amtPaid: bigint;
   dstChain: number;
-  dstAddr: string;
+  dstAddr: `0x${string}`;
   refundAddr: string;
   signedQuoteBytes: string;
   requestBytes: string;
@@ -114,12 +114,22 @@ export class NTTv1Request {
   static prefix = "ERN1";
   static byteLength = 4 + 2 + 32 + 32;
   srcChain: number; // The source chain for the NTT transfer.
-  srcManager: string; // The source manager for the NTT transfer.
-  messageId: string; // The manager message id for the NTT transfer.
+  srcManager: `0x${string}`; // The source manager for the NTT transfer.
+  messageId: `0x${string}`; // The manager message id for the NTT transfer.
 
-  constructor(srcChain: number, srcManager: string, messageId: string) {
+  constructor(
+    srcChain: number,
+    srcManager: `0x${string}`,
+    messageId: `0x${string}`,
+  ) {
+    if (!srcManager.startsWith("0x")) {
+      throw new Error("invalid quoterAddress, must start with 0x");
+    }
     if (srcManager.replace("0x", "").length !== 64) {
       throw new Error("invalid address length");
+    }
+    if (!messageId.startsWith("0x")) {
+      throw new Error("invalid quoterAddress, must start with 0x");
     }
     if (messageId.replace("0x", "").length !== 64) {
       throw new Error("invalid address length");

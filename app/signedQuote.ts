@@ -35,7 +35,7 @@ export class SignedQuote {
   signature: string | undefined;
 
   constructor(
-    quoterAddress: string,
+    quoterAddress: `0x${string}`,
     payeeAddress: string,
     srcChain: number,
     dstChain: number,
@@ -58,7 +58,7 @@ export class SignedQuote {
     if (signature && signature.replace("0x", "").length !== 130) {
       throw new Error("invalid payeeAddress length");
     }
-    this.quoterAddress = quoterAddress as `0x${string}`;
+    this.quoterAddress = quoterAddress;
     this.payeeAddress = payeeAddress;
     this.srcChain = srcChain;
     this.dstChain = dstChain;

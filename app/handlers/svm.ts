@@ -5,13 +5,9 @@ import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 import bs58 from "bs58";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
-import {
-  ModularMessageRequest,
-  RequestForExecution,
-  VAAv1Request,
-} from "../requestForExecution";
+import { RequestForExecution } from "../requestForExecution";
 import { SignedQuote } from "../signedQuote";
-import { ChainInfo } from "../types";
+import { svmNttHandler } from "./ntt/svm";
 import { Relayer } from "./svm/relayer";
 import RelayerIdl from "./svm/relayer.json";
 import { getAllKeys, normalizeCompileInstruction } from "./svm/utils";
@@ -53,11 +49,12 @@ function parseInstructionData(data: Uint8Array): RequestForExecution | null {
 }
 
 export const svmHandler: Handler = {
-  getGasPrice: async (c: ChainInfo) => {
+  ...svmNttHandler,
+  getGasPrice: async (c) => {
     // TODO: get priority fee
     return BigInt("1000000");
   },
-  getRequest: async (c: ChainInfo, id: BinaryReader) => {
+  getRequest: async (c, id) => {
     const transactionHash = bs58.encode(id.readUint8Array(64));
     const connection = new web3.Connection(c.rpc, "confirmed");
     const res = await connection.getTransaction(transactionHash, {
@@ -90,12 +87,7 @@ export const svmHandler: Handler = {
     }
     return null;
   },
-  relayVAAv1: async (
-    c: ChainInfo,
-    r: RequestForExecution,
-    v: VAAv1Request,
-    b: string,
-  ) => {
+  relayVAAv1: async (c, r, v, b) => {
     if (!c.privateKey) {
       throw new Error(`No private key configured`);
     }
@@ -157,14 +149,10 @@ export const svmHandler: Handler = {
     );
     return sigs;
   },
-  relayMM: async (
-    c: ChainInfo,
-    r: RequestForExecution,
-    m: ModularMessageRequest,
-  ) => {
+  relayMM: async (c, r, m) => {
     if (!c.privateKey) {
       throw new Error(`No private key configured`);
     }
-    throw new Error("Unsupported");
+    throw new Error("unsupported");
   },
 };

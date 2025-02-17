@@ -19,12 +19,14 @@ import {
   VAAv1Request,
 } from "../requestForExecution";
 import { ChainInfo } from "../types";
+import { evmNttHandler } from "./ntt/evm";
 
 const REQUEST_FOR_EXECUTION_TOPIC = toEventHash(
   "RequestForExecution(address,uint256,uint16,bytes32,address,bytes,bytes,bytes)",
 );
 
 export const evmHandler: Handler = {
+  ...evmNttHandler,
   getGasPrice: async (c: ChainInfo) => {
     try {
       const client = createPublicClient({

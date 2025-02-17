@@ -6,9 +6,9 @@ import { fromBytes, fromHex, padHex } from "viem";
 import { NttHandler } from "..";
 
 import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
+import { getAllKeys } from "../../svm/utils";
 import { Manager } from "./manager";
 import ManagerIdl from "./manager.json";
-import { getAllKeys } from "../../svm/utils";
 
 function checkBit(bn: BN, bitIndex: number) {
   const mask = new BN(1).shln(bitIndex);
@@ -122,5 +122,17 @@ export const svmNttHandler: NttHandler = {
       }
     }
     return supportedMessages;
+  },
+
+  async relayNTTv1(c, r, n, t) {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    const transceivers = await this.getEnabledTransceivers(c, r.dstAddr);
+    // TODO: fund, use, and destroy ephemeral keypair for relay
+    const sigs: string[] = [];
+    // TODO: use SDK redeem method
+    throw new Error("unsupported");
+    // return sigs;
   },
 };

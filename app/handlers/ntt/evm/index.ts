@@ -2,6 +2,7 @@ import { deserializePayload } from "@wormhole-foundation/sdk-definitions";
 import "@wormhole-foundation/sdk-definitions-ntt"; // register definition for parsing
 import {
   createPublicClient,
+  createWalletClient,
   fromBytes,
   getContract,
   http,
@@ -9,7 +10,12 @@ import {
   padHex,
   parseEventLogs,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { NttHandler } from "..";
+import {
+  decodeRelayInstructions,
+  totalGasLimitAndMsgValue,
+} from "../../../relayInstructions";
 
 export const evmNttHandler: NttHandler = {
   async getEnabledTransceivers(chainInfo, address, blockNumber) {
@@ -174,5 +180,62 @@ export const evmNttHandler: NttHandler = {
       }
     }
     return supportedMessages;
+  },
+
+  async relayNTTv1(c, r, n, t) {
+    if (!c.privateKey) {
+      throw new Error(`No private key configured`);
+    }
+    const account = privateKeyToAccount(c.privateKey);
+    const publicClient = createPublicClient({
+      chain: c.evmChain,
+      transport: http(c.rpc),
+    });
+    const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
+    const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
+    const transceivers = await this.getEnabledTransceivers(c, r.dstAddr);
+    // TODO: use the total gas limit on the first request, then subtract that actual gas used for the second, repeat
+    const txs = [];
+    const deliveredIdxs: number[] = [];
+    for (const transceiverMessage of t) {
+      for (let tIdx = 0; tIdx < transceivers.length; tIdx++) {
+        if (!deliveredIdxs.includes(tIdx)) {
+          const transceiver = transceivers[tIdx];
+          if (transceiver.type === transceiverMessage.type) {
+            try {
+              if (transceiverMessage.type === "wormhole") {
+                // TODO: should this be more sophisticated? e.g. check transceiver registrations
+                const { request } = await publicClient.simulateContract({
+                  account,
+                  address: transceiver.address,
+                  gas: gasLimit,
+                  value: msgValue,
+                  abi: [
+                    {
+                      type: "function",
+                      name: "receiveMessage",
+                      inputs: [{ type: "bytes" }],
+                      outputs: [],
+                    },
+                  ],
+                  functionName: "receiveMessage",
+                  args: [
+                    `0x${Buffer.from(transceiverMessage.payload, "base64").toString("hex")}`,
+                  ],
+                });
+                const client = createWalletClient({
+                  account,
+                  chain: c.evmChain,
+                  transport: http(c.rpc),
+                });
+                txs.push(await client.writeContract(request));
+                deliveredIdxs.push(tIdx);
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+    return txs;
   },
 };
