@@ -9,6 +9,7 @@ import {
   isAddressEqual,
   padHex,
   parseEventLogs,
+  trim,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { NttHandler } from "..";
@@ -193,7 +194,12 @@ export const evmNttHandler: NttHandler = {
     });
     const relayInstructions = decodeRelayInstructions(r.relayInstructionsBytes);
     const { gasLimit, msgValue } = totalGasLimitAndMsgValue(relayInstructions);
-    const transceivers = await this.getEnabledTransceivers(c, r.dstAddr);
+    console.log(r.dstAddr, trim(r.dstAddr, { dir: "left" }));
+    const transceivers = await this.getEnabledTransceivers(
+      c,
+      padHex(trim(r.dstAddr, { dir: "left" }), { dir: "left", size: 20 }),
+    );
+    console.log(transceivers);
     // TODO: use the total gas limit on the first request, then subtract that actual gas used for the second, repeat
     const txs = [];
     const deliveredIdxs: number[] = [];
@@ -202,36 +208,43 @@ export const evmNttHandler: NttHandler = {
         if (!deliveredIdxs.includes(tIdx)) {
           const transceiver = transceivers[tIdx];
           if (transceiver.type === transceiverMessage.type) {
-            try {
-              if (transceiverMessage.type === "wormhole") {
-                // TODO: should this be more sophisticated? e.g. check transceiver registrations
-                const { request } = await publicClient.simulateContract({
-                  account,
-                  address: transceiver.address,
-                  gas: gasLimit,
-                  value: msgValue,
-                  abi: [
-                    {
-                      type: "function",
-                      name: "receiveMessage",
-                      inputs: [{ type: "bytes" }],
-                      outputs: [],
-                    },
-                  ],
-                  functionName: "receiveMessage",
-                  args: [
-                    `0x${Buffer.from(transceiverMessage.payload, "base64").toString("hex")}`,
-                  ],
-                });
-                const client = createWalletClient({
-                  account,
-                  chain: c.evmChain,
-                  transport: http(c.rpc),
-                });
-                txs.push(await client.writeContract(request));
-                deliveredIdxs.push(tIdx);
-              }
-            } catch (e) {}
+            if (transceiverMessage.type === "wormhole") {
+              // TODO: should this be more sophisticated? e.g. check transceiver registrations
+              const { request } = await publicClient.simulateContract({
+                account,
+                address: transceiver.address,
+                gas: gasLimit,
+                abi: [
+                  {
+                    inputs: [
+                      {
+                        internalType: "bytes",
+                        name: "encodedMessage",
+                        type: "bytes",
+                      },
+                    ],
+                    name: "receiveMessage",
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                  },
+                ],
+                functionName: "receiveMessage",
+                args: [
+                  fromBytes(
+                    Buffer.from(transceiverMessage.payload, "base64"),
+                    "hex",
+                  ),
+                ],
+              });
+              const client = createWalletClient({
+                account,
+                chain: c.evmChain,
+                transport: http(c.rpc),
+              });
+              txs.push(await client.writeContract(request));
+              deliveredIdxs.push(tIdx);
+            }
           }
         }
       }

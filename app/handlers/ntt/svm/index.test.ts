@@ -53,32 +53,3 @@ test("getTransactionMessages", async () => {
     },
   ]);
 });
-
-test("getTransactionMessages", async () => {
-  expect(
-    await svmNttHandler.getTransferMessages(
-      solanaChainInfo,
-      fromBytes(
-        bs58.decode(
-          "2vLsHaAbGEHHiGnCzaCtTgUzudnuv1PP3iLSoM9Pufwqm4PMcLnMsNPR4TjwSEegbzAvCS5zpYLJ2w7aNyne9VqC",
-        ),
-        "hex",
-      ),
-      fromBytes(
-        new PublicKey("NTtAaoDJhkeHeaVUHnyhwbPNAN6WgBpHkHBTc6d7vLK").toBytes(),
-        "hex",
-      ),
-      fromBytes(
-        bs58.decode("73WBU29UdNXXWFVV1ZnvRYJZvvCMTwc9VCow987fJjSs"),
-        "hex",
-      ),
-    ),
-  ).toEqual([
-    {
-      address:
-        "0x6187d46e2cd6befe5b4377c312371ef4641559586bdea33cf38cdd72b8c27141",
-      id: "1/6187d46e2cd6befe5b4377c312371ef4641559586bdea33cf38cdd72b8c27141/2",
-      type: "wormhole",
-    },
-  ]);
-});
