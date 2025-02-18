@@ -8,6 +8,7 @@ import { BinaryReader, hexToUint8Array } from "./BinaryReader";
 import { MAX_U64 } from "./BinaryWriter";
 import { Handler } from "./handlers";
 import { evmHandler } from "./handlers/evm";
+import { NttTransceiverPayload } from "./handlers/ntt";
 import { svmHandler } from "./handlers/svm";
 import {
   decodeRelayInstructions,
@@ -15,6 +16,7 @@ import {
 } from "./relayInstructions";
 import {
   ModularMessageRequest,
+  NTTv1Request,
   RequestForExecution,
   VAAv1Request,
 } from "./requestForExecution";
@@ -66,6 +68,7 @@ const CHAIN_TO_INFO: {
   [id: number]: ChainInfoWithHandler;
 } = {
   1: {
+    chainId: 1,
     rpc: "https://api.devnet.solana.com",
     handler: svmHandler,
     baseFee: 1000n,
@@ -77,6 +80,7 @@ const CHAIN_TO_INFO: {
     privateKey: SOL_KEY,
   },
   6: {
+    chainId: 6,
     rpc: "https://avalanche-fuji-c-chain-rpc.publicnode.com",
     handler: evmHandler,
     baseFee: 1000n,
@@ -89,6 +93,7 @@ const CHAIN_TO_INFO: {
     privateKey: ETH_KEY,
   },
   10002: {
+    chainId: 10002,
     rpc: "https://ethereum-sepolia-rpc.publicnode.com",
     handler: evmHandler,
     baseFee: 1000n,
@@ -96,7 +101,7 @@ const CHAIN_TO_INFO: {
     payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
     gasPriceDecimals: 18,
     nativeDecimals: 18,
-    executorAddress: "0xB67841A38bF16EB9999dC7B6015746506e20F0aA",
+    executorAddress: "0xeB7c60d5befAf288D17984c586E295b157f1746c",
     evmChain: sepolia,
     privateKey: ETH_KEY,
   },
@@ -182,16 +187,46 @@ async function relayVAAv1(r: RequestForExecution, v: VAAv1Request) {
   const dstInfo = CHAIN_TO_INFO[r.dstChain];
   return dstInfo.handler.relayVAAv1(dstInfo, r, v, bytes);
 }
+async function relayNTTv1(r: RequestForExecution, n: NTTv1Request, id: string) {
+  // TODO: fetch this when initially status-ing
+  const srcInfo = CHAIN_TO_INFO[n.srcChain];
+  // TODO: get transfer messages should take the ID and handle parsing there
+  // TODO: same with src manager being 32 bytes
+  const messages = await srcInfo.handler.getTransferMessages(
+    srcInfo,
+    `0x${n.srcChain === 1 ? id.substring(4, 132) : id.substring(4, 68)}`,
+    n.srcChain === 1 ? n.srcManager : `0x${n.srcManager.substring(26)}`,
+    n.messageId,
+  );
+  console.log(messages);
+  // TODO: type this
+  const messagesWithPayloads: NttTransceiverPayload[] = [];
+  for (const message of messages) {
+    // TODO: strict message types
+    if (message.type === "wormhole") {
+      const payload = (
+        await axios.get(`${GUARDIAN_URL}/v1/signed_vaa/${message.id}`)
+      ).data?.vaaBytes;
+      if (!payload) {
+        throw new Error(`unable to fetch VAA ${message.id}`);
+      }
+      messagesWithPayloads.push({ ...message, payload });
+    }
+  }
+  console.log(messagesWithPayloads);
+  const dstInfo = CHAIN_TO_INFO[r.dstChain];
+  return dstInfo.handler.relayNTTv1(dstInfo, r, n, messagesWithPayloads);
+}
 async function relayMM(r: RequestForExecution, m: ModularMessageRequest) {
   const dstInfo = CHAIN_TO_INFO[r.dstChain];
   return dstInfo.handler.relayMM(dstInfo, r, m);
 }
 const relays: {
   [id: string]: {
-    status: string;
+    status: "underpaid" | "unsupported" | "pending" | "submitted" | "failed";
     requestForExecution: RequestForExecution;
     txs: string[];
-    instruction?: VAAv1Request | ModularMessageRequest;
+    instruction?: VAAv1Request | NTTv1Request | ModularMessageRequest;
   };
 } = {};
 const pendingRelays: string[] = [];
@@ -208,6 +243,10 @@ async function relayNext(logger: Logger) {
         const txs = await relayVAAv1(r.requestForExecution, r.instruction);
         relays[id].status = "submitted";
         relays[id].txs.push(...txs);
+      } else if (r.instruction instanceof NTTv1Request) {
+        const txs = await relayNTTv1(r.requestForExecution, r.instruction, id);
+        relays[id].status = "submitted";
+        relays[id].txs.push(...txs);
       } else if (r.instruction instanceof ModularMessageRequest) {
         const txs = await relayMM(r.requestForExecution, r.instruction);
         relays[id].status = "submitted";
@@ -220,6 +259,8 @@ async function relayNext(logger: Logger) {
       // TODO: handle this better
       if (e?.message?.includes("reverted")) {
         relays[id].status = "failed";
+      } else if (e?.message?.includes("unsupported")) {
+        relays[id].status = "unsupported";
       } else {
         pendingRelays.push(id);
       }
@@ -297,7 +338,7 @@ app.get("/v0/quote/:srcChain/:dstChain", async (req, res) => {
     return;
   }
   try {
-    const dstGasPrice = await dstInfo.handler.getGasPrice(dstInfo.rpc);
+    const dstGasPrice = await dstInfo.handler.getGasPrice(dstInfo);
     const { srcPrice, dstPrice } = await getPrices(
       srcInfo.coingeckoId,
       dstInfo.coingeckoId,
@@ -427,8 +468,7 @@ app.get("/v0/status/:id", async (req, res) => {
       return;
     }
     const requestForExecution = await srcInfo.handler.getRequest(
-      srcInfo.rpc,
-      srcInfo.executorAddress,
+      srcInfo,
       reader,
     );
     if (!requestForExecution) {
@@ -462,15 +502,23 @@ app.get("/v0/status/:id", async (req, res) => {
       srcInfo.nativeDecimals,
       dstInfo.nativeDecimals,
     );
-    let instruction: VAAv1Request | ModularMessageRequest | undefined;
+    let instruction:
+      | VAAv1Request
+      | NTTv1Request
+      | ModularMessageRequest
+      | undefined;
     try {
       instruction = VAAv1Request.from(requestForExecution.requestBytes);
     } catch (e) {
       try {
-        instruction = ModularMessageRequest.from(
-          requestForExecution.requestBytes,
-        );
-      } catch (e) {}
+        instruction = NTTv1Request.from(requestForExecution.requestBytes);
+      } catch (e) {
+        try {
+          instruction = ModularMessageRequest.from(
+            requestForExecution.requestBytes,
+          );
+        } catch (e) {}
+      }
     }
     const status =
       requestForExecution.amtPaid < estimate

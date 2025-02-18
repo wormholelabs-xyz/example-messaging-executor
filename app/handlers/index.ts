@@ -5,12 +5,12 @@ import {
   VAAv1Request,
 } from "../requestForExecution";
 import { ChainInfo } from "../types";
+import { NttHandler } from "./ntt";
 
-export type Handler = {
-  getGasPrice: (rpc: string) => Promise<bigint>;
+export interface Handler extends NttHandler {
+  getGasPrice: (c: ChainInfo) => Promise<bigint>;
   getRequest: (
-    rpc: string,
-    executorAddress: string,
+    c: ChainInfo,
     id: BinaryReader,
   ) => Promise<RequestForExecution | null>;
   relayVAAv1(
@@ -24,4 +24,4 @@ export type Handler = {
     r: RequestForExecution,
     m: ModularMessageRequest,
   ): Promise<string[]>;
-};
+}

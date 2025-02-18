@@ -5,7 +5,7 @@ export type RequestForExecution = {
   quoterAddress: string;
   amtPaid: bigint;
   dstChain: number;
-  dstAddr: string;
+  dstAddr: `0x${string}`;
   refundAddr: string;
   signedQuoteBytes: string;
   requestBytes: string;
@@ -106,6 +106,61 @@ export class VAAv1Request {
       .writeUint16(this.chain)
       .writeHex(this.address)
       .writeUint64(this.sequence)
+      .toHex();
+  }
+}
+
+export class NTTv1Request {
+  static prefix = "ERN1";
+  static byteLength = 4 + 2 + 32 + 32;
+  srcChain: number; // The source chain for the NTT transfer.
+  srcManager: `0x${string}`; // The source manager for the NTT transfer.
+  messageId: `0x${string}`; // The manager message id for the NTT transfer.
+
+  constructor(
+    srcChain: number,
+    srcManager: `0x${string}`,
+    messageId: `0x${string}`,
+  ) {
+    if (!srcManager.startsWith("0x")) {
+      throw new Error("invalid quoterAddress, must start with 0x");
+    }
+    if (srcManager.replace("0x", "").length !== 64) {
+      throw new Error("invalid address length");
+    }
+    if (!messageId.startsWith("0x")) {
+      throw new Error("invalid quoterAddress, must start with 0x");
+    }
+    if (messageId.replace("0x", "").length !== 64) {
+      throw new Error("invalid address length");
+    }
+    this.srcChain = srcChain;
+    this.srcManager = srcManager;
+    this.messageId = messageId;
+  }
+
+  static from(bytes: string): NTTv1Request {
+    const reader = new BinaryReader(bytes);
+    if (reader.length() !== NTTv1Request.byteLength) {
+      throw new Error("invalid request length");
+    }
+    const prefix = reader.readString(4);
+    if (prefix !== NTTv1Request.prefix) {
+      throw new Error("invalid request prefix");
+    }
+    return new NTTv1Request(
+      reader.readUint16(),
+      reader.readHex(32),
+      reader.readHex(32),
+    );
+  }
+
+  serialize(): string {
+    return new BinaryWriter()
+      .writeUint8Array(Buffer.from(NTTv1Request.prefix))
+      .writeUint16(this.srcChain)
+      .writeHex(this.srcManager)
+      .writeHex(this.messageId)
       .toHex();
   }
 }

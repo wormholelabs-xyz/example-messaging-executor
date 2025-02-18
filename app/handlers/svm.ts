@@ -1,22 +1,20 @@
 import { AnchorProvider, Program, Wallet, web3 } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 import { deserialize } from "@wormhole-foundation/sdk-definitions";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import axios from "axios";
 import bs58 from "bs58";
 import { Handler } from ".";
 import { BinaryReader } from "../BinaryReader";
-import {
-  ModularMessageRequest,
-  RequestForExecution,
-  VAAv1Request,
-} from "../requestForExecution";
+import { RequestForExecution } from "../requestForExecution";
 import { SignedQuote } from "../signedQuote";
-import { ChainInfo } from "../types";
+import { svmNttHandler } from "./ntt/svm";
 import { Relayer } from "./svm/relayer";
 import RelayerIdl from "./svm/relayer.json";
+import { getAllKeys, normalizeCompileInstruction } from "./svm/utils";
+import { fromHex } from "viem";
 
-function parseInstructionData(data: string): RequestForExecution | null {
-  const reader = new BinaryReader(bs58.decode(data));
+function parseInstructionData(data: Uint8Array): RequestForExecution | null {
+  const reader = new BinaryReader(data);
   const discriminator = reader.readHex(8);
   if (discriminator === "0x6d6b572597c07773") {
     // amount: u64,
@@ -52,54 +50,45 @@ function parseInstructionData(data: string): RequestForExecution | null {
 }
 
 export const svmHandler: Handler = {
-  getGasPrice: async (rpc: string) => {
+  ...svmNttHandler,
+  getGasPrice: async (c) => {
     // TODO: get priority fee
     return BigInt("1000000");
   },
-  getRequest: async (
-    rpc: string,
-    executorAddress: string,
-    id: BinaryReader,
-  ) => {
+  getRequest: async (c, id) => {
     const transactionHash = bs58.encode(id.readUint8Array(64));
-    // TODO: fetch with sdk / handle versioned transactions
-    const response = await axios.post(rpc, {
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getTransaction",
-      params: [transactionHash, "json"],
+    const connection = new web3.Connection(c.rpc, "confirmed");
+    const res = await connection.getTransaction(transactionHash, {
+      maxSupportedTransactionVersion: 0,
     });
-    if ("Ok" in response.data?.result?.meta?.status) {
+    if (res && res.meta && res.meta.err === null) {
       // TODO: this code picks up the first executor instruction in a transaction
-      // TODO: use account lookup code from watcher
-      const accountKeys =
-        response.data.result.transaction?.message?.accountKeys;
-      const executorIndex = accountKeys.indexOf(executorAddress);
+      const accountKeys = await getAllKeys(connection, res);
+      const executorPubkey = new PublicKey(c.executorAddress);
+      const executorIndex = accountKeys.findIndex((a) =>
+        a.equals(executorPubkey),
+      );
       if (executorIndex >= 0) {
-        const topIxs = response.data.result.transaction.message.instructions;
+        const topIxs = res.transaction.message.compiledInstructions;
         for (const ix of topIxs) {
           if (ix.programIdIndex === executorIndex) {
             return parseInstructionData(ix.data);
           }
         }
-        const innerIxs = response.data.result.meta.innerInstructions;
-        for (const inner of innerIxs) {
-          for (const ix of inner.instructions) {
-            if (ix.programIdIndex === executorIndex) {
-              return parseInstructionData(ix.data);
-            }
+        const innerIxs =
+          res.meta?.innerInstructions?.flatMap((i) =>
+            i.instructions.map(normalizeCompileInstruction),
+          ) || [];
+        for (const innerIx of innerIxs) {
+          if (innerIx.programIdIndex === executorIndex) {
+            return parseInstructionData(innerIx.data);
           }
         }
       }
     }
     return null;
   },
-  relayVAAv1: async (
-    c: ChainInfo,
-    r: RequestForExecution,
-    v: VAAv1Request,
-    b: string,
-  ) => {
+  relayVAAv1: async (c, r, v, b) => {
     if (!c.privateKey) {
       throw new Error(`No private key configured`);
     }
@@ -109,15 +98,11 @@ export const svmHandler: Handler = {
     const sigLength = 66;
     const vaaBody = vaa.subarray(sigStart + sigLength * numSigners);
     const connection = new web3.Connection(c.rpc, "confirmed");
-    const payer = web3.Keypair.fromSecretKey(
-      new Uint8Array(Buffer.from(c.privateKey.substring(2), "hex")),
-    );
+    const payer = web3.Keypair.fromSecretKey(fromHex(c.privateKey, "bytes"));
     const provider = new AnchorProvider(connection, new Wallet(payer));
     const overrideIdl = {
       ...RelayerIdl,
-      address: new web3.PublicKey(
-        Buffer.from(r.dstAddr.substring(2), "hex"),
-      ).toString(),
+      address: new web3.PublicKey(fromHex(r.dstAddr, "bytes")).toString(),
     };
     const program = new Program<Relayer>(overrideIdl as Relayer, provider);
     const result = await program.methods.executeVaaV1(vaaBody).view();
@@ -161,14 +146,10 @@ export const svmHandler: Handler = {
     );
     return sigs;
   },
-  relayMM: async (
-    c: ChainInfo,
-    r: RequestForExecution,
-    m: ModularMessageRequest,
-  ) => {
+  relayMM: async (c, r, m) => {
     if (!c.privateKey) {
       throw new Error(`No private key configured`);
     }
-    throw new Error("Unsupported");
+    throw new Error("unsupported");
   },
 };
