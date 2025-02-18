@@ -45,11 +45,10 @@ export const evmHandler: Handler = {
     });
     // e.g. 0x4ffd22d986913d33927a392fe4319bcd2b62f3afe1c15a2c59f77fc2cc4c20a9
     const hash = id.readHex(32);
+    // TODO: should logIndex be the index in the tx or the block?
     const logIndex = id.readUint256();
     const transaction = await client.getTransactionReceipt({ hash });
-    const log = transaction.logs.find(
-      (log) => BigInt(log.logIndex) === logIndex,
-    );
+    const log = transaction.logs[Number(logIndex)];
     if (
       log &&
       log.removed === false &&

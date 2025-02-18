@@ -101,7 +101,7 @@ const CHAIN_TO_INFO: {
     payeeAddress: "0x000000000000000000000000" + ETH_PUBLIC_KEY.substring(2),
     gasPriceDecimals: 18,
     nativeDecimals: 18,
-    executorAddress: "0xB67841A38bF16EB9999dC7B6015746506e20F0aA",
+    executorAddress: "0xeB7c60d5befAf288D17984c586E295b157f1746c",
     evmChain: sepolia,
     privateKey: ETH_KEY,
   },
@@ -191,10 +191,11 @@ async function relayNTTv1(r: RequestForExecution, n: NTTv1Request, id: string) {
   // TODO: fetch this when initially status-ing
   const srcInfo = CHAIN_TO_INFO[n.srcChain];
   // TODO: get transfer messages should take the ID and handle parsing there
+  // TODO: same with src manager being 32 bytes
   const messages = await srcInfo.handler.getTransferMessages(
     srcInfo,
-    `0x${id.substring(4, 132)}`,
-    n.srcManager,
+    `0x${n.srcChain === 1 ? id.substring(4, 132) : id.substring(4, 68)}`,
+    n.srcChain === 1 ? n.srcManager : `0x${n.srcManager.substring(26)}`,
     n.messageId,
   );
   console.log(messages);

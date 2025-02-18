@@ -160,23 +160,27 @@ export const svmNttHandler: NttHandler = {
         transceiver: transceivers.reduce(
           (obj, t) => ({
             ...obj,
-            [t.type]: new PublicKey(fromHex(t.address, "bytes")),
+            [t.type]: new PublicKey(fromHex(t.address, "bytes")).toString(),
           }),
           {},
         ),
       },
     };
-    console.log(contracts);
-    const ntt = await s.getProtocol("Ntt");
+    const ntt = await s.getProtocol("Ntt", contracts);
     const txs = ntt.redeem(
-      [deserialize("Ntt:WormholeTransfer", "")],
+      // TODO: this code only implicitly handles wormhole types, but the underlying type only supports wormhole types
+      t.map((p) =>
+        deserialize("Ntt:WormholeTransfer", Buffer.from(p.payload, "base64")),
+      ),
       new SolanaAddress(payer.publicKey),
     );
     for await (const tx of txs) {
-      const hash = await provider.sendAndConfirm(
-        tx.transaction.transaction,
-        tx.transaction.signers,
-        { commitment: "confirmed" },
+      sigs.push(
+        await provider.sendAndConfirm(
+          tx.transaction.transaction,
+          tx.transaction.signers,
+          { commitment: "confirmed" },
+        ),
       );
     }
     return sigs;

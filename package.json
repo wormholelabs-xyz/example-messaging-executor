@@ -11,6 +11,7 @@
     "@wormhole-foundation/sdk-definitions": "1.5.2",
     "@wormhole-foundation/sdk-definitions-ntt": "^0.6.1",
     "@wormhole-foundation/sdk-solana-core": "1.5.2",
+    "@wormhole-foundation/sdk-solana-ntt": "^0.6.1",
     "axios": "^1.7.7",
     "bs58": "^6.0.0",
     "express": "^4.21.2",
