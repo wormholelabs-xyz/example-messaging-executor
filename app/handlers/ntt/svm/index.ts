@@ -1,11 +1,13 @@
+import { AnchorProvider, BN, Program, Wallet, web3 } from "@coral-xyz/anchor";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { deserialize, Wormhole } from "@wormhole-foundation/sdk-connect";
 import "@wormhole-foundation/sdk-definitions-ntt"; // register definition for parsing
+import { SolanaAddress, SolanaPlatform } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
+import "@wormhole-foundation/sdk-solana-ntt"; // register solana
 import { fromBytes, fromHex, padHex } from "viem";
 import { NttHandler } from "..";
-
-import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
 import { getAllKeys } from "../../svm/utils";
 import { Manager } from "./manager";
 import ManagerIdl from "./manager.json";
@@ -129,10 +131,54 @@ export const svmNttHandler: NttHandler = {
       throw new Error(`No private key configured`);
     }
     const transceivers = await this.getEnabledTransceivers(c, r.dstAddr);
+
     // TODO: fund, use, and destroy ephemeral keypair for relay
     const sigs: string[] = [];
-    // TODO: use SDK redeem method
-    throw new Error("unsupported");
-    // return sigs;
+    const connection = new web3.Connection(c.rpc, "confirmed");
+    const programId = new PublicKey(fromHex(r.dstAddr, "bytes"));
+    const payer = web3.Keypair.fromSecretKey(fromHex(c.privateKey, "bytes"));
+    const provider = new AnchorProvider(connection, new Wallet(payer));
+
+    // get mint from config
+    // TODO: avoid fetching config twice (also fetched by getEnabledTransceivers)
+    const overrideIdl = {
+      ...ManagerIdl,
+      address: programId.toString(),
+    };
+    const program = new Program<Manager>(overrideIdl as Manager, provider);
+    const config = await program.account.config.fetch(
+      PublicKey.findProgramAddressSync([Buffer.from("config")], programId)[0],
+    );
+
+    const wh = new Wormhole("Testnet", [SolanaPlatform]);
+    const s = wh.getChain("Solana");
+    const contracts = {
+      ntt: {
+        chain: "Solana", // TODO: chain id to chain?
+        manager: programId.toString(),
+        token: config.mint.toString(),
+        transceiver: transceivers.reduce(
+          (obj, t) => ({
+            ...obj,
+            [t.type]: new PublicKey(fromHex(t.address, "bytes")),
+          }),
+          {},
+        ),
+      },
+    };
+    console.log(contracts);
+    const ntt = await s.getProtocol("Ntt");
+    const txs = ntt.redeem(
+      [deserialize("Ntt:WormholeTransfer", "")],
+      new SolanaAddress(payer.publicKey),
+    );
+    for await (const tx of txs) {
+      const hash = await provider.sendAndConfirm(
+        tx.transaction.transaction,
+        tx.transaction.signers,
+        { commitment: "confirmed" },
+      );
+    }
+    return sigs;
   },
 };

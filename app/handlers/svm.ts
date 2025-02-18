@@ -11,6 +11,7 @@ import { svmNttHandler } from "./ntt/svm";
 import { Relayer } from "./svm/relayer";
 import RelayerIdl from "./svm/relayer.json";
 import { getAllKeys, normalizeCompileInstruction } from "./svm/utils";
+import { fromHex } from "viem";
 
 function parseInstructionData(data: Uint8Array): RequestForExecution | null {
   const reader = new BinaryReader(data);
@@ -97,15 +98,11 @@ export const svmHandler: Handler = {
     const sigLength = 66;
     const vaaBody = vaa.subarray(sigStart + sigLength * numSigners);
     const connection = new web3.Connection(c.rpc, "confirmed");
-    const payer = web3.Keypair.fromSecretKey(
-      new Uint8Array(Buffer.from(c.privateKey.substring(2), "hex")),
-    );
+    const payer = web3.Keypair.fromSecretKey(fromHex(c.privateKey, "bytes"));
     const provider = new AnchorProvider(connection, new Wallet(payer));
     const overrideIdl = {
       ...RelayerIdl,
-      address: new web3.PublicKey(
-        Buffer.from(r.dstAddr.substring(2), "hex"),
-      ).toString(),
+      address: new web3.PublicKey(fromHex(r.dstAddr, "bytes")).toString(),
     };
     const program = new Program<Relayer>(overrideIdl as Relayer, provider);
     const result = await program.methods.executeVaaV1(vaaBody).view();
