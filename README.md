@@ -128,6 +128,8 @@ A Relay Provider MUST watch for or otherwise status:
 - Request for Execution events in order to perform the requested executions per their SLA.
 - Add Relay Instructions events in order to support providing additional payment for transactions which are invalid due to underpayment or fail due to insufficient gas errors.
 
+> 💡 Note: There is no inherent on-chain protection against repeating relay attempts. Such a mechanism is entirely up to the discretion of the Relay Provider.
+
 #### Executor Contract
 
 On every supported chain, there will exist a stateless, permissionless, Executor Contract which can be used to make an Execution Request given an Execution Quote.
