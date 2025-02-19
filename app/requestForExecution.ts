@@ -55,6 +55,10 @@ export class ModularMessageRequest {
     return new ModularMessageRequest(chain, address, sequence, payload);
   }
 
+  toJSON() {
+    return { ...this, prefix: ModularMessageRequest.prefix };
+  }
+
   serialize(): string {
     const payload = hexToUint8Array(this.payload);
     return new BinaryWriter()
@@ -98,6 +102,10 @@ export class VAAv1Request {
       reader.readHex(32),
       reader.readUint64(),
     );
+  }
+
+  toJSON() {
+    return { ...this, prefix: VAAv1Request.prefix };
   }
 
   serialize(): string {
@@ -153,6 +161,10 @@ export class NTTv1Request {
       reader.readHex(32),
       reader.readHex(32),
     );
+  }
+
+  toJSON() {
+    return { ...this, prefix: NTTv1Request.prefix };
   }
 
   serialize(): string {

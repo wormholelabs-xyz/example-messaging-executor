@@ -5,6 +5,13 @@ import {
   VAAv1Request,
 } from "./requestForExecution";
 
+// Serialize BigInts as strings in responses
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unreachable code error
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
+
 const mockManager =
   "0x1234123412341234123412341234123412341234123412341234123412341234";
 const mockMessageId =
@@ -25,6 +32,7 @@ test("ModularMessageRequest", () => {
     "0x45524d3100011234123412341234123412341234123412341234123412341234123412341234000000000000002a0000000b68656c6c6f20776f726c64",
   );
   expect(ModularMessageRequest.from(ser).serialize()).toBe(ser);
+  expect(JSON.stringify(r)).toInclude('prefix":"ERM1"');
 });
 
 test("VAAv1Request", () => {
@@ -38,6 +46,7 @@ test("VAAv1Request", () => {
     "0x4552563100011234123412341234123412341234123412341234123412341234123412341234000000000000002a",
   );
   expect(VAAv1Request.from(ser).serialize()).toBe(ser);
+  expect(JSON.stringify(r)).toInclude('prefix":"ERV1"');
 });
 
 test("NTTv1Request", () => {
@@ -51,4 +60,5 @@ test("NTTv1Request", () => {
     "0x45524e31000112341234123412341234123412341234123412341234123412341234123412344567456745674567456745674567456745674567456745674567456745674567",
   );
   expect(NTTv1Request.from(ser).serialize()).toBe(ser);
+  expect(JSON.stringify(r)).toInclude('prefix":"ERN1"');
 });
