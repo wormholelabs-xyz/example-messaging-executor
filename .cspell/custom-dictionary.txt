@@ -1,5 +1,6 @@
 # Custom Dictionary Words
 Aptos
+CCTP
 Devnet
 hashv
 idls
