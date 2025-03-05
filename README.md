@@ -205,6 +205,23 @@ uint32  payloadLen       // Length of the payload
 bytes   payload          // The full payload, the keccak of which was sent to `endpoint.sendMessage`
 ```
 
+##### NTT v1 Request
+
+```solidity
+bytes4  prefix = "ERN1" // 4-byte prefix for this struct
+uint16  srcChain
+bytes32 srcManager
+bytes32 messageId
+```
+
+##### CCTP v1 Request
+
+```solidity
+bytes4  prefix = "ERC1" // 4-byte prefix for this struct
+uint32  sourceDomain
+uint64  nonce
+```
+
 #### Relay Instructions
 
 ##### Gas Instruction

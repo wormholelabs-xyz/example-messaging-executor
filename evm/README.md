@@ -46,6 +46,54 @@ executor.requestExecution{value: executionAmount}(
 
 <!-- cspell:enable -->
 
+#### Example v1 NTT Request
+
+<!-- cspell:disable -->
+
+```solidity
+import "example-messaging-executor/evm/src/interfaces/IExecutor.sol";
+import "example-messaging-executor/evm/src/libraries/ExecutorMessages.sol";
+...
+uint64 msgId = nttm.transfer{value: msg.value - executorArgs.value}(
+    amount, recipientChain, recipientAddress, refundAddress, shouldQueue, encodedInstructions
+);
+
+executor.requestExecution{value: executorArgs.value}(
+    recipientChain,
+    nttm.getPeer(recipientChain).peerAddress,
+    executorArgs.refundAddress,
+    executorArgs.signedQuote,
+    ExecutorMessages.makeNTTv1Request(
+        chainId, bytes32(uint256(uint160(address(nttm)))), bytes32(uint256(msgId))
+    ),
+    executorArgs.instructions
+);
+```
+
+<!-- cspell:enable -->
+
+#### Example v1 CCTP Request
+
+<!-- cspell:disable -->
+
+```solidity
+import "example-messaging-executor/evm/src/interfaces/IExecutor.sol";
+import "example-messaging-executor/evm/src/libraries/ExecutorMessages.sol";
+...
+uint64 nonce = circleTokenMessenger.depositForBurn(amount, destinationDomain, mintRecipient, burnToken);
+
+executor.requestExecution{value: executorArgs.value}(
+    0,
+    bytes32(0),
+    executorArgs.refundAddress,
+    executorArgs.signedQuote,
+    ExecutorMessages.makeCCTPv1Request(sourceDomain, nonce),
+    executorArgs.instructions
+);
+```
+
+<!-- cspell:enable -->
+
 ### Execution Support
 
 #### v1 VAA Execution
@@ -54,6 +102,22 @@ Your contract must implement the following function.
 
 ```solidity
 function receiveMessage(bytes calldata encodedTransferMessage) public payable
+```
+
+#### v1 NTT Execution
+
+The NTT Transceiver contract implements the following function.
+
+```solidity
+function receiveMessage(bytes memory encodedMessage) external
+```
+
+#### v1 CCTP Execution
+
+The Circle Message Transmitter contract implements the following function.
+
+```solidity
+function receiveMessage(bytes calldata message,bytes calldata attestation) external override whenNotPaused returns (bool success)
 ```
 
 ## Executor Development

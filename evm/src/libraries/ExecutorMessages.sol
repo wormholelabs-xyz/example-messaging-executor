@@ -5,6 +5,7 @@ library ExecutorMessages {
     bytes4 private constant REQ_MM = "ERM1";
     bytes4 private constant REQ_VAA_V1 = "ERV1";
     bytes4 private constant REQ_NTT_V1 = "ERN1";
+    bytes4 private constant REQ_CCTP_V1 = "ERC1";
 
     /// @notice Payload length will not fit in a uint32.
     /// @dev Selector: 492f620d.
@@ -53,5 +54,13 @@ library ExecutorMessages {
         returns (bytes memory)
     {
         return abi.encodePacked(REQ_NTT_V1, srcChain, srcManager, messageId);
+    }
+
+    /// @notice Encodes a version 1 CCTP request payload.
+    /// @param sourceDomain The source chain for the CCTP transfer.
+    /// @param nonce The nonce of the CCTP transfer.
+    /// @return bytes The encoded request.
+    function makeCCTPv1Request(uint32 sourceDomain, uint64 nonce) internal pure returns (bytes memory) {
+        return abi.encodePacked(REQ_CCTP_V1, sourceDomain, nonce);
     }
 }

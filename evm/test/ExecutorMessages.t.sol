@@ -38,4 +38,12 @@ contract ExecutorMessagesTest is Test {
         bytes memory buf = ExecutorMessages.makeNTTv1Request(srcChain, srcManager, messageId);
         assertEq(keccak256(expected), keccak256(buf));
     }
+
+    function test_makeCCTPv1Request() public pure {
+        uint32 srcDomain = 7;
+        uint64 nonce = 42;
+        bytes memory expected = abi.encodePacked("ERC1", srcDomain, nonce);
+        bytes memory buf = ExecutorMessages.makeCCTPv1Request(srcDomain, nonce);
+        assertEq(keccak256(expected), keccak256(buf));
+    }
 }
