@@ -12,7 +12,7 @@ Commit Hash:
 
 ```sh
 evm (main)$ git rev-parse HEAD
-03b5c83a20060bd0d339e3dfdc5efa60d44423f3
+a85f445dca1e9a3a6ed1d4912dc4826c0ce5e10f
 evm (main)$
 ```
 
@@ -48,7 +48,7 @@ If you wish to verify that the bytecode built locally matches what is deployed o
 <!-- cspell:disable -->
 
 ```
-forge verify-bytecode <contract_addr> Executor --rpc-url <archive_node_rpc> --verifier-api-key <your_etherscan_key> --constructor-args <wormhole_chain_id>
+forge verify-bytecode <contract_addr> Executor --rpc-url <archive_node_rpc> --verifier-api-key <your_etherscan_key>
 ```
 
 <!-- cspell:enable -->
