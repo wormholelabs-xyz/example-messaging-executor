@@ -94,6 +94,28 @@ executor.requestExecution{value: executorArgs.value}(
 
 <!-- cspell:enable -->
 
+#### Example v2 CCTP Request
+
+<!-- cspell:disable -->
+
+```solidity
+import "example-messaging-executor/evm/src/interfaces/IExecutor.sol";
+import "example-messaging-executor/evm/src/libraries/ExecutorMessages.sol";
+...
+uint64 nonce = circleTokenMessenger.depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller, maxFee, minFinalityThreshold);
+
+executor.requestExecution{value: executorArgs.value}(
+    0,
+    bytes32(0),
+    executorArgs.refundAddress,
+    executorArgs.signedQuote,
+    ExecutorMessages.makeCCTPv2Request(sourceDomain, nonce),
+    executorArgs.instructions
+);
+```
+
+<!-- cspell:enable -->
+
 ### Execution Support
 
 #### v1 VAA Execution
@@ -113,6 +135,14 @@ function receiveMessage(bytes memory encodedMessage) external
 ```
 
 #### v1 CCTP Execution
+
+The Circle Message Transmitter contract implements the following function.
+
+```solidity
+function receiveMessage(bytes calldata message,bytes calldata attestation) external override whenNotPaused returns (bool success)
+```
+
+#### v2 CCTP Execution
 
 The Circle Message Transmitter contract implements the following function.
 
