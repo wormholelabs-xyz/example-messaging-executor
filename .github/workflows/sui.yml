@@ -1,0 +1,17 @@
+name: sui
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    name: Sui Test
+    runs-on: ubuntu-latest
+    # pushed Apr 8, 2025 at 4:10 pm
+    container: mysten/sui-tools:sui-v1.46.0-release@sha256:c39b509328319dad3b73dbb4ae3a76d6c502f838b81f908fbc6a4e1da81c7855
+    defaults:
+      run:
+        working-directory: sui/executor
+    steps:
+      - uses: actions/checkout@v4
+      - run: sui move test
