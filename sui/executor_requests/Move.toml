@@ -1,0 +1,15 @@
+[package]
+name = "executor_requests"
+edition = "2024.beta"
+license = "Apache 2.0"
+authors = ["Wormhole Labs"]
+
+[dependencies.executor]
+local = "../executor"
+
+[addresses]
+executor_requests = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]
