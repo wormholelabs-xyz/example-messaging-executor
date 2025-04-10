@@ -18,7 +18,7 @@ module executor::executor {
         quoter_address: vector<u8>,
         amt_paid: u64,
         dst_chain: u16,
-        dst_addr: vector<u8>,
+        dst_addr: address,
         refund_addr: address,
         signed_quote: vector<u8>,
         request_bytes: vector<u8>,
@@ -29,7 +29,7 @@ module executor::executor {
         amount: Coin<SUI>,
         clock: &Clock,
         dst_chain: u16, 
-        dst_addr: vector<u8>, 
+        dst_addr: address, // akin to bytes32 
         refund_addr: address, 
         signed_quote_bytes: vector<u8>, 
         request_bytes: vector<u8>, 
