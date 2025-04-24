@@ -8,8 +8,8 @@ Provide an execution framework and proof-of-concept (PoC) service for [Wormhole]
 
 - [x] [EVM](./evm/)
 - [x] [SVM](./svm/)
-- [x] Sui Move
-- [ ] Aptos Move
+- [x] [Sui Move](./sui/)
+- [x] [Aptos Move](./aptos/)
 
 ## Background
 

@@ -1,0 +1,20 @@
+[package]
+name = "executor_requests"
+version = "1.0.0"
+license = "Apache 2.0"
+authors = ["Wormhole Labs"]
+
+[dependencies.executor]
+local = "../executor"
+
+[addresses]
+executor_requests = "_"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
