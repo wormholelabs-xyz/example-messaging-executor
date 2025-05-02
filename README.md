@@ -222,6 +222,13 @@ uint32  sourceDomain
 uint64  nonce
 ```
 
+##### CCTP v2 Request
+
+```solidity
+bytes4  prefix = "ERC2" // 4-byte prefix for this struct
+uint8   autoDiscover    // Currently, must be one.
+```
+
 #### Relay Instructions
 
 ##### Gas Instruction

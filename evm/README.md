@@ -94,6 +94,31 @@ executor.requestExecution{value: executorArgs.value}(
 
 <!-- cspell:enable -->
 
+#### Example v2 CCTP Request
+
+The `depositForBurn` function in CCTP v2 doesn't return anything, so we don't have a unique identifier for a transfer.
+The off-chain executor will detect all Circle V2 transfers in the transaction and relay them.
+
+<!-- cspell:disable -->
+
+```solidity
+import "example-messaging-executor/evm/src/interfaces/IExecutor.sol";
+import "example-messaging-executor/evm/src/libraries/ExecutorMessages.sol";
+...
+circleTokenMessenger.depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller, maxFee, minFinalityThreshold);
+
+executor.requestExecution{value: executorArgs.value}(
+    0,
+    bytes32(0),
+    executorArgs.refundAddress,
+    executorArgs.signedQuote,
+    ExecutorMessages.makeCCTPv2Request(),
+    executorArgs.instructions
+);
+```
+
+<!-- cspell:enable -->
+
 ### Execution Support
 
 #### v1 VAA Execution
@@ -117,7 +142,15 @@ function receiveMessage(bytes memory encodedMessage) external
 The Circle Message Transmitter contract implements the following function.
 
 ```solidity
-function receiveMessage(bytes calldata message,bytes calldata attestation) external override whenNotPaused returns (bool success)
+function receiveMessage(bytes calldata message, bytes calldata attestation) external override whenNotPaused returns (bool success)
+```
+
+#### v2 CCTP Execution
+
+The Circle Message Transmitter contract implements the following function.
+
+```solidity
+function receiveMessage(bytes calldata message, bytes calldata attestation) external override whenNotPaused returns (bool success)
 ```
 
 ## Executor Development
