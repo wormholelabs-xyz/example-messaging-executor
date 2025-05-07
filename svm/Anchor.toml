@@ -7,7 +7,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-executor = "Ax7mtQPbNPQmghd7C3BHrMdwwmkAXBDq7kNGfXNcc7dg"
+executor = "execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"
 
 [registry]
 url = "https://api.apr.dev"
