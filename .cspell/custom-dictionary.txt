@@ -5,6 +5,7 @@ Devnet
 hashv
 idls
 keccak
+Linea
 permissionless
 permissionlessly
 pubkey
@@ -15,3 +16,4 @@ runtimes
 Solana
 struct
 structs
+Unichain
