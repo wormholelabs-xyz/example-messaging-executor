@@ -1,4 +1,14 @@
-# Executor EVM Deployments
+# Executor Aptos Deployments
+
+## Mainnet
+
+### May 9, 2025
+
+Deployed with `aptos 7.2.0`
+
+Executor: [0x11aa75c059e1a7855be66b931bf340a2e0973274ac16b5f519c02ceafaf08a18](https://explorer.aptoslabs.com/account/0x11aa75c059e1a7855be66b931bf340a2e0973274ac16b5f519c02ceafaf08a18/modules/packages/executor?network=mainnet)
+
+Executor Requests: [0x589f326a8fd5a0b28b25d829713dcf999407d52c2af99cb56fc074b809160d77](https://explorer.aptoslabs.com/account/0x589f326a8fd5a0b28b25d829713dcf999407d52c2af99cb56fc074b809160d77/modules/packages/executor_requests?network=mainnet)
 
 ## Testnet
 
