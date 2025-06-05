@@ -126,7 +126,7 @@ executor.requestExecution{value: executorArgs.value}(
 Your contract must implement the following function.
 
 ```solidity
-function receiveMessage(bytes calldata encodedTransferMessage) public payable
+function executeVAAv1(bytes calldata encodedTransferMessage) public payable
 ```
 
 #### v1 NTT Execution

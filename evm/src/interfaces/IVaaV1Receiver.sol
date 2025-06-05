@@ -5,5 +5,5 @@ pragma solidity ^0.8.19;
 interface IVaaV1Receiver {
     /// @notice Receive an attested message from the executor relayer.
     /// @param msg The attested message payload.
-    function receiveMessage(bytes memory msg) external payable;
+    function executeVAAv1(bytes memory msg) external payable;
 }
