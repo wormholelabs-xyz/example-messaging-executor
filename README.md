@@ -2,7 +2,7 @@
 
 ## Objective
 
-Provide an execution framework and proof-of-concept (PoC) service for [Wormhole](https://github.com/wormhole-foundation/wormhole), [Modular Messaging](https://github.com/wormholelabs-xyz/example-messaging-endpoint), and potentially other protocols that is permissionless, extensible, and low-overhead.
+Provide an execution framework for [Wormhole](https://github.com/wormhole-foundation/wormhole) and potentially other protocols that is permissionless, extensible, and low-overhead.
 
 ## Runtime Support
 
@@ -10,6 +10,13 @@ Provide an execution framework and proof-of-concept (PoC) service for [Wormhole]
 - [x] [SVM](./svm/)
 - [x] [Sui Move](./sui/)
 - [x] [Aptos Move](./aptos/)
+
+## Protocol Support
+
+- [x] [CCTP v1](https://developers.circle.com/cctp)
+- [x] [CCTP v2](https://developers.circle.com/cctp)
+- [x] [NTT v1](https://github.com/wormhole-foundation/native-token-transfers)
+- [x] [VAA v1](https://wormhole.com/docs/products/messaging/overview/)
 
 ## Background
 
@@ -93,7 +100,7 @@ Executor Contract - The shared, on-chain contract/program used to make Execution
 
 Execution Quote - A quote for execution for a given source and destination chain. Quotes are signed by the Quoter.
 
-Execution Request - A request generated on-chain or off-chain for a given message (e.g. Modular Message, VAA v1, etc) to be executed on another chain.
+Execution Request - A request generated on-chain or off-chain for a given message (e.g. NTT, VAA v1, etc) to be executed on another chain.
 
 Quoter - An off-chain service which provides pricing for execution. A Relay Provider is uniquely identified by their Quoter’s EVM public key.
 
@@ -145,7 +152,7 @@ The Executor Contract MUST support the following methods
 
 In order to minimize cost, this contract MUST NOT verify the signature on the Quote. The Quote SHOULD be verified by the submitting client code before being used in a transaction.
 
-In order to be extensible, this contract MUST NOT construct or validate the message-specific request details (e.g. Modular Message, VAA v1, etc). It is up to the client to select an Executor which services the specific message types required.
+In order to be extensible, this contract MUST NOT construct or validate the message-specific request details (e.g. NTT, VAA v1, etc). It is up to the client to select an Executor which services the specific message types required.
 
 Similarly, this contract MUST NOT check the payment amount against the quote and relay instructions. It is up to the client to accurately estimate the required payment and the relayer to enforce it.
 
@@ -192,17 +199,6 @@ bytes4  prefix = "ERV1" // 4-byte prefix for this struct
 uint16  emitterChain
 bytes32 emitterAddress
 uint64  sequence
-```
-
-##### Modular Message Request [WIP]
-
-```solidity
-bytes4  prefix = b"ERM1" // 4-byte prefix for this struct
-uint16  sourceChainId    // Source chain
-bytes32 sourceAddress    // Source address
-uint64  sequence         // Sequence number returned by `endpoint.sendMessage`
-uint32  payloadLen       // Length of the payload
-bytes   payload          // The full payload, the keccak of which was sent to `endpoint.sendMessage`
 ```
 
 ##### NTT v1 Request
