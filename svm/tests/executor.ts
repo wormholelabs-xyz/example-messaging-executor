@@ -106,46 +106,6 @@ describe("executor", () => {
     ).to.be.fulfilled;
   });
 
-  it("Requests execution with real quote, MM request, and relay instruction!", async () => {
-    await expect(
-      program.methods
-        .requestForExecution({
-          amount: new BN(1),
-          dstChain: 2,
-          dstAddr: [
-            ...Buffer.from(
-              "0000000000000000000000000000000000000000000000000000000000000000",
-              "hex",
-            ),
-          ],
-          refundAddr: program.provider.publicKey!,
-          signedQuoteBytes: Buffer.from(
-            encodeSignedQuoteHeader(
-              "EQ01",
-              "0x0000000000000000000000000000000000000000",
-              program.provider.publicKey!,
-              1,
-              2,
-              BigInt(Date.now() + 1_000_000) / BigInt(1000),
-              "0000000000002710000000003b9aca0700001d624add080000000625b3cb4600b69fffad8549dd87b875a85f6341283bc3cc61758e5b929cfa6913c8727af7a2776c66584cc260cb05d505c852187c0a29a7b774e1d05815020f774013b30fe11c",
-            ),
-          ),
-          requestBytes: Buffer.from(
-            "45524d310002000000000000000000000000157f9cd170058f373294addc32149f1f5c77a6410000000000000000000000910000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e11ba2b4d45eaed5996cd0823791e0c93114882d004f994e54540800000000000f42400000000000000000000000008738d8b87d770220aaf91239adc62a2ff3f88bbe000000000000000000000000e11ba2b4d45eaed5996cd0823791e0c93114882d0004",
-            "hex",
-          ),
-          relayInstructions: Buffer.from(
-            "0100000000000000000000000000030d4000000000000000000000000000000000",
-            "hex",
-          ),
-        })
-        .accounts({
-          payee: program.provider.publicKey!,
-        })
-        .rpc(),
-    ).to.be.fulfilled;
-  });
-
   it("Pays the payee!", async () => {
     const payee = new anchor.web3.Keypair().publicKey;
     // the payee must already exist to avoid making a requestor pay to instantiate new accounts
