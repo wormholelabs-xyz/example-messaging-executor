@@ -12,6 +12,10 @@ Executor Requests: [0xc030df7a3eed1494fa4b64aa8ab63a79041cf1114f4ff2b7ab5aca1c68
 
 ## Testnet
 
+### July 15, 2025
+
+Executor Requests: [0x8e5ec98738885325294060fd067fde47e10313bedc531d0500b24a752be41788](https://suiscan.xyz/testnet/object/0x8e5ec98738885325294060fd067fde47e10313bedc531d0500b24a752be41788/contracts)
+
 ### April 10, 2025
 
 Executor: [0x4000cfe2955d8355b3d3cf186f854fea9f787a457257056926fde1ec977670eb](https://suiscan.xyz/testnet/object/0x4000cfe2955d8355b3d3cf186f854fea9f787a457257056926fde1ec977670eb/contracts)
