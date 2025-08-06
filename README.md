@@ -162,6 +162,97 @@ The API spec (TBD) for the off-chain service should be adhered to by all Relay P
 
 Explorers should be updated to track execution requests and link to their designated provider via quoter address.
 
+## API Documentation
+
+The Messaging Executor provides HTTP APIs for interacting with the relay service. The API specification is defined using [TypeSpec](https://typespec.io/) and can be generated as OpenAPI documentation.
+
+### Building API Documentation
+
+```bash
+# Navigate to the api-docs directory
+cd api-docs
+
+# Install dependencies
+npm ci
+
+# Compile TypeSpec to generate OpenAPI spec and JS client & models
+npm run compile
+# or
+tsp compile .
+```
+
+This will generate:
+
+- **OpenAPI Specification**: `tsp-output/schema/openapi.yaml`
+- **JavaScript Client & Models**: `tsp-output/clients/js/`
+
+### Viewing API Documentation
+
+After building, you can view the API documentation using:
+
+1. **Swagger Editor** (Online)
+
+   - Visit https://editor.swagger.io/
+   - Copy and paste the contents of `tsp-output/schema/openapi.yaml`
+
+2. **Redoc** (Online)
+   - Visit https://redocly.github.io/redoc/
+   - Upload your `openapi.yaml` file
+
+### API Endpoints
+
+The API provides three main endpoints:
+
+#### GET `/capabilities`
+
+Returns the capabilities for all supported chains, including:
+
+- Supported request prefixes (ERV1, ERN1, ERC1, ERC2)
+- Gas limits and message value limits
+- Supported destination chains
+
+#### POST `/quote`
+
+Generates a signed quote for cross-chain execution:
+
+- **Request**: Source chain, destination chain, optional relay instructions
+- **Response**: Signed quote and estimated cost
+
+#### POST `/status/tx`
+
+Retrieves the status of an execution request:
+
+- **Request**: Transaction hash and optional chain ID
+- **Response**: Relay transaction details including status, costs, and execution results
+
+### Using the JavaScript Client
+
+The generated JavaScript client can be used to interact with the API programmatically:
+
+```javascript
+// Import the generated client
+import { Client } from "./api-docs/tsp-output/clients/js";
+
+// Create a client instance
+const client = new Client({ baseUrl: "http://localhost:3000/v0" });
+
+// Get capabilities
+const capabilities = await client.capabilities.list();
+
+// Generate a quote
+const quote = await client.quote.create({
+  srcChain: 1,
+  dstChain: 2,
+  relayInstructions: "0x...",
+});
+
+// Check transaction status
+const status = await client.status.getTransaction({
+  txHash: "0x...",
+  chainId: 1,
+});
+```
+
 ### API / Database Schema
 
 #### Off-Chain Quote
