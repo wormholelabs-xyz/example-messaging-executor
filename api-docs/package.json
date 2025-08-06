@@ -4,12 +4,12 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@typespec/compiler": "latest",
-    "@typespec/http": "latest",
-    "@typespec/rest": "latest",
-    "@typespec/openapi": "latest",
-    "@typespec/openapi3": "latest",
-    "@typespec/http-client-js": "latest"
+    "@typespec/compiler": "^1.2.1",
+    "@typespec/http": "^1.2.1",
+    "@typespec/rest": "^0.72.0",
+    "@typespec/openapi": "^1.2.1",
+    "@typespec/openapi3": "^1.2.1",
+    "@typespec/http-client-js": "^0.7.0"
   },
   "packageManager": "npm@11.5.2+sha512.aac1241cfc3f41dc38780d64295c6c6b917a41e24288b33519a7b11adfc5a54a5f881c642d7557215b6c70e01e55655ed7ba666300fd0238bc75fb17478afaf3"
 }
