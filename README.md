@@ -173,7 +173,7 @@ The Messaging Executor provides HTTP APIs for interacting with the relay service
 cd api-docs
 
 # Install dependencies
-npm install
+npm ci
 
 # Compile TypeSpec to generate OpenAPI spec and JS client & models
 npm run compile
