@@ -146,9 +146,6 @@ The Executor Contract MUST support the following methods
   - MUST ensure the quote’s expiry time has not passed
   - MUST transfer the payment to the designated `payeeAddress`
   - MUST make these inputs available for off-chain consumption (e.g. emit a Request for Execution event)
-- `addRelayInstructions(requestId, refundAddr, signedQuote, relayInstructions)` [WIP]
-  - This method is intended for off-chain integration to add additional instructions and/or payment in the event that the initial request was underpaid or underpriced (e.g. too low of a gasLimit)
-  - MUST meet all the requirements of `requestExecution`
 
 In order to minimize cost, this contract MUST NOT verify the signature on the Quote. The Quote SHOULD be verified by the submitting client code before being used in a transaction.
 
@@ -270,7 +267,7 @@ uint16  destinationChain; // Wormhole Chain ID
 uint64  expiryTime;       // The unix time, in seconds, after which this quote should no longer be considered valid for requesting an execution
 ```
 
-##### Signed Quote - Version 1 [WIP]
+##### Signed Quote - Version 1
 
 ```solidity
 Header   header              // prefix = "EQ01"
