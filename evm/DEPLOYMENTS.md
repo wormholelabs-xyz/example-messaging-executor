@@ -50,7 +50,7 @@ Here are the deployed contract addresses for each chain. The number after the ch
 
 ## Testnet
 
-### March 18, 2025
+### September 11, 2025
 
 #### Version Info
 
@@ -60,7 +60,7 @@ Commit Hash:
 
 ```sh
 evm (main)$ git rev-parse HEAD
-a85f445dca1e9a3a6ed1d4912dc4826c0ce5e10f
+575069616477efbec961bcfb77d7baf44e9f3baa
 evm (main)$
 ```
 
@@ -72,9 +72,9 @@ Foundry Version:
 
 ```sh
 evm (main)$ forge --version
-forge Version: 1.0.0-stable
-Commit SHA: e144b82070619b6e10485c38734b4d4d45aebe04
-Build Timestamp: 2025-02-13T20:03:31.026474817Z (1739477011)
+forge Version: 1.3.5-stable
+Commit SHA: 9979a41b5daa5da1572d973d7ac5a3dd2afc0221
+Build Timestamp: 2025-09-09T04:49:44.505104000Z (1757393384)
 Build Profile: maxperf
 evm (main)$
 ```
@@ -88,6 +88,8 @@ Here are the deployed contract addresses for each chain. The number after the ch
 - Sepolia (10002): [0xD0fb39f5a3361F21457653cB70F9D0C9bD86B66B](https://sepolia.etherscan.io/address/0xD0fb39f5a3361F21457653cB70F9D0C9bD86B66B)
 - Base Sepolia (10004): [0x51B47D493CBA7aB97e3F8F163D6Ce07592CE4482](https://sepolia.basescan.org/address/0x51B47D493CBA7aB97e3F8F163D6Ce07592CE4482)
 - Avalanche Fuji (6): [0x4661F0E629E4ba8D04Ee90080Aee079740B00381](https://testnet.snowtrace.io/address/0x4661F0E629E4ba8D04Ee90080Aee079740B00381)
+- Mezo Testnet (50):
+  [0x0f9b8E144Cc5C5e7C0073829Afd30F26A50c5606](https://api.explorer.test.mezo.org/address/0x0f9b8e144cc5c5e7c0073829afd30f26a50c5606)
 
 ### Bytecode Verification
 
