@@ -12,11 +12,11 @@ describe("Executor State Contract Tests", () => {
     expect(simnet.blockHeight).toBeDefined();
   });
 
-  describe("register-relayer", () => {
-    it("should register a new relayer successfully", () => {
+  describe("register-payee", () => {
+    it("should register a new payee successfully", () => {
       const { result } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer", 
+        "register-payee", 
         [Cl.principal(address1)],
         address1
       );
@@ -29,7 +29,7 @@ describe("Executor State Contract Tests", () => {
       // Should be able to look up the registered address
       const { result: lookupResult } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr],
         address1
       );
@@ -40,7 +40,7 @@ describe("Executor State Contract Tests", () => {
       // Should also work with the map getter
       const { result: mapResult } = simnet.callReadOnlyFn(
         "executor-state",
-        "relayer-to-stacks-get",
+        "universal-address-to-principal-get",
         [universalAddr],
         address1
       );
@@ -48,11 +48,11 @@ describe("Executor State Contract Tests", () => {
       expect(mapResult).toBeSome(Cl.principal(address1));
     });
 
-    it("should prevent duplicate relayer registration", () => {
+    it("should prevent duplicate payee registration", () => {
       // First registration should succeed
       const { result: result1 } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address2)],
         address2
       );
@@ -63,7 +63,7 @@ describe("Executor State Contract Tests", () => {
       // Verify first registration worked
       const { result: lookupResult1 } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr1],
         address1
       );
@@ -72,7 +72,7 @@ describe("Executor State Contract Tests", () => {
       // Second registration should fail with specific error
       const { result: result2 } = simnet.callPublicFn(
         "executor-state", 
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address2)],
         address2
       );
@@ -81,7 +81,7 @@ describe("Executor State Contract Tests", () => {
       // Original mapping should still work after failed duplicate attempt
       const { result: lookupResult2 } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr1],
         address1
       );
@@ -91,7 +91,7 @@ describe("Executor State Contract Tests", () => {
     it("should allow different addresses to register", () => {
       const { result: result1 } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address1)],
         address1
       );
@@ -99,7 +99,7 @@ describe("Executor State Contract Tests", () => {
 
       const { result: result2 } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer", 
+        "register-payee", 
         [Cl.principal(address2)],
         address2
       );
@@ -114,7 +114,7 @@ describe("Executor State Contract Tests", () => {
       // Both should be queryable and return correct principals
       const { result: lookup1 } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr1],
         address3
       );
@@ -122,7 +122,7 @@ describe("Executor State Contract Tests", () => {
       
       const { result: lookup2 } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr2],
         address3
       );
@@ -131,7 +131,7 @@ describe("Executor State Contract Tests", () => {
       // Cross-lookup should not work (addr1 should not find addr2's principal)
       const { result: crossLookup1 } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr1],
         address3
       );
@@ -139,10 +139,10 @@ describe("Executor State Contract Tests", () => {
     });
 
     it("should return consistent universal address for same principal", () => {
-      // Register relayer
+      // Register payee
       const { result: registerResult } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address3)], 
         address3
       );
@@ -153,7 +153,7 @@ describe("Executor State Contract Tests", () => {
       // Lookup should return the same principal
       const { result: lookupResult } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr],
         address1
       );
@@ -161,12 +161,12 @@ describe("Executor State Contract Tests", () => {
     });
   });
 
-  describe("universal-addr-to-principal", () => {
+  describe("universal-address-to-principal-get", () => {
     it("should return registered principal for valid universal address", () => {
-      // Register relayer first
+      // Register payee first
       const { result: registerResult } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address1)],
         address1
       );
@@ -177,7 +177,7 @@ describe("Executor State Contract Tests", () => {
       // Lookup should work from any caller
       const { result: lookupResult1 } = simnet.callReadOnlyFn(
         "executor-state", 
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr],
         address2
       );
@@ -186,7 +186,7 @@ describe("Executor State Contract Tests", () => {
       // Should also work from different caller
       const { result: lookupResult2 } = simnet.callReadOnlyFn(
         "executor-state", 
-        "universal-addr-to-principal",
+        "universal-address-to-principal-get",
         [universalAddr],
         address3
       );
@@ -202,7 +202,7 @@ describe("Executor State Contract Tests", () => {
       
       const { result } = simnet.callReadOnlyFn(
         "executor-state",
-        "universal-addr-to-principal", 
+        "universal-address-to-principal-get", 
         [Cl.buffer(fakeUniversalAddr)],
         address1
       );
@@ -210,12 +210,12 @@ describe("Executor State Contract Tests", () => {
     });
   });
 
-  describe("relayer-to-stacks-get", () => {
+  describe("universal-address-to-principal-get", () => {
     it("should return registered principal for valid universal address", () => {
-      // Register relayer
+      // Register payee
       const { result: registerResult } = simnet.callPublicFn(
         "executor-state",
-        "register-relayer",
+        "register-payee",
         [Cl.principal(address2)],
         address2
       );
@@ -226,7 +226,7 @@ describe("Executor State Contract Tests", () => {
       // Test the map getter directly
       const { result: mapResult } = simnet.callReadOnlyFn(
         "executor-state",
-        "relayer-to-stacks-get",
+        "universal-address-to-principal-get",
         [universalAddr],
         address1
       );
@@ -238,7 +238,7 @@ describe("Executor State Contract Tests", () => {
       
       const { result } = simnet.callReadOnlyFn(
         "executor-state",
-        "relayer-to-stacks-get",
+        "universal-address-to-principal-get",
         [Cl.buffer(fakeUniversalAddr)],
         address1
       );
