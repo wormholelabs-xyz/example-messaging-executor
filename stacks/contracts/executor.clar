@@ -17,7 +17,7 @@
 (define-constant ERR-QUOTE-SRC-CHAIN-MISMATCH (err u1001))
 (define-constant ERR-QUOTE-DST-CHAIN-MISMATCH (err u1002))
 (define-constant ERR-QUOTE-EXPIRED (err u1003))
-(define-constant ERR-UNREGISTERED-RELAYER (err u1004))
+(define-constant ERR-UNREGISTERED-PAYEE (err u1004))
 (define-constant ERR-INVALID-PAYEE-ADDRESS (err u1005))
 (define-constant ERR-BUFFER-PARSE-ERROR (err u1006))
 ;;
@@ -50,25 +50,15 @@
         (asserts! (is-eq (len payee-universal-addr) u32)
           ERR-INVALID-PAYEE-ADDRESS
         )
-        (asserts!
-          (not (is-eq payee-universal-addr
-            0x0000000000000000000000000000000000000000000000000000000000000000
-          ))
-          ERR-INVALID-PAYEE-ADDRESS
-        )
 
-        ;; 2. Verify relayer is registered and get principal
-        (let ((payee-lookup-result (contract-call? .executor-state relayer-to-stacks-get
+        ;; 2. Verify payee is registered and get principal
+        (let ((payee-lookup-result (contract-call? .executor-state universal-address-to-principal-get
             payee-universal-addr
           )))
-          (asserts! (is-some payee-lookup-result) ERR-UNREGISTERED-RELAYER)
+          (asserts! (is-some payee-lookup-result) ERR-UNREGISTERED-PAYEE)
 
-          ;; 3. Extract the principal and validate it's not contract address
+          ;; 3. Extract the principal for payment
           (let ((payee-principal (unwrap-panic payee-lookup-result)))
-            (asserts! (not (is-eq payee-principal (as-contract tx-sender)))
-              ERR-INVALID-PAYEE-ADDRESS
-            )
-
             ;; 4. Perform the payment after all validations pass
             (try! (stx-transfer? payment tx-sender payee-principal))
 
@@ -83,8 +73,6 @@
               signed-quote: signed-quote-bytes,
               request-bytes: request-bytes,
               relay-instructions: relay-instructions,
-              block-height: stacks-block-height,
-              tx-sender: tx-sender,
             })
 
             (ok true)
@@ -166,10 +154,10 @@
       quote-dst-chain (match (extract-uint64-be signed-quote-bytes u60)
         expiry-time (if (is-eq quote-src-chain OUR-CHAIN)
           (if (is-eq quote-dst-chain dst-chain)
-            ;; Currently comparing Unix timestamp (expiry-time) with block height (stacks-block-height)
-            ;; Correct way is likely to do: (get-stacks-block-info? time stacks-block-height) which should return Unix timestamp
-            ;; Unable to write tests for it though as of now. 
-            (if (> expiry-time stacks-block-height)
+            ;; Compare Unix timestamp expiry-time with current block timestamp
+            (if (> expiry-time
+                (unwrap-panic (get-stacks-block-info? time stacks-block-height))
+              )
               (ok true)
               ERR-QUOTE-EXPIRED
             )
@@ -203,9 +191,11 @@
 )
 
 ;; Convert 32-byte universal address hash back to a Stacks principal
-;; Uses the executor-state contract's relayer registry
+;; Uses the executor-state contract's payee registry
 (define-read-only (universal-addr-to-principal (universal-addr (buff 32)))
-  (contract-call? .executor-state universal-addr-to-principal universal-addr)
+  (contract-call? .executor-state universal-address-to-principal-get
+    universal-addr
+  )
 )
 
 ;; Read-only functions for external access
