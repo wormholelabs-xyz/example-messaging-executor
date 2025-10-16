@@ -57,7 +57,7 @@ describe("Executor Contract Tests", () => {
   });
 
   describe("validate-quote-header", () => {
-    it.skip("should validate a correct quote header", () => {
+    it("should validate a correct quote header", () => {
       // Create a valid quote buffer
       const validQuote = createSignedQuoteBuffer({
         srcChain: 1,    // OUR-CHAIN = 1  
@@ -109,20 +109,20 @@ describe("Executor Contract Tests", () => {
       expect(result).toBeErr(Cl.uint(1002)); // ERR-QUOTE-DST-CHAIN-MISMATCH
     });
 
-    it.skip("should reject expired quote", () => {
+    it("should reject expired quote", () => {
       const expiredQuote = createSignedQuoteBuffer({
         srcChain: 1,
         dstChain: 2,
         expiryTime: 1000000000 // Past timestamp placeholder // 1 hour ago (expired)
       });
-      
+
       const { result } = simnet.callReadOnlyFn(
         "executor",
         "validate-quote-header",
         [Cl.buffer(expiredQuote), Cl.uint(2)],
         address1
       );
-      
+
       expect(result).toBeErr(Cl.uint(1003)); // ERR-QUOTE-EXPIRED
     });
 
@@ -629,7 +629,7 @@ describe("Executor Contract Tests", () => {
       return (result as any).value;
     }
 
-    it.skip("should execute successfully with valid quote and registered relayer", () => {
+    it("should execute successfully with valid quote and registered relayer", () => {
       // Register a relayer first
       const relayerAddr = accounts.get("wallet_2")!;
       const universalAddr = registerTestPayee(relayerAddr);
@@ -724,7 +724,7 @@ describe("Executor Contract Tests", () => {
       expect(result).toBeErr(Cl.uint(1002)); // ERR-QUOTE-DST-CHAIN-MISMATCH
     });
 
-    it.skip("should fail with expired quote", () => {
+    it("should fail with expired quote", () => {
       const relayerAddr = accounts.get("wallet_2")!;
       const universalAddr = registerTestPayee(relayerAddr);
       
@@ -753,7 +753,7 @@ describe("Executor Contract Tests", () => {
       expect(result).toBeErr(Cl.uint(1003)); // ERR-QUOTE-EXPIRED
     });
 
-    it.skip("should fail with unregistered relayer", () => {
+    it("should fail with unregistered relayer", () => {
       // Create quote with unregistered payee address
       const unregisteredPayee = new Uint8Array(32);
       unregisteredPayee.fill(0xFF); // Address that's not registered
@@ -783,7 +783,7 @@ describe("Executor Contract Tests", () => {
       expect(result).toBeErr(Cl.uint(1004)); // ERR-UNREGISTERED-RELAYER
     });
 
-    it.skip("should emit correct event data", () => {
+    it("should emit correct event data", () => {
       const relayerAddr = accounts.get("wallet_3")!;
       const universalAddr = registerTestPayee(relayerAddr);
       
