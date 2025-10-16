@@ -5,13 +5,10 @@ authors = []
 telemetry = false
 cache_dir = './.cache'
 
-[[project.requirements]]
-contract_id = 'SP1E0XBN9T4B10E9QMR7XMFJPMA19D77WY3KP2QKC.self-listing-helper-v3'
 [contracts.executor-state]
 path = 'contracts/executor-state.clar'
 clarity_version = 3
 epoch = 'latest'
-requirements = ['SP1E0XBN9T4B10E9QMR7XMFJPMA19D77WY3KP2QKC.self-listing-helper-v3']
 
 [contracts.executor]
 path = 'contracts/executor.clar'

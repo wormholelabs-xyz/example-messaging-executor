@@ -20,6 +20,7 @@
 (define-constant ERR-UNREGISTERED-PAYEE (err u1004))
 (define-constant ERR-INVALID-PAYEE-ADDRESS (err u1005))
 (define-constant ERR-BUFFER-PARSE-ERROR (err u1006))
+(define-constant ERR-STACKS-TIMESTAMP (err u1007))
 ;;
 
 ;; data vars
@@ -154,12 +155,12 @@
       quote-dst-chain (match (extract-uint64-be signed-quote-bytes u60)
         expiry-time (if (is-eq quote-src-chain OUR-CHAIN)
           (if (is-eq quote-dst-chain dst-chain)
-            ;; Compare Unix timestamp expiry-time with current block timestamp
-            (if (> expiry-time
-                (unwrap-panic (get-stacks-block-info? time stacks-block-height))
+            ;; Get previous block's timestamp for reliable comparison
+            (let ((current-time (unwrap! (get-stacks-block-info? time (- stacks-block-height u1)) ERR-STACKS-TIMESTAMP)))
+              (if (> expiry-time current-time)
+                (ok true)
+                ERR-QUOTE-EXPIRED
               )
-              (ok true)
-              ERR-QUOTE-EXPIRED
             )
             ERR-QUOTE-DST-CHAIN-MISMATCH
           )
