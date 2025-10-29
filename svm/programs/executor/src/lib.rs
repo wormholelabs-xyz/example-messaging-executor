@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 declare_id!("execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV");
 
 // TODO: cfg_if
-static OUR_CHAIN: u16 = 1;
+static OUR_CHAIN: u16 = 51;
 
 static SIGNED_QUOTE_HEADER_LEN: usize = 68;
 
