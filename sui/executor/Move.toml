@@ -12,3 +12,4 @@ executor = "0x0"
 [dev-dependencies]
 
 [dev-addresses]
+executor = "0x0"

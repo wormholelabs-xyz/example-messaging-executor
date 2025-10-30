@@ -13,3 +13,4 @@ executor_requests = "0x0"
 [dev-dependencies]
 
 [dev-addresses]
+executor_requests = "0x0"
