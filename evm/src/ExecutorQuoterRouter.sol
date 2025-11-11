@@ -37,7 +37,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         ourChain = executor.ourChain();
     }
 
-    function updateQuoterContract(bytes calldata gov) public {
+    function updateQuoterContract(bytes calldata gov) external {
         bytes4 prefix;
         uint16 chainId;
         uint160 quoter;
@@ -88,7 +88,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         address quoterAddr,
         bytes calldata requestBytes,
         bytes calldata relayInstructions
-    ) public view returns (uint256 requiredPayment) {
+    ) external view returns (uint256 requiredPayment) {
         (, requiredPayment) =
             quoterContract[quoterAddr].requestQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);
     }
@@ -100,7 +100,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         address quoterAddr,
         bytes calldata requestBytes,
         bytes calldata relayInstructions
-    ) public payable {
+    ) external payable {
         IExecutorQuoter implementation = quoterContract[quoterAddr];
         (bytes32 payeeAddress, uint256 requiredPayment) =
             implementation.requestQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);

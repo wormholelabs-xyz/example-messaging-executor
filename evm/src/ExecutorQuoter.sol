@@ -28,24 +28,19 @@ contract ExecutorQuoter is IExecutorQuoter {
         uint64 dstPrice;
     }
 
-    struct ChainDecimals {
+    struct ChainInfo {
         bool enabled;
         uint8 gasPriceDecimals;
         uint8 nativeDecimals;
     }
 
-    struct QuoteUpdate {
+    struct Update {
         uint16 chainId;
-        OnChainQuoteBody quote;
-    }
-
-    struct DecimalsUpdate {
-        uint16 chainId;
-        ChainDecimals decimals;
+        bytes32 update;
     }
 
     mapping(uint16 => OnChainQuoteBody) public quoteByDstChain;
-    mapping(uint16 => ChainDecimals) public decimalsByDstChain;
+    mapping(uint16 => ChainInfo) public chainInfos;
 
     /// @dev Selector 0x40788bb5.
     error InvalidUpdater(address sender, address expected);
@@ -56,6 +51,13 @@ contract ExecutorQuoter is IExecutorQuoter {
     /// @dev Selector 0x3a5a1720.
     error MoreThanOneDropOff();
 
+    modifier onlyUpdater() {
+        if (msg.sender != updaterAddress) {
+            revert InvalidUpdater(msg.sender, updaterAddress);
+        }
+        _;
+    }
+
     constructor(address _quoterAddress, address _updaterAddress, uint8 _srcTokenDecimals, bytes32 _payeeAddress) {
         quoterAddress = _quoterAddress;
         updaterAddress = _updaterAddress;
@@ -63,36 +65,43 @@ contract ExecutorQuoter is IExecutorQuoter {
         payeeAddress = _payeeAddress;
     }
 
-    function decimalsUpdate(DecimalsUpdate[] calldata updates) public {
-        if (msg.sender != updaterAddress) {
-            revert InvalidUpdater(msg.sender, updaterAddress);
-        }
-        uint256 updatesLength = updates.length;
-        for (uint256 i = 0; i < updatesLength;) {
-            DecimalsUpdate memory update = updates[i];
-            decimalsByDstChain[update.chainId] = update.decimals;
-            unchecked {
-                i += 1;
+    function _batchUpdate(Update[] calldata updates, uint256 mappingSlot) private {
+        assembly {
+            let len := updates.length
+            let baseOffset := updates.offset
+
+            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
+                // Load update directly from calldata
+                let updatePtr := add(baseOffset, mul(i, 0x40))
+                let chainId := calldataload(updatePtr)
+                let newValue := calldataload(add(updatePtr, 0x20))
+
+                // Calculate storage slot for mapping[chainId]
+                mstore(0x00, chainId)
+                mstore(0x20, mappingSlot)
+                let slot := keccak256(0x00, 0x40)
+                sstore(slot, newValue)
             }
         }
     }
 
-    // TODO: pack these updates instead to save l2 cost
-    function quoteUpdate(QuoteUpdate[] calldata updates) public {
-        if (msg.sender != updaterAddress) {
-            revert InvalidUpdater(msg.sender, updaterAddress);
+    function chainInfoUpdate(Update[] calldata updates) external onlyUpdater {
+        uint256 slot;
+        assembly {
+            slot := chainInfos.slot
         }
-        uint256 updatesLength = updates.length;
-        for (uint256 i = 0; i < updatesLength;) {
-            QuoteUpdate memory update = updates[i];
-            quoteByDstChain[update.chainId] = update.quote;
-            unchecked {
-                i += 1;
-            }
-        }
+        _batchUpdate(updates, slot);
     }
 
-    function normalize(uint256 amount, uint8 from, uint8 to) internal pure returns (uint256) {
+    function quoteUpdate(Update[] calldata updates) external onlyUpdater {
+        uint256 slot;
+        assembly {
+            slot := quoteByDstChain.slot
+        }
+        _batchUpdate(updates, slot);
+    }
+
+    function normalize(uint256 amount, uint8 from, uint8 to) private pure returns (uint256) {
         if (from > to) {
             return amount / 10 ** uint256(from - to);
         } else if (from < to) {
@@ -101,11 +110,11 @@ contract ExecutorQuoter is IExecutorQuoter {
         return amount;
     }
 
-    function mul(uint256 a, uint256 b, uint8 decimals) internal pure returns (uint256) {
+    function mul(uint256 a, uint256 b, uint8 decimals) private pure returns (uint256) {
         return (a * b) / 10 ** uint256(decimals);
     }
 
-    function div(uint256 a, uint256 b, uint8 decimals) internal pure returns (uint256) {
+    function div(uint256 a, uint256 b, uint8 decimals) private pure returns (uint256) {
         return (a * 10 ** uint256(decimals)) / b;
     }
 
@@ -115,7 +124,7 @@ contract ExecutorQuoter is IExecutorQuoter {
     /// - `GasDropOffInstruction` contributes only to `msgValue`.
     /// Throws If an unsupported instruction type is encountered.
     function totalGasLimitAndMsgValue(bytes calldata relayInstructions)
-        internal
+        private
         pure
         returns (uint256 gasLimit, uint256 msgValue)
     {
@@ -157,10 +166,10 @@ contract ExecutorQuoter is IExecutorQuoter {
 
     function estimateQuote(
         OnChainQuoteBody storage quote,
-        ChainDecimals storage dstChainDecimals,
+        ChainInfo storage dstChainInfo,
         uint256 gasLimit,
         uint256 msgValue
-    ) internal view returns (uint256) {
+    ) private view returns (uint256) {
         uint256 srcChainValueForBaseFee = normalize(quote.baseFee, QUOTE_DECIMALS, srcTokenDecimals);
 
         uint256 nSrcPrice = normalize(quote.srcPrice, QUOTE_DECIMALS, DECIMAL_RESOLUTION);
@@ -168,12 +177,11 @@ contract ExecutorQuoter is IExecutorQuoter {
         uint256 scaledConversion = div(nDstPrice, nSrcPrice, DECIMAL_RESOLUTION);
 
         uint256 nGasLimitCost =
-            normalize(gasLimit * quote.dstGasPrice, dstChainDecimals.gasPriceDecimals, DECIMAL_RESOLUTION);
-
+            normalize(gasLimit * quote.dstGasPrice, dstChainInfo.gasPriceDecimals, DECIMAL_RESOLUTION);
         uint256 srcChainValueForGasLimit =
             normalize(mul(nGasLimitCost, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, srcTokenDecimals);
 
-        uint256 nMsgValue = normalize(msgValue, dstChainDecimals.nativeDecimals, DECIMAL_RESOLUTION);
+        uint256 nMsgValue = normalize(msgValue, dstChainInfo.nativeDecimals, DECIMAL_RESOLUTION);
         uint256 srcChainValueForMsgValue =
             normalize(mul(nMsgValue, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, srcTokenDecimals);
         return srcChainValueForBaseFee + srcChainValueForGasLimit + srcChainValueForMsgValue;
@@ -185,15 +193,15 @@ contract ExecutorQuoter is IExecutorQuoter {
         address, //refundAddr,
         bytes calldata, //requestBytes,
         bytes calldata relayInstructions
-    ) public view returns (bytes32, uint256) {
-        ChainDecimals storage dstChainDecimals = decimalsByDstChain[dstChain];
-        if (!dstChainDecimals.enabled) {
+    ) external view returns (bytes32, uint256) {
+        ChainInfo storage dstChainInfo = chainInfos[dstChain];
+        if (!dstChainInfo.enabled) {
             revert ChainDisabled(dstChain);
         }
         OnChainQuoteBody storage quote = quoteByDstChain[dstChain];
         (uint256 gasLimit, uint256 msgValue) = totalGasLimitAndMsgValue(relayInstructions);
         // NOTE: this does not include any maxGasLimit or maxMsgValue checks
-        uint256 requiredPayment = estimateQuote(quote, dstChainDecimals, gasLimit, msgValue);
+        uint256 requiredPayment = estimateQuote(quote, dstChainInfo, gasLimit, msgValue);
 
         return (payeeAddress, requiredPayment);
     }
