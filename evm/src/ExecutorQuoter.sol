@@ -3,17 +3,17 @@ pragma solidity ^0.8.13;
 
 import "./interfaces/IExecutorQuoter.sol";
 
-string constant executorQuoterVersion = "Executor-Quoter-0.0.1";
+string constant EXECUTOR_QUOTER_VERSION_STR = "Executor-Quoter-0.0.1";
 
 contract ExecutorQuoter is IExecutorQuoter {
-    string public constant EXECUTOR_QUOTER_VERSION = executorQuoterVersion;
+    string public constant EXECUTOR_QUOTER_VERSION = EXECUTOR_QUOTER_VERSION_STR;
     uint8 private constant QUOTE_DECIMALS = 10;
     uint8 private constant DECIMAL_RESOLUTION = 18;
 
-    address public immutable quoterAddress;
-    address public immutable updaterAddress;
-    uint8 public immutable srcTokenDecimals;
-    bytes32 public immutable payeeAddress;
+    address public immutable QUOTER_ADDRESS;
+    address public immutable UPDATER_ADDRESS;
+    uint8 public immutable SRC_TOKEN_DECIMALS;
+    bytes32 public immutable PAYEE_ADDRESS;
 
     /// This is the same as an EQ01 quote body
     /// It fits into a single bytes32 storage slot
@@ -52,17 +52,17 @@ contract ExecutorQuoter is IExecutorQuoter {
     error MoreThanOneDropOff();
 
     modifier onlyUpdater() {
-        if (msg.sender != updaterAddress) {
-            revert InvalidUpdater(msg.sender, updaterAddress);
+        if (msg.sender != UPDATER_ADDRESS) {
+            revert InvalidUpdater(msg.sender, UPDATER_ADDRESS);
         }
         _;
     }
 
     constructor(address _quoterAddress, address _updaterAddress, uint8 _srcTokenDecimals, bytes32 _payeeAddress) {
-        quoterAddress = _quoterAddress;
-        updaterAddress = _updaterAddress;
-        srcTokenDecimals = _srcTokenDecimals;
-        payeeAddress = _payeeAddress;
+        QUOTER_ADDRESS = _quoterAddress;
+        UPDATER_ADDRESS = _updaterAddress;
+        SRC_TOKEN_DECIMALS = _srcTokenDecimals;
+        PAYEE_ADDRESS = _payeeAddress;
     }
 
     function _batchUpdate(Update[] calldata updates, uint256 mappingSlot) private {
@@ -170,7 +170,7 @@ contract ExecutorQuoter is IExecutorQuoter {
         uint256 gasLimit,
         uint256 msgValue
     ) private view returns (uint256) {
-        uint256 srcChainValueForBaseFee = normalize(quote.baseFee, QUOTE_DECIMALS, srcTokenDecimals);
+        uint256 srcChainValueForBaseFee = normalize(quote.baseFee, QUOTE_DECIMALS, SRC_TOKEN_DECIMALS);
 
         uint256 nSrcPrice = normalize(quote.srcPrice, QUOTE_DECIMALS, DECIMAL_RESOLUTION);
         uint256 nDstPrice = normalize(quote.dstPrice, QUOTE_DECIMALS, DECIMAL_RESOLUTION);
@@ -179,11 +179,11 @@ contract ExecutorQuoter is IExecutorQuoter {
         uint256 nGasLimitCost =
             normalize(gasLimit * quote.dstGasPrice, dstChainInfo.gasPriceDecimals, DECIMAL_RESOLUTION);
         uint256 srcChainValueForGasLimit =
-            normalize(mul(nGasLimitCost, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, srcTokenDecimals);
+            normalize(mul(nGasLimitCost, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, SRC_TOKEN_DECIMALS);
 
         uint256 nMsgValue = normalize(msgValue, dstChainInfo.nativeDecimals, DECIMAL_RESOLUTION);
         uint256 srcChainValueForMsgValue =
-            normalize(mul(nMsgValue, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, srcTokenDecimals);
+            normalize(mul(nMsgValue, scaledConversion, DECIMAL_RESOLUTION), DECIMAL_RESOLUTION, SRC_TOKEN_DECIMALS);
         return srcChainValueForBaseFee + srcChainValueForGasLimit + srcChainValueForMsgValue;
     }
 
@@ -203,6 +203,6 @@ contract ExecutorQuoter is IExecutorQuoter {
         // NOTE: this does not include any maxGasLimit or maxMsgValue checks
         uint256 requiredPayment = estimateQuote(quote, dstChainInfo, gasLimit, msgValue);
 
-        return (payeeAddress, requiredPayment);
+        return (PAYEE_ADDRESS, requiredPayment);
     }
 }

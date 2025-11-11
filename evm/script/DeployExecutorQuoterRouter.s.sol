@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19;
 
-import {ExecutorQuoterRouter, executorQuoterRouterVersion} from "../src/ExecutorQuoterRouter.sol";
+import {ExecutorQuoterRouter, EXECUTOR_QUOTER_ROUTER_VERSION_STR} from "../src/ExecutorQuoterRouter.sol";
 import "forge-std/Script.sol";
 
 // DeployExecutorQuoterRouter is a forge script to deploy the ExecutorQuoterRouter contract. Use ./sh/deployExecutorQuoterRouter.sh to invoke this.
@@ -23,7 +23,7 @@ contract DeployExecutorQuoterRouter is Script {
     }
 
     function _deploy(address executor) internal returns (address deployedAddress) {
-        bytes32 salt = keccak256(abi.encodePacked(executorQuoterRouterVersion));
+        bytes32 salt = keccak256(abi.encodePacked(EXECUTOR_QUOTER_ROUTER_VERSION_STR));
         ExecutorQuoterRouter executorQuoterRouter = new ExecutorQuoterRouter{salt: salt}(executor);
 
         return (address(executorQuoterRouter));

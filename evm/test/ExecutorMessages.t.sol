@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ExecutorMessages} from "../src/libraries/ExecutorMessages.sol";
 
 contract ExecutorMessagesTest is Test {

@@ -9,20 +9,20 @@ contract ExecutorQuoterTest is Test {
     ExecutorQuoter.Update[] public updates;
     ExecutorQuoter.Update[] public chainInfoUpdates;
 
-    address constant updater = 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496;
-    bytes32 constant chainInfoUpdatePacked = 0x0000000000000000000000000000000000000000000000000000000000121201;
-    uint16 constant dstChain = 10003;
-    bytes32 constant dstAddr = bytes32(0);
+    address constant UPDATER = 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496;
+    bytes32 constant CHAIN_INFO_UPDATE_PACKED = 0x0000000000000000000000000000000000000000000000000000000000121201;
+    uint16 constant DST_CHAIN = 10003;
+    bytes32 constant DST_ADDR = bytes32(0);
 
     function packUint64(uint64 a, uint64 b, uint64 c, uint64 d) public pure returns (bytes32) {
         return bytes32((uint256(d) << 192) | (uint256(c) << 128) | (uint256(b) << 64) | uint256(a));
     }
 
     function setUp() public {
-        executorQuoter = new ExecutorQuoter(updater, updater, 18, bytes32(uint256(uint160(updater))));
+        executorQuoter = new ExecutorQuoter(UPDATER, UPDATER, 18, bytes32(uint256(uint160(UPDATER))));
         ExecutorQuoter.Update memory chainInfoUpdate;
         chainInfoUpdate.chainId = 10003;
-        chainInfoUpdate.update = chainInfoUpdatePacked;
+        chainInfoUpdate.update = CHAIN_INFO_UPDATE_PACKED;
         chainInfoUpdates.push(chainInfoUpdate);
         executorQuoter.chainInfoUpdate(chainInfoUpdates);
         ExecutorQuoter.OnChainQuoteBody memory quote1;
@@ -76,7 +76,7 @@ contract ExecutorQuoterTest is Test {
 
     function test_requestQuote() public view {
         executorQuoter.requestQuote(
-            dstChain, dstAddr, updater, abi.encodePacked(""), abi.encodePacked(uint8(1), uint128(250000))
+            DST_CHAIN, DST_ADDR, UPDATER, abi.encodePacked(""), abi.encodePacked(uint8(1), uint128(250000))
         );
     }
 }

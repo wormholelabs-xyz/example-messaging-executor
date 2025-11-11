@@ -5,16 +5,16 @@ import "./interfaces/IExecutor.sol";
 import "./interfaces/IExecutorQuoter.sol";
 import "./interfaces/IExecutorQuoterRouter.sol";
 
-string constant executorQuoterRouterVersion = "Executor-Quote-Router-0.0.1";
+string constant EXECUTOR_QUOTER_ROUTER_VERSION_STR = "Executor-Quote-Router-0.0.1";
 
 contract ExecutorQuoterRouter is IExecutorQuoterRouter {
-    string public constant EXECUTOR_QUOTER_ROUTER_VERSION = executorQuoterRouterVersion;
+    string public constant EXECUTOR_QUOTER_ROUTER_VERSION = EXECUTOR_QUOTER_ROUTER_VERSION_STR;
     bytes4 private constant QUOTE_PREFIX = "EQ02";
     bytes4 private constant GOVERNANCE_PREFIX = "EG01";
     uint64 private constant EXPIRY_TIME = type(uint64).max;
 
-    IExecutor public immutable executor;
-    uint16 public immutable ourChain;
+    IExecutor public immutable EXECUTOR;
+    uint16 public immutable OUR_CHAIN;
 
     mapping(address => IExecutorQuoter) public quoterContract;
 
@@ -33,8 +33,8 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
     error NotAnEvmAddress(bytes32);
 
     constructor(address _executor) {
-        executor = IExecutor(_executor);
-        ourChain = executor.ourChain();
+        EXECUTOR = IExecutor(_executor);
+        OUR_CHAIN = EXECUTOR.ourChain();
     }
 
     function updateQuoterContract(bytes calldata gov) external {
@@ -57,8 +57,8 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
             s := calldataload(add(gov.offset, 98))
             v := shr(248, calldataload(add(gov.offset, 130)))
         }
-        if (chainId != ourChain) {
-            revert ChainIdMismatch(chainId, ourChain);
+        if (chainId != OUR_CHAIN) {
+            revert ChainIdMismatch(chainId, OUR_CHAIN);
         }
         // Check if the higher 96 bits (left-most 12 bytes) are non-zero
         if (uint256(universalContractAddress) >> 160 != 0) {
@@ -113,11 +113,11 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
                 revert RefundFailed(refundAddr);
             }
         }
-        executor.requestExecution{value: requiredPayment}(
+        EXECUTOR.requestExecution{value: requiredPayment}(
             dstChain,
             dstAddr,
             refundAddr,
-            abi.encodePacked(QUOTE_PREFIX, quoterAddr, payeeAddress, ourChain, dstChain, EXPIRY_TIME),
+            abi.encodePacked(QUOTE_PREFIX, quoterAddr, payeeAddress, OUR_CHAIN, dstChain, EXPIRY_TIME),
             requestBytes,
             relayInstructions
         );

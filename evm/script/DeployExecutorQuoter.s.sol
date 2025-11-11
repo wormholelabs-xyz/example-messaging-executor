@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19;
 
-import {ExecutorQuoter, executorQuoterVersion} from "../src/ExecutorQuoter.sol";
+import {ExecutorQuoter, EXECUTOR_QUOTER_VERSION_STR} from "../src/ExecutorQuoter.sol";
 import "forge-std/Script.sol";
 
 // DeployExecutorQuoter is a forge script to deploy the ExecutorQuoter contract. Use ./sh/deployExecutorQuoter.sh to invoke this.
@@ -31,7 +31,7 @@ contract DeployExecutorQuoter is Script {
         internal
         returns (address deployedAddress)
     {
-        bytes32 salt = keccak256(abi.encodePacked(executorQuoterVersion));
+        bytes32 salt = keccak256(abi.encodePacked(EXECUTOR_QUOTER_VERSION_STR));
         ExecutorQuoter executorQuoter =
             new ExecutorQuoter{salt: salt}(quoterAddress, updaterAddress, srcTokenDecimals, payeeAddress);
 
