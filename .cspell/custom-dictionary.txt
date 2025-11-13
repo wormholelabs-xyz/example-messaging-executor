@@ -6,10 +6,13 @@ hashv
 idls
 keccak
 Linea
+Mezo
 permissionless
 permissionlessly
+permissionlessness
 pubkey
 Pubkey
+Redoc
 Ruleset
 Rulesets
 runtimes
@@ -17,5 +20,3 @@ Solana
 struct
 structs
 Unichain
-Redoc
-Mezo
