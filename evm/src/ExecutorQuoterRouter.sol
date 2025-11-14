@@ -28,6 +28,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
     /// @param refundAddr The refund address.
     error RefundFailed(address refundAddr);
     error ChainIdMismatch(uint16 govChain, uint16 ourChain);
+    error InvalidSender();
     error InvalidSignature();
     error GovernanceExpired(uint64 expiryTime);
     error NotAnEvmAddress(bytes32);
@@ -43,6 +44,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         uint160 quoter;
         address quoterAddr;
         bytes32 universalContractAddress;
+        bytes32 universalSenderAddress;
         uint64 expiryTime;
         bytes32 r;
         bytes32 s;
@@ -52,10 +54,11 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
             chainId := shr(240, calldataload(add(gov.offset, 4)))
             quoter := shr(96, calldataload(add(gov.offset, 6)))
             universalContractAddress := calldataload(add(gov.offset, 26))
-            expiryTime := shr(192, calldataload(add(gov.offset, 58)))
-            r := calldataload(add(gov.offset, 66))
-            s := calldataload(add(gov.offset, 98))
-            v := shr(248, calldataload(add(gov.offset, 130)))
+            universalSenderAddress := calldataload(add(gov.offset, 58))
+            expiryTime := shr(192, calldataload(add(gov.offset, 90)))
+            r := calldataload(add(gov.offset, 98))
+            s := calldataload(add(gov.offset, 130))
+            v := shr(248, calldataload(add(gov.offset, 162)))
         }
         if (chainId != OUR_CHAIN) {
             revert ChainIdMismatch(chainId, OUR_CHAIN);
@@ -64,11 +67,19 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         if (uint256(universalContractAddress) >> 160 != 0) {
             revert NotAnEvmAddress(universalContractAddress);
         }
+        // Check if the higher 96 bits (left-most 12 bytes) are non-zero
+        if (uint256(universalSenderAddress) >> 160 != 0) {
+            revert NotAnEvmAddress(universalSenderAddress);
+        }
+        address senderAddress = address(uint160(uint256(universalSenderAddress)));
+        if (msg.sender != senderAddress) {
+            revert InvalidSender();
+        }
         if (expiryTime <= block.timestamp) {
             revert GovernanceExpired(expiryTime);
         }
         quoterAddr = address(quoter);
-        bytes32 hash = keccak256(gov[0:66]);
+        bytes32 hash = keccak256(gov[0:98]);
         address signer = ecrecover(hash, v, r, s);
         if (signer == address(0)) {
             revert InvalidSignature();

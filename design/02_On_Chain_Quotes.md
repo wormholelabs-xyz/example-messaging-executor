@@ -82,10 +82,11 @@ On EVM, two new contracts will be introduced.
    1. `updateQuoterContract(bytes calldata gov)` allows a Quoter to set their `ExecutorQuoter` contract via signed governance (detailed below). This MUST
       1. Verify the chain ID matches the Executor’s `ourChain`.
       2. Verify the contract address is an EVM address.
-      3. Verify the governance has not expired.
-      4. Verify the signature `ecrecover`s to the quoter address on the governance.
-      5. Assign the specified contract address to that quoter address.
-      6. Emit a `QuoterContractUpdate` event.
+      3. Verify the sender matches the sender on the governance.
+      4. Verify the governance has not expired.
+      5. Verify the signature `ecrecover`s to the quoter address on the governance.
+      6. Assign the specified contract address to that quoter address.
+      7. Emit a `QuoterContractUpdate` event.
    2. `quoteExecution` allows an integrator to quote the cost of an execution for a given quoter in place of a signed quote. This MUST call `requestQuote` from that Quoter’s registered contract.
    3. `requestExecution` allows an integrator to request execution via Executor providing a quoter address in place of a signed quote. This MUST
       1. Call `requestQuote` from that Quoter’s registered contract.
@@ -143,13 +144,16 @@ Relay Providers will need to change their verification for Executor requests. If
 
 ### Governance
 
-This design introduces a new concept of a Quoter’s on-chain governance
+This design introduces a new concept of a Quoter’s on-chain governance.
+
+The governance includes a sender address and expiry time in order to prevent replay attacks in lieu of a nonce and hash storage. The intention being that a short enough expiry time along with a pre-designated submitter mitigates the event where a quoter could be rolled back to a previous implementation by replaying their governance even when two governance messages are generated in short succession.
 
 ```solidity
 bytes4  prefix = "EG01";  // 4-byte prefix for this struct
 uint16  sourceChain;      // Wormhole Chain ID
 address quoterAddress;    // The public key of the quoter. Used to identify an execution provider.
 bytes32 contractAddress;  // UniversalAddress the quote contract to assign.
+bytes32 senderAddress;    // The public key of address expected to submit this governance.
 uint64  expiryTime;       // The unix time, in seconds, after which this quote should no longer be considered valid for requesting an execution
 [65]byte signature        // Quoter's signature of the previous bytes
 ```
