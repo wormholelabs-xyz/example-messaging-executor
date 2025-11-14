@@ -2,6 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
+
+import {ExecutorMessages} from "../src/libraries/ExecutorMessages.sol";
+import {RelayInstructions} from "../src/libraries/RelayInstructions.sol";
 import {ExecutorQuoter} from "../src/ExecutorQuoter.sol";
 
 contract ExecutorQuoterTest is Test {
@@ -76,7 +79,11 @@ contract ExecutorQuoterTest is Test {
 
     function test_requestQuote() public view {
         executorQuoter.requestQuote(
-            DST_CHAIN, DST_ADDR, UPDATER, abi.encodePacked(""), abi.encodePacked(uint8(1), uint128(250000))
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            RelayInstructions.encodeGas(250000, 0)
         );
     }
 }
