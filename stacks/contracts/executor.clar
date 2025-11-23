@@ -13,6 +13,11 @@
 (define-constant EXECUTOR-VERSION "Executor-0.0.1")
 (define-constant OUR-CHAIN u1) ;; Must be manually updated before deployment. Worth doing it this way or an initialize call?
 
+;; addr32 contract reference - update before deployment
+;; Local/Test: .addr32
+;; Testnet: 'ST2W4SFFKXMGFJW7K7NZFK3AH52ZTXDB74HKV9MRA.addr32
+;; Mainnet: TBD
+
 ;; errors
 (define-constant ERR-QUOTE-SRC-CHAIN-MISMATCH (err u1001))
 (define-constant ERR-QUOTE-DST-CHAIN-MISMATCH (err u1002))
@@ -53,7 +58,7 @@
         )
 
         ;; 2. Verify payee is registered and get principal
-        (let ((payee-lookup-result (contract-call? .executor-state universal-address-to-principal-get
+        (let ((payee-lookup-result (contract-call? .addr32 lookup
             payee-universal-addr
           )))
           (asserts! (is-some payee-lookup-result) ERR-UNREGISTERED-PAYEE)
@@ -192,9 +197,9 @@
 )
 
 ;; Convert 32-byte universal address hash back to a Stacks principal
-;; Uses the executor-state contract's payee registry
+;; Uses the addr32 contract's registry
 (define-read-only (universal-addr-to-principal (universal-addr (buff 32)))
-  (contract-call? .executor-state universal-address-to-principal-get
+  (contract-call? .addr32 lookup
     universal-addr
   )
 )

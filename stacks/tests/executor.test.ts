@@ -620,13 +620,15 @@ describe("Executor Contract Tests", () => {
     // Helper to register a test payee and get their universal address
     function registerTestPayee(principal: string) {
       const { result } = simnet.callPublicFn(
-        "executor-state",
-        "register-payee",
+        "addr32",
+        "register",
         [Cl.principal(principal)],
         principal
       );
-      expect(result).toBeOk(expect.objectContaining({ type: 'buffer' }));
-      return (result as any).value;
+      expect(result).toBeOk(expect.anything());
+      const okValue = (result as any).value;
+      // Access the addr32 buffer from the tuple's value
+      return okValue.value.addr32;
     }
 
     it("should execute successfully with valid quote and registered relayer", () => {

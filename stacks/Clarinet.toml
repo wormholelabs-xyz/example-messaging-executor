@@ -5,16 +5,16 @@ authors = []
 telemetry = false
 cache_dir = './.cache'
 
-[contracts.executor-state]
-path = 'contracts/executor-state.clar'
+[contracts.addr32]
+path = 'contracts/mocks/addr32.clar'
 clarity_version = 3
-epoch = 'latest'
+epoch = '3.2'
 
 [contracts.executor]
 path = 'contracts/executor.clar'
 clarity_version = 3
 epoch = '3.2'
-depends_on = ['executor-state']
+depends_on = ['addr32']
 [repl.analysis]
 passes = ['check_checker']
 

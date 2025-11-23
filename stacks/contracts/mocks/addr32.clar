@@ -1,55 +1,57 @@
-;; title: executor-state
-;; version: 0.0.1
-;; summary: State contract for cross-chain executor relayer registry
-;; description: Simple relayer address mapping for the executor system
+;; Title: addr32
+;; Version: final (CANNOT BE UPDATED)
 
-;;;; Constants
+;; This contract provides 32-byte addressing for the Stacks blockchain
+;; A Stacks contract principal can be longer than 32 bytes, and some protocols can't handle that
+;; We can generate a unique 32-byte address for any Stacks principal by hashing it
+;; This allows us to use existing protocols unmodified
 
-;; State contract errors
-(define-constant ERR_STATE_RELAYER_EXISTS (err u20001))
+(define-constant ERR_INVALID_ADDRESS (err u901))
 
-;;;; Data maps
-
-;; Map to track payee addresses for payments
-;; Universal address is keccak256(stacks-principal-as-string)
-(define-map universal-address-to-principal
-  (buff 32) ;; Universal address (32-byte hash)
-  principal ;; Stacks principal for STX payments
+;; Registered principals
+(define-map registry
+  (buff 32)  ;; keccak256(principal)
+  principal  ;; Stacks principal
 )
 
-;;;; Public functions
+;; @desc Get or register 32-byte address
+(define-public (register (p principal))
+  (if (is-standard p)
+    ;; Address matches network, this is expected
+    (inner-register p)
+    ;; Address does not match network, need to support for unit tests
+    (let ((addr32 (hash p)))
+      (match (lookup addr32)
+        val (ok {
+          created: false,
+          addr32: addr32
+        })
+        ERR_INVALID_ADDRESS))))
 
-;; @desc Register a payee's Stacks address for their universal address
-;;       Anyone can call this to register themselves as a payee
-(define-public (register-payee (stacks-addr principal))
-  (let (
-      (p-as-string (principal-to-string stacks-addr))
-      (universal-addr (keccak256 (string-ascii-to-buff p-as-string)))
-    )
-    ;; Check if payee already exists
-    (asserts! (is-none (universal-address-to-principal-get universal-addr))
-      ERR_STATE_RELAYER_EXISTS
-    )
+;; @desc Hash a Stacks principal to generate addr32
+(define-read-only (hash (p principal))
+  (keccak256 (string-ascii-to-buff (principal-to-string p))))
 
-    ;; Register the mapping
-    (map-set universal-address-to-principal universal-addr stacks-addr)
+;; @desc Lookup Stacks principal for given addr32
+(define-read-only (lookup (addr32 (buff 32)))
+  (map-get? registry addr32))
 
-    ;; Return the universal address for confirmation
-    (ok universal-addr)
-  )
-)
+;; @desc Lookup to see if Stacks principal is registered
+(define-read-only (reverse-lookup (p principal))
+  (let ((addr32 (hash p)))
+    {
+      registered: (is-some (map-get? registry addr32)),
+      addr32: addr32
+    }))
 
-;;;; Read-only functions
-
-;; Constants for principal-to-string conversion (extracted from self-listing-helper-v3)
+;; Constants for principal-to-string conversion
 (define-constant C32 "0123456789ABCDEFGHJKMNPQRSTVWXYZ")
 (define-constant LIST_15 (list 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 (define-constant LIST_24 (list 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
 (define-constant LIST_39 (concat LIST_24 LIST_15))
 
-;; @desc Convert principal to string representation
-;;       Extracted from self-listing-helper-v3 to eliminate external dependencies
-(define-read-only (principal-to-string (p principal))
+;; TODO: Replace with `to-ascii?` in Clarity 4
+(define-private (principal-to-string (p principal))
   (let (
       (destructed (match (principal-destruct? p) ok-value ok-value err-value err-value))
       (checksum (unwrap-panic (slice? (sha256 (sha256 (concat (get version destructed) (get hash-bytes destructed)))) u0 u4)))
@@ -66,9 +68,7 @@
 
 (define-private (hash-bytes-to-string (data (buff 24)))
   (let (
-      ;; fixed-length: 8 * 15 / 5 = 24
       (low-part (get s (fold c32-to-string-iter LIST_24 { s: "", r: (buff-to-uint-be (unwrap-panic (as-max-len? (unwrap-panic (slice? data u9 u24)) u16)))})))
-      ;; fixed-length: ceil(8 * 9 / 5) = 15
       (high-part (get s (fold c32-to-string-iter LIST_15 { s: "", r: (buff-to-uint-be (unwrap-panic (as-max-len? (unwrap-panic (slice? data u0 u9)) u16)))})))
     )
     (unwrap-panic (as-max-len? (concat high-part low-part) u39))
@@ -89,20 +89,14 @@
 (define-private (append-leading-0 (hash-bytes (buff 24)) (s (string-ascii 39)))
   (get address (fold append-leading-0-iter LIST_24 { hash-bytes: hash-bytes, address: s })))
 
-;; @desc Helper function to convert string to buffer for hashing
-;;       Matches the exact implementation from Wormhole Core
-(define-read-only (string-ascii-to-buff (s (string-ascii 256)))
+(define-private (string-ascii-to-buff (s (string-ascii 256)))
   (let ((cb (unwrap-panic (to-consensus-buff? s))))
-    ;; Consensus buff format for string:
-    ;;   bytes[0]:     Consensus Buff Type
-    ;;   bytes[1..4]:  String length
-    ;;   bytes[5..]:   String data
-    (unwrap-panic (slice? cb u5 (len cb)))
-  )
-)
+    (unwrap-panic (slice? cb u5 (len cb)))))
 
-;;;; Map getters
-
-(define-read-only (universal-address-to-principal-get (universal-addr (buff 32)))
-  (map-get? universal-address-to-principal universal-addr)
-)
+;; @desc Bypass checks, used in unit tests
+(define-private (inner-register (p principal))
+  (let ((addr32 (hash p)))
+    (ok {
+      created: (map-insert registry addr32 p),
+      addr32: addr32
+    })))
