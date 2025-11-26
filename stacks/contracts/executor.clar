@@ -11,13 +11,12 @@
 
 ;; constants
 (define-constant EXECUTOR-VERSION "Executor-0.0.1")
-(define-constant OUR-CHAIN u1) ;; Must be manually updated before deployment. Worth doing it this way or an initialize call?
+(define-constant OUR-CHAIN u60) ;; Must be manually updated before deployment. Worth doing it this way or an initialize call?
 
 ;; addr32 contract reference - update before deployment
 ;; Local/Test: .addr32
 ;; Testnet: 'ST2W4SFFKXMGFJW7K7NZFK3AH52ZTXDB74HKV9MRA.addr32
-;; Mainnet: TBD
-
+ 
 ;; errors
 (define-constant ERR-QUOTE-SRC-CHAIN-MISMATCH (err u1001))
 (define-constant ERR-QUOTE-DST-CHAIN-MISMATCH (err u1002))

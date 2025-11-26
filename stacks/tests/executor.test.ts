@@ -60,7 +60,7 @@ describe("Executor Contract Tests", () => {
     it("should validate a correct quote header", () => {
       // Create a valid quote buffer
       const validQuote = createSignedQuoteBuffer({
-        srcChain: 1,    // OUR-CHAIN = 1  
+        srcChain: 60,    // OUR-CHAIN = 60 (Stacks testnet)  
         dstChain: 2,    // Destination chain
         expiryTime: 9999999999 // Future timestamp placeholder // 1 hour in the future
       });
@@ -77,7 +77,7 @@ describe("Executor Contract Tests", () => {
 
     it("should reject quote with wrong source chain", () => {
       const invalidQuote = createSignedQuoteBuffer({
-        srcChain: 99,   // Wrong source chain (OUR-CHAIN = 1)
+        srcChain: 99,   // Wrong source chain (OUR-CHAIN = 60)
         dstChain: 2,
         expiryTime: 9999999999 // Future timestamp placeholder
       });
@@ -94,7 +94,7 @@ describe("Executor Contract Tests", () => {
 
     it("should reject quote with wrong destination chain", () => {
       const invalidQuote = createSignedQuoteBuffer({
-        srcChain: 1,    // Correct source chain
+        srcChain: 60,    // Correct source chain
         dstChain: 99,   // Wrong destination chain
         expiryTime: 9999999999 // Future timestamp placeholder
       });
@@ -111,7 +111,7 @@ describe("Executor Contract Tests", () => {
 
     it("should reject expired quote", () => {
       const expiredQuote = createSignedQuoteBuffer({
-        srcChain: 1,
+        srcChain: 60,
         dstChain: 2,
         expiryTime: 1000000000 // Past timestamp placeholder // 1 hour ago (expired)
       });
@@ -606,13 +606,13 @@ describe("Executor Contract Tests", () => {
   describe("get-our-chain", () => {
     it("should return correct chain ID", () => {
       const { result } = simnet.callReadOnlyFn(
-        "executor", 
+        "executor",
         "get-our-chain",
         [],
         address1
       );
-      
-      expect(result).toBeUint(1); 
+
+      expect(result).toBeUint(60); // Stacks testnet chain ID
     });
   });
 
@@ -644,7 +644,7 @@ describe("Executor Contract Tests", () => {
       
       // Create quote with the registered relayer's universal address as payee
       const validQuote = createSignedQuoteBuffer({
-        srcChain: 1,      // OUR-CHAIN
+        srcChain: 60,     // OUR-CHAIN (Stacks testnet)
         dstChain: 2,      // Target chain
         expiryTime: 9999999999, // Future timestamp placeholder
         payeeAddr: payeeBytes
@@ -702,7 +702,7 @@ describe("Executor Contract Tests", () => {
       const universalAddr = registerTestPayee(relayerAddr);
       
       const invalidQuote = createSignedQuoteBuffer({
-        srcChain: 1,
+        srcChain: 60,
         dstChain: 99,     // Wrong destination chain
         expiryTime: 9999999999, // Future timestamp placeholder
         payeeAddr: universalAddr
@@ -731,7 +731,7 @@ describe("Executor Contract Tests", () => {
       const universalAddr = registerTestPayee(relayerAddr);
       
       const expiredQuote = createSignedQuoteBuffer({
-        srcChain: 1,
+        srcChain: 60,
         dstChain: 2,
         expiryTime: 1000000000, // Past timestamp placeholder // 1 hour ago (expired)
         payeeAddr: universalAddr
@@ -761,7 +761,7 @@ describe("Executor Contract Tests", () => {
       unregisteredPayee.fill(0xFF); // Address that's not registered
       
       const validQuote = createSignedQuoteBuffer({
-        srcChain: 1,
+        srcChain: 60,
         dstChain: 2,
         expiryTime: 9999999999, // Future timestamp placeholder
         payeeAddr: unregisteredPayee
@@ -796,7 +796,7 @@ describe("Executor Contract Tests", () => {
       ));
       
       const validQuote = createSignedQuoteBuffer({
-        srcChain: 1,
+        srcChain: 60,
         dstChain: 3,
         expiryTime: 9999999999, // Future timestamp placeholder
         payeeAddr: payeeBytes
@@ -873,7 +873,7 @@ describe("Executor Contract Tests", () => {
         
         // Verify source chain (uint16 at offset 56: 4 + 20 + 32 bytes)
         const srcChainHex = signedQuoteHex.substr(112, 4); // 2 bytes = 4 hex chars
-        expect(srcChainHex).toBe("0001"); // Source chain = 1
+        expect(srcChainHex).toBe("003c"); // Source chain = 60 (0x3c)
         
         // Verify destination chain (uint16 at offset 58: 4 + 20 + 32 + 2 bytes) 
         const dstChainHex = signedQuoteHex.substr(116, 4); // 2 bytes = 4 hex chars
