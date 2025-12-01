@@ -28,7 +28,7 @@ contract ExecutorQuoterRouterTest is Test {
     bytes32 constant DST_ADDR = bytes32(0);
 
     function packUint64(uint64 a, uint64 b, uint64 c, uint64 d) public pure returns (bytes32) {
-        return bytes32((uint256(d) << 192) | (uint256(c) << 128) | (uint256(b) << 64) | uint256(a));
+        return bytes32((uint256(a) << 192) | (uint256(b) << 128) | (uint256(c) << 64) | uint256(d));
     }
 
     function setUp() public {

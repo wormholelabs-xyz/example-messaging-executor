@@ -100,7 +100,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         bytes calldata requestBytes,
         bytes calldata relayInstructions
     ) external view returns (uint256 requiredPayment) {
-        (, requiredPayment) =
+        requiredPayment =
             quoterContract[quoterAddr].requestQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);
     }
 
@@ -113,8 +113,8 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         bytes calldata relayInstructions
     ) external payable {
         IExecutorQuoter implementation = quoterContract[quoterAddr];
-        (bytes32 payeeAddress, uint256 requiredPayment) =
-            implementation.requestQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);
+        (uint256 requiredPayment, bytes32 payeeAddress, bytes32 quoteBody) =
+            implementation.requestExecutionQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);
         if (msg.value < requiredPayment) {
             revert Underpaid(msg.value, requiredPayment);
         }
@@ -128,7 +128,7 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
             dstChain,
             dstAddr,
             refundAddr,
-            abi.encodePacked(QUOTE_PREFIX, quoterAddr, payeeAddress, OUR_CHAIN, dstChain, EXPIRY_TIME),
+            abi.encodePacked(QUOTE_PREFIX, quoterAddr, payeeAddress, OUR_CHAIN, dstChain, EXPIRY_TIME, quoteBody),
             requestBytes,
             relayInstructions
         );

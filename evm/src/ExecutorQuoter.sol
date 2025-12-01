@@ -17,15 +17,16 @@ contract ExecutorQuoter is IExecutorQuoter {
 
     /// This is the same as an EQ01 quote body
     /// It fits into a single bytes32 storage slot
+    /// It is listed in reverse order so that it is stored in the correct order (EVM stores right to left)
     struct OnChainQuoteBody {
-        /// The base fee, in sourceChain native currency, required by the quoter to perform an execution on the destination chain
-        uint64 baseFee;
-        /// The current gas price on the destination chain
-        uint64 dstGasPrice;
-        /// The USD price, in 10^10, of the sourceChain native currency
-        uint64 srcPrice;
         /// The USD price, in 10^10, of the destinationChain native currency
         uint64 dstPrice;
+        /// The USD price, in 10^10, of the sourceChain native currency
+        uint64 srcPrice;
+        /// The current gas price on the destination chain
+        uint64 dstGasPrice;
+        /// The base fee, in sourceChain native currency, required by the quoter to perform an execution on the destination chain
+        uint64 baseFee;
     }
 
     struct ChainInfo {
@@ -193,16 +194,37 @@ contract ExecutorQuoter is IExecutorQuoter {
         address, //refundAddr,
         bytes calldata, //requestBytes,
         bytes calldata relayInstructions
-    ) external view returns (bytes32, uint256) {
+    ) external view returns (uint256 requiredPayment) {
+        ChainInfo storage dstChainInfo = chainInfos[dstChain];
+        if (!dstChainInfo.enabled) {
+            revert ChainDisabled(dstChain);
+        }
+        (uint256 gasLimit, uint256 msgValue) = totalGasLimitAndMsgValue(relayInstructions);
+        // NOTE: this does not include any maxGasLimit or maxMsgValue checks
+        requiredPayment = estimateQuote(quoteByDstChain[dstChain], dstChainInfo, gasLimit, msgValue);
+
+        return requiredPayment;
+    }
+
+    function requestExecutionQuote(
+        uint16 dstChain,
+        bytes32, //dstAddr,
+        address, //refundAddr,
+        bytes calldata, //requestBytes,
+        bytes calldata relayInstructions
+    ) external view returns (uint256 requiredPayment, bytes32, bytes32 quoteBody) {
         ChainInfo storage dstChainInfo = chainInfos[dstChain];
         if (!dstChainInfo.enabled) {
             revert ChainDisabled(dstChain);
         }
         OnChainQuoteBody storage quote = quoteByDstChain[dstChain];
+        assembly {
+            quoteBody := sload(quote.slot)
+        }
         (uint256 gasLimit, uint256 msgValue) = totalGasLimitAndMsgValue(relayInstructions);
         // NOTE: this does not include any maxGasLimit or maxMsgValue checks
-        uint256 requiredPayment = estimateQuote(quote, dstChainInfo, gasLimit, msgValue);
+        requiredPayment = estimateQuote(quote, dstChainInfo, gasLimit, msgValue);
 
-        return (PAYEE_ADDRESS, requiredPayment);
+        return (requiredPayment, PAYEE_ADDRESS, quoteBody);
     }
 }

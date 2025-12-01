@@ -160,14 +160,14 @@ uint64  expiryTime;       // The unix time, in seconds, after which this quote s
 
 ### Quote - Version 2
 
-This introduces a new Quote version to the [Executor spec](../README.md#api--database-schema).
-
-<aside>
-⚠️ TBD if the `baseFee`, `destinationGasPrice`, `sourcePrice`, and `destinationPrice` fields should be required akin to `EQ01`. We are assessing the additional cost to implement this or provide an equivalent way to gather this data off-chain.
-</aside>
+This introduces a new Quote version to the [Executor spec](../README.md#api--database-schema). It has the same body as `EQ01` sans signature. This is useful for parsing and validating off-chain.
 
 ```solidity
 Header   header              // prefix = "EQ02"
+uint64   baseFee             // The base fee, in sourceChain native currency, required by the quoter to perform an execution on the destination chain
+uint64   destinationGasPrice // The current gas price on the destination chain
+uint64   sourcePrice         // The USD price, in 10^10, of the sourceChain native currency
+uint64   destinationPrice    // The USD price, in 10^10, of the destinationChain native currency
 ```
 
 # **Caveats**

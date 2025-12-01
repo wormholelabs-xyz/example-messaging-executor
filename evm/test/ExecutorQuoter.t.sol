@@ -18,7 +18,7 @@ contract ExecutorQuoterTest is Test {
     bytes32 constant DST_ADDR = bytes32(0);
 
     function packUint64(uint64 a, uint64 b, uint64 c, uint64 d) public pure returns (bytes32) {
-        return bytes32((uint256(d) << 192) | (uint256(c) << 128) | (uint256(b) << 64) | uint256(a));
+        return bytes32((uint256(a) << 192) | (uint256(b) << 128) | (uint256(c) << 64) | uint256(d));
     }
 
     function setUp() public {
@@ -69,7 +69,7 @@ contract ExecutorQuoterTest is Test {
 
     function test_quoteUpdate() public {
         executorQuoter.quoteUpdate(updates);
-        (uint64 baseFee,,,) = executorQuoter.quoteByDstChain(10003);
+        (,,, uint64 baseFee) = executorQuoter.quoteByDstChain(10003);
         require(baseFee == 27971);
     }
 
@@ -79,6 +79,16 @@ contract ExecutorQuoterTest is Test {
 
     function test_requestQuote() public view {
         executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            RelayInstructions.encodeGas(250000, 0)
+        );
+    }
+
+    function test_requestExecutionQuote() public view {
+        executorQuoter.requestExecutionQuote(
             DST_CHAIN,
             DST_ADDR,
             UPDATER,
