@@ -211,6 +211,24 @@ contract ExecutorQuoterRouterTest is Test {
         );
     }
 
+    /// @notice Test that ecrecover returning address(0) is caught.
+    /// This happens when v is not 27 or 28, causing ecrecover to return address(0).
+    function test_updateQuoterContractEcrecoverReturnsZero() public {
+        // Build a governance message with an invalid v value (not 27 or 28)
+        // This will cause ecrecover to return address(0)
+        bytes memory govBody =
+            abi.encodePacked(hex"45473031", OUR_CHAIN, testQuoter, UPDATE_IMPLEMENTATION, SENDER_ADDRESS, EXPIRY);
+        bytes32 digest = keccak256(govBody);
+        (, bytes32 r, bytes32 s) = vm.sign(testQuoterPk, digest);
+
+        // Corrupt v to make it invalid (use 0 instead of 27/28)
+        // This causes ecrecover to return address(0)
+        bytes memory badGov = abi.encodePacked(govBody, r, s, uint8(0));
+
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoterRouter.InvalidSignature.selector));
+        executorQuoterRouter.updateQuoterContract(badGov);
+    }
+
     function test_updateQuoterContractQuoterMismatch() public {
         (address alice,) = makeAddrAndKey("alice");
         (, uint256 bobPk) = makeAddrAndKey("bob");

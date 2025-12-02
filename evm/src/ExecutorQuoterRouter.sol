@@ -33,6 +33,13 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
     error GovernanceExpired(uint64 expiryTime);
     error NotAnEvmAddress(bytes32);
 
+    struct ExecutionParams {
+        uint16 dstChain;
+        bytes32 dstAddr;
+        address refundAddr;
+        address quoterAddr;
+    }
+
     constructor(address _executor) {
         EXECUTOR = IExecutor(_executor);
         OUR_CHAIN = EXECUTOR.ourChain();
@@ -112,25 +119,34 @@ contract ExecutorQuoterRouter is IExecutorQuoterRouter {
         bytes calldata requestBytes,
         bytes calldata relayInstructions
     ) external payable {
-        IExecutorQuoter implementation = quoterContract[quoterAddr];
-        (uint256 requiredPayment, bytes32 payeeAddress, bytes32 quoteBody) =
-            implementation.requestExecutionQuote(dstChain, dstAddr, refundAddr, requestBytes, relayInstructions);
+        ExecutionParams memory params =
+            ExecutionParams({dstChain: dstChain, dstAddr: dstAddr, refundAddr: refundAddr, quoterAddr: quoterAddr});
+        _requestExecutionInternal(params, requestBytes, relayInstructions);
+    }
+
+    function _requestExecutionInternal(
+        ExecutionParams memory params,
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
+    ) private {
+        IExecutorQuoter implementation = quoterContract[params.quoterAddr];
+        (uint256 requiredPayment, bytes32 payeeAddress, bytes32 quoteBody) = implementation.requestExecutionQuote(
+            params.dstChain, params.dstAddr, params.refundAddr, requestBytes, relayInstructions
+        );
         if (msg.value < requiredPayment) {
             revert Underpaid(msg.value, requiredPayment);
         }
         if (msg.value > requiredPayment) {
-            (bool refundSuccessful,) = payable(refundAddr).call{value: msg.value - requiredPayment}("");
+            (bool refundSuccessful,) = payable(params.refundAddr).call{value: msg.value - requiredPayment}("");
             if (!refundSuccessful) {
-                revert RefundFailed(refundAddr);
+                revert RefundFailed(params.refundAddr);
             }
         }
+        bytes memory signedQuote = abi.encodePacked(
+            QUOTE_PREFIX, params.quoterAddr, payeeAddress, OUR_CHAIN, params.dstChain, EXPIRY_TIME, quoteBody
+        );
         EXECUTOR.requestExecution{value: requiredPayment}(
-            dstChain,
-            dstAddr,
-            refundAddr,
-            abi.encodePacked(QUOTE_PREFIX, quoterAddr, payeeAddress, OUR_CHAIN, dstChain, EXPIRY_TIME, quoteBody),
-            requestBytes,
-            relayInstructions
+            params.dstChain, params.dstAddr, params.refundAddr, signedQuote, requestBytes, relayInstructions
         );
         // this must emit a message in this function in order to verify off-chain that this contract generated the quote
         // the implementation is the only data available in this context that is not available from the executor event

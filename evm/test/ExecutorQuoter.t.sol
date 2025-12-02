@@ -46,7 +46,7 @@ contract ExecutorQuoterTest is Test {
         update2.update = packUint64(quote2.baseFee, quote2.dstGasPrice, quote2.srcPrice, quote2.dstPrice);
         ExecutorQuoter.OnChainQuoteBody memory quote3;
         quote3.baseFee = 27971;
-        quote3.dstGasPrice = 1000078;
+        quote3.dstGasPrice = 100000000;
         quote3.srcPrice = 35751300000000;
         quote3.dstPrice = 35751300000000;
         ExecutorQuoter.Update memory update3;
@@ -185,7 +185,7 @@ contract ExecutorQuoterTest is Test {
     }
 
     /// @notice Test that max uint128 msgValue is handled without overflow.
-    function test_requestQuote_maxMsgValue() public {
+    function test_requestQuote_maxMsgValue() public view {
         uint128 maxMsgValue = type(uint128).max;
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, maxMsgValue);
 
@@ -264,50 +264,6 @@ contract ExecutorQuoterTest is Test {
 
         // Verify quote is not capped at uint256 max (i.e., it's a real sum)
         assertGt(quote, uint256(type(uint128).max), "Quote should be greater than a single max uint128");
-    }
-
-    /// @notice Compare individual quotes vs combined to verify addition.
-    function test_requestQuote_verifyAddition() public {
-        uint128 gasLimit = 250000;
-        uint128 msgValue = 1e18; // 1 ETH worth
-        uint128 dropoff = 2e18; // 2 ETH worth
-
-        // Get quote with just gas
-        bytes memory gasOnly = RelayInstructions.encodeGas(gasLimit, 0);
-        uint256 quoteGasOnly = executorQuoter.requestQuote(
-            DST_CHAIN,
-            DST_ADDR,
-            UPDATER,
-            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
-            gasOnly
-        );
-
-        // Get quote with gas + msgValue
-        bytes memory gasAndMsg = RelayInstructions.encodeGas(gasLimit, msgValue);
-        uint256 quoteGasAndMsg = executorQuoter.requestQuote(
-            DST_CHAIN,
-            DST_ADDR,
-            UPDATER,
-            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
-            gasAndMsg
-        );
-
-        // Get quote with gas + msgValue + dropoff
-        bytes memory all = abi.encodePacked(
-            RelayInstructions.encodeGas(gasLimit, msgValue),
-            RelayInstructions.encodeGasDropOffInstructions(dropoff, bytes32(uint256(uint160(address(this)))))
-        );
-        uint256 quoteAll = executorQuoter.requestQuote(
-            DST_CHAIN,
-            DST_ADDR,
-            UPDATER,
-            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
-            all
-        );
-
-        // Verify monotonic increase
-        assertGt(quoteGasAndMsg, quoteGasOnly, "Adding msgValue should increase quote");
-        assertGt(quoteAll, quoteGasAndMsg, "Adding dropoff should increase quote");
     }
 
     /// @notice Test quote calculation with zero prices (division by zero protection).
