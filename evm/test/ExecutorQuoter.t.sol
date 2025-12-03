@@ -181,7 +181,7 @@ contract ExecutorQuoterTest is Test {
         emit log_named_uint("quote result", quote);
         emit log_named_uint("quote in ETH (approx)", quote / 1e18);
 
-        assertGt(quote, maxGas, "Quote should be non-zero");
+        assertEq(quote, 34028236692093846346337460743176823942600000000, "Quote should match expected value");
     }
 
     /// @notice Test that max uint128 msgValue is handled without overflow.
@@ -197,7 +197,7 @@ contract ExecutorQuoterTest is Test {
             relayInstructions
         );
 
-        assertGt(quote, maxMsgValue, "Quote should be greater than u128.max");
+        assertEq(quote, 340282366920938463463374635228868211455, "Quote should match expected value");
     }
 
     /// @notice Test with extreme price values - all max uint64.
@@ -231,7 +231,7 @@ contract ExecutorQuoterTest is Test {
         emit log_named_uint("quote result", quote);
         emit log_named_uint("quote in ETH (approx)", quote / 1e18);
 
-        assertGt(quote, type(uint64).max, "Quote should be greater than a max price");
+        assertEq(quote, 1849286093389382549403750000, "Quote should match expected value for extreme prices");
     }
 
     /// @notice Test quote with max msgValue AND max dropoff to verify they sum correctly.
@@ -262,8 +262,7 @@ contract ExecutorQuoterTest is Test {
         emit log_named_uint("type(uint256).max", type(uint256).max);
         emit log_named_uint("type(uint128).max * 3", uint256(type(uint128).max) * 3);
 
-        // Verify quote is not capped at uint256 max (i.e., it's a real sum)
-        assertGt(quote, uint256(type(uint128).max), "Quote should be greater than a single max uint128");
+        assertEq(quote, 34028237372658580188214387669926038806136422910, "Quote should match expected value for max values");
     }
 
     /// @notice Test quote calculation with zero prices (division by zero protection).
@@ -307,7 +306,7 @@ contract ExecutorQuoterTest is Test {
         // With zero gas, quote should be just the normalized base fee
         // baseFee = 27971 (in 10^10 decimals), normalized to 18 decimals
         // 27971 * 10^(18-10) = 27971 * 10^8 = 2797100000000
-        require(quote >= 2797100000000, "Quote should include base fee");
+        assertEq(quote, 2797100000000, "Quote should equal normalized base fee");
     }
 
     /// @notice Test normalize function with from > to (division path).
@@ -339,8 +338,7 @@ contract ExecutorQuoterTest is Test {
             relayInstructions
         );
 
-        // Quote should be non-zero and scaled down due to 8 decimals
-        assertGt(quote, 0, "Quote should be non-zero");
+        assertEq(quote, 100002779, "Quote should match expected value for 8 decimal token");
     }
 
     /// @notice Test normalize function with from == to (identity path).
