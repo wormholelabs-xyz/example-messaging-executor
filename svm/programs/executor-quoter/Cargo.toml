@@ -1,0 +1,20 @@
+[package]
+name = "executor-quoter"
+version = "0.1.0"
+description = "Executor Quoter - provides on-chain quote generation for cross-chain execution"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "executor_quoter"
+
+[features]
+default = []
+no-entrypoint = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+pinocchio = "0.9.2"
+pinocchio-system = "0.4"
+bytemuck = { version = "1.14", features = ["derive"] }
