@@ -3,7 +3,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{self, Pubkey},
+    pubkey::Pubkey,
     sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
@@ -22,7 +22,8 @@ pub struct UpdateChainInfoData {
     pub enabled: u8,
     pub gas_price_decimals: u8,
     pub native_decimals: u8,
-    pub _padding: [u8; 3],
+    pub bump: u8,
+    pub _padding: [u8; 2],
 }
 
 impl UpdateChainInfoData {
@@ -53,7 +54,9 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     if data.len() < UpdateChainInfoData::LEN {
         return Err(ExecutorQuoterError::InvalidInstructionData.into());
     }
-    let ix_data = bytemuck::from_bytes::<UpdateChainInfoData>(&data[..UpdateChainInfoData::LEN]);
+    let ix_data: UpdateChainInfoData =
+        bytemuck::try_pod_read_unaligned(&data[..UpdateChainInfoData::LEN])
+            .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
     // Load and validate config (discriminator checked inside load_account)
     let config = load_account::<Config>(config_account, program_id)?;
@@ -63,24 +66,25 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterError::InvalidUpdater.into());
     }
 
-    // Derive and validate ChainInfo PDA
+    // Prepare seeds for PDA operations
     let chain_id_bytes = ix_data.chain_id.to_le_bytes();
-    let (derived_pda, bump) =
-        pubkey::find_program_address(&[CHAIN_INFO_SEED, &chain_id_bytes], program_id);
-    if derived_pda != *chain_info_account.key() {
-        return Err(ExecutorQuoterError::InvalidPda.into());
-    }
+    let bump = ix_data.bump;
+    let bump_seed = [bump];
 
     // Check if account needs to be created
     let needs_creation = chain_info_account.data_is_empty();
+
+    // If account exists, verify it's owned by this program (PDA validation happens via CPI signing during creation)
+    if !needs_creation && chain_info_account.owner() != program_id {
+        return Err(ExecutorQuoterError::InvalidOwner.into());
+    }
 
     if needs_creation {
         // Get rent
         let rent = Rent::get()?;
         let lamports = rent.minimum_balance(ChainInfo::LEN);
 
-        // Create signer seeds
-        let bump_seed = [bump];
+        // Create signer seeds (bump_seed already defined above)
         let signer_seeds = [
             Seed::from(CHAIN_INFO_SEED),
             Seed::from(chain_id_bytes.as_slice()),
@@ -101,7 +105,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
 
     // Update account data
     let mut account_data = chain_info_account.try_borrow_mut_data()?;
-    let chain_info = bytemuck::from_bytes_mut::<ChainInfo>(&mut account_data[..ChainInfo::LEN]);
+    let chain_info = bytemuck::try_from_bytes_mut::<ChainInfo>(&mut account_data[..ChainInfo::LEN])
+        .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
     chain_info.discriminator = CHAIN_INFO_DISCRIMINATOR;
     chain_info.enabled = ix_data.enabled;

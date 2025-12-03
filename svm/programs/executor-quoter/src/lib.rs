@@ -1,25 +1,15 @@
 #![no_std]
 
 use pinocchio::{
-    account_info::AccountInfo,
-    default_allocator,
-    program_entrypoint,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    ProgramResult,
+    account_info::AccountInfo, default_allocator, nostd_panic_handler, program_entrypoint,
+    program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
-// Use program_entrypoint with max 5 accounts for zero-copy parsing efficiency
-// This still parses accounts upfront but avoids allocations and copies
-program_entrypoint!(process_instruction, 5);
+// Use program_entrypoint to declare the entrypoint
+// The MAX_TX_ACCOUNTS default handles any account count
+program_entrypoint!(process_instruction);
 default_allocator!();
-
-// Panic handler only for SBF target (not native tests which use std)
-#[cfg(all(not(feature = "no-entrypoint"), target_os = "solana"))]
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
+nostd_panic_handler!();
 
 pub mod error;
 pub mod instructions;

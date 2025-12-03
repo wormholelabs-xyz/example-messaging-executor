@@ -1,36 +1,19 @@
-use bytemuck::{Pod, Zeroable};
-use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
-
-use crate::error::ExecutorQuoterError;
-
-/// Account discriminators for type safety
-pub const CONFIG_DISCRIMINATOR: u8 = 1;
-pub const QUOTE_BODY_DISCRIMINATOR: u8 = 2;
-pub const CHAIN_INFO_DISCRIMINATOR: u8 = 3;
+use anchor_lang::prelude::*;
 
 /// PDA seed prefixes
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const QUOTE_SEED: &[u8] = b"quote";
 pub const CHAIN_INFO_SEED: &[u8] = b"chain_info";
 
-/// Trait for accounts with a discriminator byte at offset 0.
-pub trait Discriminator {
-    const DISCRIMINATOR: u8;
-}
-
 /// Global configuration for the ExecutorQuoter.
 /// PDA seeds: ["config"]
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
+#[account]
+#[derive(Debug, PartialEq)]
 pub struct Config {
-    /// Discriminator for account type validation
-    pub discriminator: u8,
     /// PDA bump seed
     pub bump: u8,
     /// Decimals of the source chain native token (SOL = 9)
     pub src_token_decimals: u8,
-    /// Padding for alignment
-    pub _padding: [u8; 5],
     /// The address of the quoter (for identification purposes)
     pub quoter_address: Pubkey,
     /// The address authorized to update quotes and chain info
@@ -39,30 +22,21 @@ pub struct Config {
     pub payee_address: [u8; 32],
 }
 
-impl Discriminator for Config {
-    const DISCRIMINATOR: u8 = CONFIG_DISCRIMINATOR;
-}
-
 impl Config {
-    pub const LEN: usize = core::mem::size_of::<Self>();
+    /// Account size: 8 (discriminator) + 1 + 1 + 32 + 32 + 32 = 106 bytes
+    pub const LEN: usize = 8 + 1 + 1 + 32 + 32 + 32;
 }
 
 /// On-chain quote body for a specific destination chain.
 /// Mirrors the EVM OnChainQuoteBody struct.
 /// PDA seeds: ["quote", chain_id (u16 le bytes)]
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
+#[account]
+#[derive(Debug, PartialEq)]
 pub struct QuoteBody {
-    /// Discriminator for account type validation
-    pub discriminator: u8,
-    /// Padding for alignment
-    pub _padding: [u8; 3],
     /// The destination chain ID this quote applies to
     pub chain_id: u16,
     /// PDA bump seed
     pub bump: u8,
-    /// Reserved
-    pub _reserved: u8,
     /// The USD price, in 10^10, of the destination chain native currency
     pub dst_price: u64,
     /// The USD price, in 10^10, of the source chain native currency
@@ -73,12 +47,10 @@ pub struct QuoteBody {
     pub base_fee: u64,
 }
 
-impl Discriminator for QuoteBody {
-    const DISCRIMINATOR: u8 = QUOTE_BODY_DISCRIMINATOR;
-}
-
 impl QuoteBody {
-    pub const LEN: usize = core::mem::size_of::<Self>();
+    /// Account size: 8 (discriminator) + 2 + 1 + 8 + 8 + 8 + 8 = 43 bytes
+    /// Aligned to 8 bytes = 48 bytes
+    pub const LEN: usize = 8 + 2 + 1 + 5 + 8 + 8 + 8 + 8; // 5 bytes padding for alignment
 
     /// Pack the quote body into a bytes32 representation (EQ01 format).
     /// Layout (32 bytes):
@@ -98,13 +70,11 @@ impl QuoteBody {
 
 /// Chain-specific configuration.
 /// PDA seeds: ["chain_info", chain_id (u16 le bytes)]
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
+#[account]
+#[derive(Debug, PartialEq)]
 pub struct ChainInfo {
-    /// Discriminator for account type validation
-    pub discriminator: u8,
     /// Whether this chain is enabled for quoting
-    pub enabled: u8,
+    pub enabled: bool,
     /// The chain ID this info applies to
     pub chain_id: u16,
     /// Decimals used for gas price on this chain
@@ -113,43 +83,10 @@ pub struct ChainInfo {
     pub native_decimals: u8,
     /// PDA bump seed
     pub bump: u8,
-    /// Reserved
-    pub _reserved: u8,
-}
-
-impl Discriminator for ChainInfo {
-    const DISCRIMINATOR: u8 = CHAIN_INFO_DISCRIMINATOR;
 }
 
 impl ChainInfo {
-    pub const LEN: usize = core::mem::size_of::<Self>();
-
-    pub fn is_enabled(&self) -> bool {
-        self.enabled == 1
-    }
-}
-
-/// Load a typed account from AccountInfo, validating ownership and discriminator.
-/// Returns a copy of the account data.
-pub fn load_account<T: Pod + Copy + Discriminator>(
-    account: &AccountInfo,
-    program_id: &Pubkey,
-) -> Result<T, ProgramError> {
-    if account.owner() != program_id {
-        return Err(ExecutorQuoterError::InvalidOwner.into());
-    }
-
-    let data = account.try_borrow_data()?;
-    if data.len() < core::mem::size_of::<T>() {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    // Check discriminator (first byte)
-    if data[0] != T::DISCRIMINATOR {
-        return Err(ExecutorQuoterError::InvalidDiscriminator.into());
-    }
-
-    let account = bytemuck::try_from_bytes::<T>(&data[..core::mem::size_of::<T>()])
-        .map_err(|_| ProgramError::InvalidAccountData)?;
-    Ok(*account)
+    /// Account size: 8 (discriminator) + 1 + 2 + 1 + 1 + 1 = 14 bytes
+    /// Aligned to 8 bytes = 16 bytes
+    pub const LEN: usize = 8 + 1 + 2 + 1 + 1 + 1 + 2; // 2 bytes padding
 }

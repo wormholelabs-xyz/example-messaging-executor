@@ -21,7 +21,8 @@ pub struct InitializeData {
     pub quoter_address: Pubkey,
     pub updater_address: Pubkey,
     pub src_token_decimals: u8,
-    pub _padding: [u8; 31],
+    pub bump: u8,
+    pub _padding: [u8; 30],
     pub payee_address: [u8; 32],
 }
 
@@ -51,10 +52,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     if data.len() < InitializeData::LEN {
         return Err(ExecutorQuoterError::InvalidInstructionData.into());
     }
-    let ix_data = bytemuck::from_bytes::<InitializeData>(&data[..InitializeData::LEN]);
+    let ix_data: InitializeData =
+        bytemuck::try_pod_read_unaligned(&data[..InitializeData::LEN])
+            .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
-    // Derive and validate Config PDA
-    let (derived_pda, bump) = pubkey::find_program_address(&[CONFIG_SEED], program_id);
+    // Validate Config PDA using bump from instruction data
+    let bump = ix_data.bump;
+    let bump_seed = [bump];
+    let derived_pda = pubkey::create_program_address(&[CONFIG_SEED, &bump_seed], program_id)
+        .map_err(|_| ExecutorQuoterError::InvalidPda)?;
     if derived_pda != *config_account.key() {
         return Err(ExecutorQuoterError::InvalidPda.into());
     }
@@ -68,8 +74,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     let rent = Rent::get()?;
     let lamports = rent.minimum_balance(Config::LEN);
 
-    // Create signer seeds
-    let bump_seed = [bump];
+    // Create signer seeds (bump_seed already defined above)
     let signer_seeds = [Seed::from(CONFIG_SEED), Seed::from(&bump_seed)];
     let signers = [Signer::from(&signer_seeds[..])];
 
@@ -85,7 +90,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
 
     // Initialize account data
     let mut account_data = config_account.try_borrow_mut_data()?;
-    let config = bytemuck::from_bytes_mut::<Config>(&mut account_data[..Config::LEN]);
+    let config = bytemuck::try_from_bytes_mut::<Config>(&mut account_data[..Config::LEN])
+        .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
     config.discriminator = CONFIG_DISCRIMINATOR;
     config.bump = bump;
