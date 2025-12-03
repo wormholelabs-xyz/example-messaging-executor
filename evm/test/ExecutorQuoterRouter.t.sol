@@ -46,12 +46,7 @@ contract ReentrantRefundReceiver {
             attackCount++;
             // Attempt to re-enter requestExecution during refund
             router.requestExecution{value: msg.value}(
-                dstChain,
-                dstAddr,
-                address(this),
-                quoterAddr,
-                requestBytes,
-                relayInstructions
+                dstChain, dstAddr, address(this), quoterAddr, requestBytes, relayInstructions
             );
         }
     }
@@ -59,7 +54,7 @@ contract ReentrantRefundReceiver {
 
 // Contract that rejects ETH transfers (no receive or fallback)
 contract RefundRejecter {
-    // Intentionally no receive() or fallback() function
+// Intentionally no receive() or fallback() function
 }
 
 // Malicious quoter that returns manipulated values
@@ -72,11 +67,7 @@ contract MaliciousQuoter is IExecutorQuoter {
         payeeAddress = bytes32(uint256(uint160(_payee)));
     }
 
-    function requestQuote(uint16, bytes32, address, bytes calldata, bytes calldata)
-        external
-        view
-        returns (uint256)
-    {
+    function requestQuote(uint16, bytes32, address, bytes calldata, bytes calldata) external view returns (uint256) {
         return reportedPrice;
     }
 
@@ -263,75 +254,48 @@ contract ExecutorQuoterRouterTest is Test {
     // Assertion-based tests
 
     function test_quoteExecution_returnsCorrectValue() public view {
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 routerQuote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
-        uint256 directQuote = executorQuoter.requestQuote(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            requestBytes,
-            relayInstructions
-        );
+        uint256 directQuote =
+            executorQuoter.requestQuote(DST_CHAIN, DST_ADDR, testQuoter, requestBytes, relayInstructions);
 
         assertEq(routerQuote, directQuote, "Router quote should match direct quoter quote");
     }
 
     function test_requestExecution_underpaid() public {
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 quote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
         vm.expectRevert(abi.encodeWithSelector(ExecutorQuoterRouter.Underpaid.selector, quote - 1, quote));
         executorQuoterRouter.requestExecution{value: quote - 1}(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
     }
 
     function test_requestExecution_paysPayee() public {
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 quote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
         uint256 payeeBalanceBefore = testQuoter.balance;
 
         executorQuoterRouter.requestExecution{value: quote}(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
         assertEq(testQuoter.balance, payeeBalanceBefore + quote, "Payee should receive exact payment");
@@ -346,16 +310,12 @@ contract ExecutorQuoterRouterTest is Test {
     /// The current implementation does allow reentrancy, but it should not
     /// cause loss of funds since state is read before the external call.
     function test_reentrancy_duringRefund() public {
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 quote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
         // Deploy reentrancy attacker
@@ -380,12 +340,7 @@ contract ExecutorQuoterRouterTest is Test {
         // Call from attacker context - the attacker will try to reenter on refund
         vm.prank(address(attacker));
         executorQuoterRouter.requestExecution{value: quote + excess}(
-            DST_CHAIN,
-            DST_ADDR,
-            address(attacker),
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, address(attacker), testQuoter, requestBytes, relayInstructions
         );
 
         // Verify payee received correct payment (should be quote * 3 if reentrancy succeeded)
@@ -420,30 +375,20 @@ contract ExecutorQuoterRouterTest is Test {
             )
         );
 
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         // Quote returns 0
-        uint256 quote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            mallory,
-            mallory,
-            requestBytes,
-            relayInstructions
-        );
+        uint256 quote =
+            executorQuoterRouter.quoteExecution(DST_CHAIN, DST_ADDR, mallory, mallory, requestBytes, relayInstructions);
         assertEq(quote, 0, "Malicious quoter should return 0");
 
         // User sends 1 ether thinking it's a good deal, gets full refund
         uint256 userBalanceBefore = address(this).balance;
 
         executorQuoterRouter.requestExecution{value: 1 ether}(
-            DST_CHAIN,
-            DST_ADDR,
-            address(this),
-            mallory,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, address(this), mallory, requestBytes, relayInstructions
         );
 
         // User should get full refund since quote was 0
@@ -473,19 +418,15 @@ contract ExecutorQuoterRouterTest is Test {
             )
         );
 
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 userBalanceBefore = address(this).balance;
 
         // User overpays significantly
         executorQuoterRouter.requestExecution{value: 1 ether}(
-            DST_CHAIN,
-            DST_ADDR,
-            address(this),
-            mallory,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, address(this), mallory, requestBytes, relayInstructions
         );
 
         // User should get refund of (1 ether - lowPrice)
@@ -550,16 +491,12 @@ contract ExecutorQuoterRouterTest is Test {
         // Deploy a contract that cannot receive ETH
         RefundRejecter rejecter = new RefundRejecter();
 
-        bytes memory requestBytes = ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
+        bytes memory requestBytes =
+            ExecutorMessages.makeVAAv1Request(OUR_CHAIN, bytes32(uint256(uint160(address(this)))), 1);
         bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
 
         uint256 quote = executorQuoterRouter.quoteExecution(
-            DST_CHAIN,
-            DST_ADDR,
-            testQuoter,
-            testQuoter,
-            requestBytes,
-            relayInstructions
+            DST_CHAIN, DST_ADDR, testQuoter, testQuoter, requestBytes, relayInstructions
         );
 
         // Overpay so a refund is attempted

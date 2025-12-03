@@ -262,7 +262,9 @@ contract ExecutorQuoterTest is Test {
         emit log_named_uint("type(uint256).max", type(uint256).max);
         emit log_named_uint("type(uint128).max * 3", uint256(type(uint128).max) * 3);
 
-        assertEq(quote, 34028237372658580188214387669926038806136422910, "Quote should match expected value for max values");
+        assertEq(
+            quote, 34028237372658580188214387669926038806136422910, "Quote should match expected value for max values"
+        );
     }
 
     /// @notice Test quote calculation with zero prices (division by zero protection).
