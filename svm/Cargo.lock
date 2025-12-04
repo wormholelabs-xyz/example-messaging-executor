@@ -1563,6 +1563,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "executor-quoter-native"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
 name = "executor-requests"
 version = "0.0.1"
 

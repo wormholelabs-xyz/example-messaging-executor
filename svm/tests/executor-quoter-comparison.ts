@@ -16,6 +16,11 @@ const PINOCCHIO_PROGRAM_ID = new PublicKey(
   "6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX",
 );
 
+// Native program ID (from deployed keypair)
+const NATIVE_PROGRAM_ID = new PublicKey(
+  "9CFzEuwodz3UhfZeDpBqpRJGpnYLbBcADMTUEmXvGu42",
+);
+
 // Seeds for PDAs
 const CONFIG_SEED = Buffer.from("config");
 const CHAIN_INFO_SEED = Buffer.from("chain_info");
@@ -77,6 +82,14 @@ describe("executor-quoter comparison", () => {
   let pinocchioChainInfoBump: number;
   let pinocchioQuotePda: PublicKey;
   let pinocchioQuoteBump: number;
+
+  // PDAs for Native program
+  let nativeConfigPda: PublicKey;
+  let nativeConfigBump: number;
+  let nativeChainInfoPda: PublicKey;
+  let nativeChainInfoBump: number;
+  let nativeQuotePda: PublicKey;
+  let nativeQuoteBump: number;
 
   const gasResults: GasResult[] = [];
 
@@ -268,6 +281,21 @@ describe("executor-quoter comparison", () => {
     [pinocchioQuotePda, pinocchioQuoteBump] = PublicKey.findProgramAddressSync(
       [QUOTE_SEED, chainIdBytes],
       PINOCCHIO_PROGRAM_ID,
+    );
+
+    // Derive Native PDAs
+    [nativeConfigPda, nativeConfigBump] = PublicKey.findProgramAddressSync(
+      [CONFIG_SEED],
+      NATIVE_PROGRAM_ID,
+    );
+    [nativeChainInfoPda, nativeChainInfoBump] =
+      PublicKey.findProgramAddressSync(
+        [CHAIN_INFO_SEED, chainIdBytes],
+        NATIVE_PROGRAM_ID,
+      );
+    [nativeQuotePda, nativeQuoteBump] = PublicKey.findProgramAddressSync(
+      [QUOTE_SEED, chainIdBytes],
+      NATIVE_PROGRAM_ID,
     );
   });
 
@@ -657,14 +685,245 @@ describe("executor-quoter comparison", () => {
     });
   });
 
+  describe("Native Implementation", () => {
+    it("initializes config", async () => {
+      const payeeAddress = new Uint8Array(32);
+      payer.publicKey.toBuffer().copy(payeeAddress);
+
+      const data = buildPinocchioInitializeData(
+        payer.publicKey,
+        updater.publicKey,
+        9,
+        payeeAddress,
+        nativeConfigBump,
+      );
+
+      const ix = new TransactionInstruction({
+        programId: NATIVE_PROGRAM_ID,
+        keys: [
+          { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: true },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data,
+      });
+
+      const tx = new Transaction().add(ix);
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
+
+      const computeUnits = await getComputeUnits(sig);
+      gasResults.push({
+        program: "Native",
+        instruction: "initialize",
+        computeUnits,
+      });
+
+      console.log(`  Native initialize: ${computeUnits} CU`);
+    });
+
+    it("updates chain info", async () => {
+      const data = buildPinocchioUpdateChainInfoData(
+        TEST_CHAIN_ID,
+        1, // enabled
+        GAS_PRICE_DECIMALS,
+        NATIVE_DECIMALS,
+        nativeChainInfoBump,
+      );
+
+      const ix = new TransactionInstruction({
+        programId: NATIVE_PROGRAM_ID,
+        keys: [
+          { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
+          { pubkey: nativeChainInfoPda, isSigner: false, isWritable: true },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data,
+      });
+
+      const tx = new Transaction().add(ix);
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer, updater],
+        { commitment: "confirmed" },
+      );
+
+      const computeUnits = await getComputeUnits(sig);
+      gasResults.push({
+        program: "Native",
+        instruction: "updateChainInfo",
+        computeUnits,
+      });
+
+      console.log(`  Native updateChainInfo: ${computeUnits} CU`);
+    });
+
+    it("updates quote", async () => {
+      const data = buildPinocchioUpdateQuoteData(
+        TEST_CHAIN_ID,
+        TEST_DST_PRICE,
+        TEST_SRC_PRICE,
+        TEST_DST_GAS_PRICE,
+        TEST_BASE_FEE,
+        nativeQuoteBump,
+      );
+
+      const ix = new TransactionInstruction({
+        programId: NATIVE_PROGRAM_ID,
+        keys: [
+          { pubkey: payer.publicKey, isSigner: true, isWritable: true },
+          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
+          { pubkey: nativeQuotePda, isSigner: false, isWritable: true },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data,
+      });
+
+      const tx = new Transaction().add(ix);
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer, updater],
+        { commitment: "confirmed" },
+      );
+
+      const computeUnits = await getComputeUnits(sig);
+      gasResults.push({
+        program: "Native",
+        instruction: "updateQuote",
+        computeUnits,
+      });
+
+      console.log(`  Native updateQuote: ${computeUnits} CU`);
+    });
+
+    it("requests quote", async () => {
+      const dstAddr = new Uint8Array(32);
+      const refundAddr = new Uint8Array(32);
+      payer.publicKey.toBuffer().copy(refundAddr);
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
+
+      const data = buildPinocchioRequestQuoteData(
+        TEST_CHAIN_ID,
+        dstAddr,
+        refundAddr,
+        new Uint8Array(0),
+        relayInstructions,
+      );
+
+      const ix = new TransactionInstruction({
+        programId: NATIVE_PROGRAM_ID,
+        keys: [
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
+          { pubkey: nativeChainInfoPda, isSigner: false, isWritable: false },
+          { pubkey: nativeQuotePda, isSigner: false, isWritable: false },
+        ],
+        data,
+      });
+
+      const tx = new Transaction().add(ix);
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
+
+      const computeUnits = await getComputeUnits(sig);
+      gasResults.push({
+        program: "Native",
+        instruction: "requestQuote",
+        computeUnits,
+      });
+
+      console.log(`  Native requestQuote: ${computeUnits} CU`);
+    });
+
+    it("requests execution quote", async () => {
+      const dstAddr = new Uint8Array(32);
+      const refundAddr = new Uint8Array(32);
+      payer.publicKey.toBuffer().copy(refundAddr);
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
+
+      // RequestExecutionQuote is discriminator 4
+      const data = buildPinocchioRequestQuoteData(
+        TEST_CHAIN_ID,
+        dstAddr,
+        refundAddr,
+        new Uint8Array(0),
+        relayInstructions,
+      );
+      data.writeUInt8(4, 0); // Change discriminator to RequestExecutionQuote
+
+      const ix = new TransactionInstruction({
+        programId: NATIVE_PROGRAM_ID,
+        keys: [
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
+          { pubkey: nativeChainInfoPda, isSigner: false, isWritable: false },
+          { pubkey: nativeQuotePda, isSigner: false, isWritable: false },
+        ],
+        data,
+      });
+
+      const tx = new Transaction().add(ix);
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
+
+      const computeUnits = await getComputeUnits(sig);
+      gasResults.push({
+        program: "Native",
+        instruction: "requestExecutionQuote",
+        computeUnits,
+      });
+
+      console.log(`  Native requestExecutionQuote: ${computeUnits} CU`);
+    });
+  });
+
   describe("Gas Comparison Summary", () => {
     it("prints comparison table", () => {
       console.log("\n=== Gas Comparison (Compute Units) ===\n");
       console.log(
-        "| Instruction            | Anchor CU | Pinocchio CU | Difference | Savings % |",
+        "| Instruction            | Anchor CU | Native CU | Pinocchio CU | Pino vs Anchor | Pino vs Native |",
       );
       console.log(
-        "|------------------------|-----------|--------------|------------|-----------|",
+        "|------------------------|-----------|-----------|--------------|----------------|----------------|",
       );
 
       const instructions = [
@@ -679,28 +938,34 @@ describe("executor-quoter comparison", () => {
         const anchor = gasResults.find(
           (r) => r.program === "Anchor" && r.instruction === instruction,
         );
+        const native = gasResults.find(
+          (r) => r.program === "Native" && r.instruction === instruction,
+        );
         const pinocchio = gasResults.find(
           (r) => r.program === "Pinocchio" && r.instruction === instruction,
         );
 
-        if (anchor && pinocchio) {
-          const diff = anchor.computeUnits - pinocchio.computeUnits;
-          const savings = ((diff / anchor.computeUnits) * 100).toFixed(1);
+        if (anchor && native && pinocchio) {
+          const pinoVsAnchor = (
+            (1 - pinocchio.computeUnits / anchor.computeUnits) *
+            100
+          ).toFixed(1);
+          const pinoVsNative = (
+            (1 - pinocchio.computeUnits / native.computeUnits) *
+            100
+          ).toFixed(1);
           console.log(
-            `| ${instruction.padEnd(22)} | ${anchor.computeUnits.toString().padStart(9)} | ${pinocchio.computeUnits.toString().padStart(12)} | ${diff.toString().padStart(10)} | ${savings.padStart(8)}% |`,
+            `| ${instruction.padEnd(22)} | ${anchor.computeUnits.toString().padStart(9)} | ${native.computeUnits.toString().padStart(9)} | ${pinocchio.computeUnits.toString().padStart(12)} | ${pinoVsAnchor.padStart(13)}% | ${pinoVsNative.padStart(13)}% |`,
           );
         }
       }
-      // These are pre-computed
+
       console.log("\n=== Binary Size Comparison ===\n");
-      console.log("| Program    | Size (bytes) |");
-      console.log("|------------|--------------|");
-      console.log("| Anchor     |       277600 |");
-      console.log("| Pinocchio  |        56176 |");
-      console.log(`| Difference |       ${277600 - 56176} |`);
-      console.log(
-        `| Savings    |        ${((1 - 56176 / 277600) * 100).toFixed(1)}% |`,
-      );
+      console.log("| Program    | Size (bytes) | vs Pinocchio |");
+      console.log("|------------|--------------|--------------|");
+      console.log("| Anchor     |       277728 |        5.32x |");
+      console.log("| Native     |       113504 |        2.17x |");
+      console.log("| Pinocchio  |        52224 |   1x (base)  |");
     });
   });
 });
