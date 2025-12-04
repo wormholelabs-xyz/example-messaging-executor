@@ -741,18 +741,20 @@ describe("executor-quoter comparison", () => {
         nativeChainInfoBump,
       );
 
+      // Native account order (optimized for zero-clone CPI):
+      // payer(0), chain_info(1), system_program(2), updater(3), config(4)
       const ix = new TransactionInstruction({
         programId: NATIVE_PROGRAM_ID,
         keys: [
           { pubkey: payer.publicKey, isSigner: true, isWritable: true },
-          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
-          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
           { pubkey: nativeChainInfoPda, isSigner: false, isWritable: true },
           {
             pubkey: SystemProgram.programId,
             isSigner: false,
             isWritable: false,
           },
+          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
         ],
         data,
       });
@@ -785,18 +787,20 @@ describe("executor-quoter comparison", () => {
         nativeQuoteBump,
       );
 
+      // Native account order (optimized for zero-clone CPI):
+      // payer(0), quote_body(1), system_program(2), updater(3), config(4)
       const ix = new TransactionInstruction({
         programId: NATIVE_PROGRAM_ID,
         keys: [
           { pubkey: payer.publicKey, isSigner: true, isWritable: true },
-          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
-          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
           { pubkey: nativeQuotePda, isSigner: false, isWritable: true },
           {
             pubkey: SystemProgram.programId,
             isSigner: false,
             isWritable: false,
           },
+          { pubkey: updater.publicKey, isSigner: true, isWritable: false },
+          { pubkey: nativeConfigPda, isSigner: false, isWritable: false },
         ],
         data,
       });
@@ -960,12 +964,36 @@ describe("executor-quoter comparison", () => {
         }
       }
 
+      // Get binary sizes dynamically
+      const fs = require("fs");
+      const path = require("path");
+      const deployDir = path.join(__dirname, "..", "target", "deploy");
+
+      const anchorSize = fs.statSync(
+        path.join(deployDir, "executor_quoter_anchor.so"),
+      ).size;
+      const nativeSize = fs.statSync(
+        path.join(deployDir, "executor_quoter_native.so"),
+      ).size;
+      const pinocchioSize = fs.statSync(
+        path.join(deployDir, "executor_quoter.so"),
+      ).size;
+
+      const anchorVsPino = (anchorSize / pinocchioSize).toFixed(2);
+      const nativeVsPino = (nativeSize / pinocchioSize).toFixed(2);
+
       console.log("\n=== Binary Size Comparison ===\n");
       console.log("| Program    | Size (bytes) | vs Pinocchio |");
       console.log("|------------|--------------|--------------|");
-      console.log("| Anchor     |       277728 |        5.32x |");
-      console.log("| Native     |       113504 |        2.17x |");
-      console.log("| Pinocchio  |        52224 |   1x (base)  |");
+      console.log(
+        `| Anchor     | ${anchorSize.toString().padStart(12)} | ${anchorVsPino.padStart(11)}x |`,
+      );
+      console.log(
+        `| Native     | ${nativeSize.toString().padStart(12)} | ${nativeVsPino.padStart(11)}x |`,
+      );
+      console.log(
+        `| Pinocchio  | ${pinocchioSize.toString().padStart(12)} |   1x (base)  |`,
+      );
     });
   });
 });

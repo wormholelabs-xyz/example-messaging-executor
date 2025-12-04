@@ -35,17 +35,22 @@ impl UpdateQuoteData {
 /// Process the UpdateQuote instruction.
 /// Creates or updates the QuoteBody PDA for a destination chain.
 ///
-/// Accounts:
+/// Accounts (ordered for zero-clone CPI):
 /// 0. `[signer, writable]` payer - pays for account creation if needed
-/// 1. `[signer]` updater - must match config.updater_address
-/// 2. `[]` config - Config PDA for validation
-/// 3. `[writable]` quote_body - QuoteBody PDA to create/update
-/// 4. `[]` system_program - System program for account creation
+/// 1. `[writable]` quote_body - QuoteBody PDA to create/update
+/// 2. `[]` system_program - System program for account creation
+/// 3. `[signer]` updater - must match config.updater_address
+/// 4. `[]` config - Config PDA for validation
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    // Parse accounts
-    let [payer, updater, config_account, quote_body_account, system_program] = accounts else {
+    // Validate account count
+    if accounts.len() < 5 {
         return Err(ProgramError::NotEnoughAccountKeys);
-    };
+    }
+
+    let payer = &accounts[0];
+    let quote_body_account = &accounts[1];
+    let updater = &accounts[3];
+    let config_account = &accounts[4];
 
     // Validate signers
     if !payer.is_signer || !updater.is_signer {
@@ -95,11 +100,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
             program_id,
         );
 
-        invoke_signed(
-            &create_account_ix,
-            &[payer.clone(), quote_body_account.clone(), system_program.clone()],
-            &[seeds],
-        )?;
+        // Accounts 0-2 are exactly what create_account CPI needs (payer, quote_body, system_program)
+        invoke_signed(&create_account_ix, &accounts[0..3], &[seeds])?;
     }
 
     // Update account data

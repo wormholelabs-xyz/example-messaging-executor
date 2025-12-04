@@ -111,7 +111,6 @@ pub fn process_request_quote(
     };
 
     // Load accounts (discriminator checked inside load_account)
-    // Config is validated but not used in requestQuote (only in requestExecutionQuote)
     let _config = load_account::<Config>(config_account, program_id)?;
 
     let chain_info = load_account::<ChainInfo>(chain_info_account, program_id)?;
@@ -151,7 +150,7 @@ pub fn process_request_quote(
     // Parse relay instructions
     let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
 
-    // Calculate quote using U256 math
+    // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(
         quote_body.base_fee,
         quote_body.src_price,
@@ -163,8 +162,7 @@ pub fn process_request_quote(
         msg_value,
     )?;
 
-    // Return the quote as big-endian U256 (32 bytes) via set_return_data.
-    // Clients can read this via simulateTransaction or CPI callers via get_return_data.
+    // Return the quote as u64 (8 bytes, big-endian) via set_return_data.
     set_return_data(&required_payment.to_be_bytes());
 
     Ok(())
@@ -222,7 +220,7 @@ pub fn process_request_execution_quote(
     // Parse relay instructions
     let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
 
-    // Calculate quote using U256 math
+    // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(
         quote_body.base_fee,
         quote_body.src_price,
@@ -234,14 +232,14 @@ pub fn process_request_execution_quote(
         msg_value,
     )?;
 
-    // Return data layout (96 bytes, matching EVM return values):
-    // - bytes 0-31: required_payment (U256, big-endian)
-    // - bytes 32-63: payee_address (32 bytes)
-    // - bytes 64-95: quote_body (32 bytes, EQ01 format)
-    let mut return_data = [0u8; 96];
-    return_data[0..32].copy_from_slice(&required_payment.to_be_bytes());
-    return_data[32..64].copy_from_slice(&config.payee_address);
-    return_data[64..96].copy_from_slice(&quote_body.to_bytes32());
+    // Return data layout (72 bytes, all big-endian):
+    // - bytes 0-7: required_payment (u64)
+    // - bytes 8-39: payee_address (32 bytes)
+    // - bytes 40-71: quote_body (32 bytes, EQ01 format)
+    let mut return_data = [0u8; 72];
+    return_data[0..8].copy_from_slice(&required_payment.to_be_bytes());
+    return_data[8..40].copy_from_slice(&config.payee_address);
+    return_data[40..72].copy_from_slice(&quote_body.to_bytes32());
 
     set_return_data(&return_data);
 
