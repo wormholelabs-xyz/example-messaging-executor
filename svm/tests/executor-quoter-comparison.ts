@@ -13,7 +13,7 @@ import {
 
 // Pinocchio program ID (from deployed keypair)
 const PINOCCHIO_PROGRAM_ID = new PublicKey(
-  "6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX"
+  "6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX",
 );
 
 // Seeds for PDAs
@@ -47,7 +47,8 @@ describe("executor-quoter comparison", () => {
   });
 
   // Load wallet from default location
-  const walletPath = process.env.ANCHOR_WALLET || "/Users/smurf/.config/solana/id.json";
+  const walletPath =
+    process.env.ANCHOR_WALLET || "/Users/smurf/.config/solana/id.json";
   const secretKey = JSON.parse(require("fs").readFileSync(walletPath, "utf8"));
   const payer = Keypair.fromSecretKey(new Uint8Array(secretKey));
   const wallet = new anchor.Wallet(payer);
@@ -60,7 +61,7 @@ describe("executor-quoter comparison", () => {
 
   const anchorProgram = new Program<ExecutorQuoterAnchor>(
     require("../target/idl/executor_quoter_anchor.json"),
-    provider
+    provider,
   );
   const updater = Keypair.generate();
 
@@ -80,9 +81,7 @@ describe("executor-quoter comparison", () => {
   const gasResults: GasResult[] = [];
 
   // Helper to get compute units from transaction
-  async function getComputeUnits(
-    signature: string
-  ): Promise<number> {
+  async function getComputeUnits(signature: string): Promise<number> {
     // Wait a bit for the tx to finalize
     await new Promise((resolve) => setTimeout(resolve, 500));
     const tx = await connection.getTransaction(signature, {
@@ -101,7 +100,7 @@ describe("executor-quoter comparison", () => {
     updaterAddress: PublicKey,
     srcTokenDecimals: number,
     payeeAddress: Uint8Array,
-    bump: number
+    bump: number,
   ): Buffer {
     const data = Buffer.alloc(1 + 32 + 32 + 1 + 1 + 30 + 32); // discriminator + quoter + updater + decimals + bump + padding + payee
     let offset = 0;
@@ -126,7 +125,7 @@ describe("executor-quoter comparison", () => {
     enabled: number,
     gasPriceDecimals: number,
     nativeDecimals: number,
-    bump: number
+    bump: number,
   ): Buffer {
     // UpdateChainInfoData struct is 8 bytes (u16 + u8 + u8 + u8 + u8 + 2 bytes padding)
     const data = Buffer.alloc(1 + 8); // discriminator + struct
@@ -153,7 +152,7 @@ describe("executor-quoter comparison", () => {
     srcPrice: bigint,
     dstGasPrice: bigint,
     baseFee: bigint,
-    bump: number
+    bump: number,
   ): Buffer {
     // UpdateQuoteData struct is 40 bytes (u16 + u8 bump + 5 bytes padding + 4 u64s)
     const data = Buffer.alloc(1 + 40); // discriminator + struct
@@ -181,10 +180,10 @@ describe("executor-quoter comparison", () => {
     dstAddr: Uint8Array,
     refundAddr: Uint8Array,
     requestBytes: Uint8Array,
-    relayInstructions: Uint8Array
+    relayInstructions: Uint8Array,
   ): Buffer {
     const data = Buffer.alloc(
-      1 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length
+      1 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length,
     );
     let offset = 0;
     data.writeUInt8(3, offset); // RequestQuote discriminator
@@ -228,46 +227,47 @@ describe("executor-quoter comparison", () => {
     // Airdrop to payer
     const payerAirdropSig = await connection.requestAirdrop(
       payer.publicKey,
-      100 * anchor.web3.LAMPORTS_PER_SOL
+      100 * anchor.web3.LAMPORTS_PER_SOL,
     );
     await connection.confirmTransaction(payerAirdropSig, "confirmed");
-    console.log(`Payer balance: ${await connection.getBalance(payer.publicKey)}`);
+    console.log(
+      `Payer balance: ${await connection.getBalance(payer.publicKey)}`,
+    );
 
     // Airdrop to updater
     const sig = await connection.requestAirdrop(
       updater.publicKey,
-      10 * anchor.web3.LAMPORTS_PER_SOL
+      10 * anchor.web3.LAMPORTS_PER_SOL,
     );
     await connection.confirmTransaction(sig, "confirmed");
 
     // Derive Anchor PDAs
     [anchorConfigPda] = PublicKey.findProgramAddressSync(
       [CONFIG_SEED],
-      anchorProgram.programId
+      anchorProgram.programId,
     );
     const chainIdBytes = Buffer.alloc(2);
     chainIdBytes.writeUInt16LE(TEST_CHAIN_ID);
     [anchorChainInfoPda] = PublicKey.findProgramAddressSync(
       [CHAIN_INFO_SEED, chainIdBytes],
-      anchorProgram.programId
+      anchorProgram.programId,
     );
     [anchorQuotePda] = PublicKey.findProgramAddressSync(
       [QUOTE_SEED, chainIdBytes],
-      anchorProgram.programId
+      anchorProgram.programId,
     );
 
     // Derive Pinocchio PDAs
-    [pinocchioConfigPda, pinocchioConfigBump] = PublicKey.findProgramAddressSync(
-      [CONFIG_SEED],
-      PINOCCHIO_PROGRAM_ID
-    );
-    [pinocchioChainInfoPda, pinocchioChainInfoBump] = PublicKey.findProgramAddressSync(
-      [CHAIN_INFO_SEED, chainIdBytes],
-      PINOCCHIO_PROGRAM_ID
-    );
+    [pinocchioConfigPda, pinocchioConfigBump] =
+      PublicKey.findProgramAddressSync([CONFIG_SEED], PINOCCHIO_PROGRAM_ID);
+    [pinocchioChainInfoPda, pinocchioChainInfoBump] =
+      PublicKey.findProgramAddressSync(
+        [CHAIN_INFO_SEED, chainIdBytes],
+        PINOCCHIO_PROGRAM_ID,
+      );
     [pinocchioQuotePda, pinocchioQuoteBump] = PublicKey.findProgramAddressSync(
       [QUOTE_SEED, chainIdBytes],
-      PINOCCHIO_PROGRAM_ID
+      PINOCCHIO_PROGRAM_ID,
     );
   });
 
@@ -361,7 +361,10 @@ describe("executor-quoter comparison", () => {
       const dstAddr = new Uint8Array(32);
       const refundAddr = new Uint8Array(32);
       payer.publicKey.toBuffer().copy(refundAddr);
-      const relayInstructions = buildRelayInstructions(TEST_GAS_LIMIT, BigInt(0));
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
 
       const sig = await anchorProgram.methods
         .requestQuote({
@@ -392,7 +395,10 @@ describe("executor-quoter comparison", () => {
       const dstAddr = new Uint8Array(32);
       const refundAddr = new Uint8Array(32);
       payer.publicKey.toBuffer().copy(refundAddr);
-      const relayInstructions = buildRelayInstructions(TEST_GAS_LIMIT, BigInt(0));
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
 
       const sig = await anchorProgram.methods
         .requestExecutionQuote({
@@ -430,7 +436,7 @@ describe("executor-quoter comparison", () => {
         updater.publicKey,
         9,
         payeeAddress,
-        pinocchioConfigBump
+        pinocchioConfigBump,
       );
 
       const ix = new TransactionInstruction({
@@ -438,15 +444,24 @@ describe("executor-quoter comparison", () => {
         keys: [
           { pubkey: payer.publicKey, isSigner: true, isWritable: true },
           { pubkey: pinocchioConfigPda, isSigner: false, isWritable: true },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
         ],
         data,
       });
 
       const tx = new Transaction().add(ix);
-      const sig = await sendAndConfirmTransaction(provider.connection, tx, [payer], {
-        commitment: "confirmed",
-      });
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
 
       const computeUnits = await getComputeUnits(sig);
       gasResults.push({
@@ -464,7 +479,7 @@ describe("executor-quoter comparison", () => {
         1, // enabled
         GAS_PRICE_DECIMALS,
         NATIVE_DECIMALS,
-        pinocchioChainInfoBump
+        pinocchioChainInfoBump,
       );
 
       const ix = new TransactionInstruction({
@@ -474,7 +489,11 @@ describe("executor-quoter comparison", () => {
           { pubkey: updater.publicKey, isSigner: true, isWritable: false },
           { pubkey: pinocchioConfigPda, isSigner: false, isWritable: false },
           { pubkey: pinocchioChainInfoPda, isSigner: false, isWritable: true },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
         ],
         data,
       });
@@ -484,7 +503,7 @@ describe("executor-quoter comparison", () => {
         provider.connection,
         tx,
         [payer, updater],
-        { commitment: "confirmed" }
+        { commitment: "confirmed" },
       );
 
       const computeUnits = await getComputeUnits(sig);
@@ -504,7 +523,7 @@ describe("executor-quoter comparison", () => {
         TEST_SRC_PRICE,
         TEST_DST_GAS_PRICE,
         TEST_BASE_FEE,
-        pinocchioQuoteBump
+        pinocchioQuoteBump,
       );
 
       const ix = new TransactionInstruction({
@@ -514,7 +533,11 @@ describe("executor-quoter comparison", () => {
           { pubkey: updater.publicKey, isSigner: true, isWritable: false },
           { pubkey: pinocchioConfigPda, isSigner: false, isWritable: false },
           { pubkey: pinocchioQuotePda, isSigner: false, isWritable: true },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
         ],
         data,
       });
@@ -524,7 +547,7 @@ describe("executor-quoter comparison", () => {
         provider.connection,
         tx,
         [payer, updater],
-        { commitment: "confirmed" }
+        { commitment: "confirmed" },
       );
 
       const computeUnits = await getComputeUnits(sig);
@@ -541,14 +564,17 @@ describe("executor-quoter comparison", () => {
       const dstAddr = new Uint8Array(32);
       const refundAddr = new Uint8Array(32);
       payer.publicKey.toBuffer().copy(refundAddr);
-      const relayInstructions = buildRelayInstructions(TEST_GAS_LIMIT, BigInt(0));
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
 
       const data = buildPinocchioRequestQuoteData(
         TEST_CHAIN_ID,
         dstAddr,
         refundAddr,
         new Uint8Array(0),
-        relayInstructions
+        relayInstructions,
       );
 
       const ix = new TransactionInstruction({
@@ -562,9 +588,14 @@ describe("executor-quoter comparison", () => {
       });
 
       const tx = new Transaction().add(ix);
-      const sig = await sendAndConfirmTransaction(provider.connection, tx, [payer], {
-        commitment: "confirmed",
-      });
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
 
       const computeUnits = await getComputeUnits(sig);
       gasResults.push({
@@ -580,7 +611,10 @@ describe("executor-quoter comparison", () => {
       const dstAddr = new Uint8Array(32);
       const refundAddr = new Uint8Array(32);
       payer.publicKey.toBuffer().copy(refundAddr);
-      const relayInstructions = buildRelayInstructions(TEST_GAS_LIMIT, BigInt(0));
+      const relayInstructions = buildRelayInstructions(
+        TEST_GAS_LIMIT,
+        BigInt(0),
+      );
 
       // RequestExecutionQuote is discriminator 4
       const data = buildPinocchioRequestQuoteData(
@@ -588,7 +622,7 @@ describe("executor-quoter comparison", () => {
         dstAddr,
         refundAddr,
         new Uint8Array(0),
-        relayInstructions
+        relayInstructions,
       );
       data.writeUInt8(4, 0); // Change discriminator to RequestExecutionQuote
 
@@ -603,9 +637,14 @@ describe("executor-quoter comparison", () => {
       });
 
       const tx = new Transaction().add(ix);
-      const sig = await sendAndConfirmTransaction(provider.connection, tx, [payer], {
-        commitment: "confirmed",
-      });
+      const sig = await sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [payer],
+        {
+          commitment: "confirmed",
+        },
+      );
 
       const computeUnits = await getComputeUnits(sig);
       gasResults.push({
@@ -621,8 +660,12 @@ describe("executor-quoter comparison", () => {
   describe("Gas Comparison Summary", () => {
     it("prints comparison table", () => {
       console.log("\n=== Gas Comparison (Compute Units) ===\n");
-      console.log("| Instruction            | Anchor CU | Pinocchio CU | Difference | Savings % |");
-      console.log("|------------------------|-----------|--------------|------------|-----------|");
+      console.log(
+        "| Instruction            | Anchor CU | Pinocchio CU | Difference | Savings % |",
+      );
+      console.log(
+        "|------------------------|-----------|--------------|------------|-----------|",
+      );
 
       const instructions = [
         "initialize",
@@ -634,17 +677,17 @@ describe("executor-quoter comparison", () => {
 
       for (const instruction of instructions) {
         const anchor = gasResults.find(
-          (r) => r.program === "Anchor" && r.instruction === instruction
+          (r) => r.program === "Anchor" && r.instruction === instruction,
         );
         const pinocchio = gasResults.find(
-          (r) => r.program === "Pinocchio" && r.instruction === instruction
+          (r) => r.program === "Pinocchio" && r.instruction === instruction,
         );
 
         if (anchor && pinocchio) {
           const diff = anchor.computeUnits - pinocchio.computeUnits;
           const savings = ((diff / anchor.computeUnits) * 100).toFixed(1);
           console.log(
-            `| ${instruction.padEnd(22)} | ${anchor.computeUnits.toString().padStart(9)} | ${pinocchio.computeUnits.toString().padStart(12)} | ${diff.toString().padStart(10)} | ${savings.padStart(8)}% |`
+            `| ${instruction.padEnd(22)} | ${anchor.computeUnits.toString().padStart(9)} | ${pinocchio.computeUnits.toString().padStart(12)} | ${diff.toString().padStart(10)} | ${savings.padStart(8)}% |`,
           );
         }
       }
@@ -655,7 +698,9 @@ describe("executor-quoter comparison", () => {
       console.log("| Anchor     |       277600 |");
       console.log("| Pinocchio  |        56176 |");
       console.log(`| Difference |       ${277600 - 56176} |`);
-      console.log(`| Savings    |        ${((1 - 56176 / 277600) * 100).toFixed(1)}% |`);
+      console.log(
+        `| Savings    |        ${((1 - 56176 / 277600) * 100).toFixed(1)}% |`,
+      );
     });
   });
 });
