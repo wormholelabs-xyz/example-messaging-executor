@@ -6,7 +6,14 @@ use solana_program::{
 use crate::{
     error::ExecutorQuoterError,
     math,
-    state::{load_account, ChainInfo, Config, QuoteBody},
+    state::{
+        pack_quote_body_to_bytes32, read_bytes32, read_u64_le, read_u8, validate_account,
+        CHAIN_INFO_DISCRIMINATOR, CHAIN_INFO_ENABLED_OFFSET, CHAIN_INFO_GAS_PRICE_DECIMALS_OFFSET,
+        CHAIN_INFO_LEN, CHAIN_INFO_NATIVE_DECIMALS_OFFSET, CONFIG_DISCRIMINATOR, CONFIG_LEN,
+        CONFIG_PAYEE_ADDRESS_OFFSET, QUOTE_BODY_BASE_FEE_OFFSET, QUOTE_BODY_DISCRIMINATOR,
+        QUOTE_BODY_DST_GAS_PRICE_OFFSET, QUOTE_BODY_DST_PRICE_OFFSET, QUOTE_BODY_LEN,
+        QUOTE_BODY_SRC_PRICE_OFFSET,
+    },
 };
 
 /// Relay instruction type constants (matching EVM)
@@ -110,15 +117,50 @@ pub fn process_request_quote(
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    // Load accounts (discriminator checked inside load_account)
-    let _config = load_account::<Config>(config_account, program_id)?;
+    // Validate config account
+    validate_account(config_account, program_id, CONFIG_DISCRIMINATOR, CONFIG_LEN)?;
 
-    let chain_info = load_account::<ChainInfo>(chain_info_account, program_id)?;
-    if !chain_info.is_enabled() {
-        return Err(ExecutorQuoterError::ChainDisabled.into());
-    }
+    // Validate chain_info account and check if enabled
+    validate_account(
+        chain_info_account,
+        program_id,
+        CHAIN_INFO_DISCRIMINATOR,
+        CHAIN_INFO_LEN,
+    )?;
 
-    let quote_body = load_account::<QuoteBody>(quote_body_account, program_id)?;
+    // Validate quote_body account
+    validate_account(
+        quote_body_account,
+        program_id,
+        QUOTE_BODY_DISCRIMINATOR,
+        QUOTE_BODY_LEN,
+    )?;
+
+    // Read chain_info fields
+    let (gas_price_decimals, native_decimals) = {
+        let chain_info_data = chain_info_account.try_borrow_data()?;
+
+        // Check if chain is enabled
+        if read_u8(&chain_info_data, CHAIN_INFO_ENABLED_OFFSET) == 0 {
+            return Err(ExecutorQuoterError::ChainDisabled.into());
+        }
+
+        (
+            read_u8(&chain_info_data, CHAIN_INFO_GAS_PRICE_DECIMALS_OFFSET),
+            read_u8(&chain_info_data, CHAIN_INFO_NATIVE_DECIMALS_OFFSET),
+        )
+    };
+
+    // Read quote_body fields
+    let (base_fee, src_price, dst_price, dst_gas_price) = {
+        let quote_body_data = quote_body_account.try_borrow_data()?;
+        (
+            read_u64_le(&quote_body_data, QUOTE_BODY_BASE_FEE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_SRC_PRICE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_DST_PRICE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_DST_GAS_PRICE_OFFSET),
+        )
+    };
 
     // Parse instruction data to get relay_instructions
     // Skip: dst_chain (2) + dst_addr (32) + refund_addr (32) = 66 bytes
@@ -152,12 +194,12 @@ pub fn process_request_quote(
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(
-        quote_body.base_fee,
-        quote_body.src_price,
-        quote_body.dst_price,
-        quote_body.dst_gas_price,
-        chain_info.gas_price_decimals,
-        chain_info.native_decimals,
+        base_fee,
+        src_price,
+        dst_price,
+        dst_gas_price,
+        gas_price_decimals,
+        native_decimals,
         gas_limit,
         msg_value,
     )?;
@@ -182,15 +224,50 @@ pub fn process_request_execution_quote(
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    // Load accounts (discriminator checked inside load_account)
-    let config = load_account::<Config>(config_account, program_id)?;
+    // Validate config account
+    validate_account(config_account, program_id, CONFIG_DISCRIMINATOR, CONFIG_LEN)?;
 
-    let chain_info = load_account::<ChainInfo>(chain_info_account, program_id)?;
-    if !chain_info.is_enabled() {
-        return Err(ExecutorQuoterError::ChainDisabled.into());
-    }
+    // Validate chain_info account
+    validate_account(
+        chain_info_account,
+        program_id,
+        CHAIN_INFO_DISCRIMINATOR,
+        CHAIN_INFO_LEN,
+    )?;
 
-    let quote_body = load_account::<QuoteBody>(quote_body_account, program_id)?;
+    // Validate quote_body account
+    validate_account(
+        quote_body_account,
+        program_id,
+        QUOTE_BODY_DISCRIMINATOR,
+        QUOTE_BODY_LEN,
+    )?;
+
+    // Read chain_info fields
+    let (gas_price_decimals, native_decimals) = {
+        let chain_info_data = chain_info_account.try_borrow_data()?;
+
+        // Check if chain is enabled
+        if read_u8(&chain_info_data, CHAIN_INFO_ENABLED_OFFSET) == 0 {
+            return Err(ExecutorQuoterError::ChainDisabled.into());
+        }
+
+        (
+            read_u8(&chain_info_data, CHAIN_INFO_GAS_PRICE_DECIMALS_OFFSET),
+            read_u8(&chain_info_data, CHAIN_INFO_NATIVE_DECIMALS_OFFSET),
+        )
+    };
+
+    // Read quote_body fields and config payee_address
+    let (base_fee, src_price, dst_price, dst_gas_price) = {
+        let quote_body_data = quote_body_account.try_borrow_data()?;
+        (
+            read_u64_le(&quote_body_data, QUOTE_BODY_BASE_FEE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_SRC_PRICE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_DST_PRICE_OFFSET),
+            read_u64_le(&quote_body_data, QUOTE_BODY_DST_GAS_PRICE_OFFSET),
+        )
+    };
 
     // Parse instruction data to get relay_instructions
     if data.len() < 70 {
@@ -222,12 +299,12 @@ pub fn process_request_execution_quote(
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(
-        quote_body.base_fee,
-        quote_body.src_price,
-        quote_body.dst_price,
-        quote_body.dst_gas_price,
-        chain_info.gas_price_decimals,
-        chain_info.native_decimals,
+        base_fee,
+        src_price,
+        dst_price,
+        dst_gas_price,
+        gas_price_decimals,
+        native_decimals,
         gas_limit,
         msg_value,
     )?;
@@ -238,8 +315,17 @@ pub fn process_request_execution_quote(
     // - bytes 40-71: quote_body (32 bytes, EQ01 format)
     let mut return_data = [0u8; 72];
     return_data[0..8].copy_from_slice(&required_payment.to_be_bytes());
-    return_data[8..40].copy_from_slice(&config.payee_address);
-    return_data[40..72].copy_from_slice(&quote_body.to_bytes32());
+
+    // Read payee_address from config
+    {
+        let config_data = config_account.try_borrow_data()?;
+        let payee_address = read_bytes32(&config_data, CONFIG_PAYEE_ADDRESS_OFFSET);
+        return_data[8..40].copy_from_slice(payee_address);
+    }
+
+    // Pack quote body to bytes32 (EQ01 format)
+    let quote_body_bytes32 = pack_quote_body_to_bytes32(base_fee, dst_gas_price, src_price, dst_price);
+    return_data[40..72].copy_from_slice(&quote_body_bytes32);
 
     set_return_data(&return_data);
 

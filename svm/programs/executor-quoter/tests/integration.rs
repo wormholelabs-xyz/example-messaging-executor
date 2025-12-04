@@ -168,6 +168,65 @@ fn build_relay_instructions_gas(gas_limit: u128, msg_value: u128) -> Vec<u8> {
     data
 }
 
+/// Build drop-off relay instruction (Type 2)
+fn build_relay_instructions_dropoff(msg_value: u128, recipient: &[u8; 32]) -> Vec<u8> {
+    let mut data = Vec::with_capacity(49);
+    data.push(2); // IX_TYPE_DROP_OFF
+    data.extend_from_slice(&msg_value.to_be_bytes());
+    data.extend_from_slice(recipient);
+    data
+}
+
+/// Build combined gas + dropoff relay instructions
+fn build_relay_instructions_gas_and_dropoff(
+    gas_limit: u128,
+    gas_msg_value: u128,
+    dropoff_value: u128,
+    recipient: &[u8; 32],
+) -> Vec<u8> {
+    let mut data = Vec::with_capacity(33 + 49);
+    // Gas instruction (Type 1)
+    data.push(1);
+    data.extend_from_slice(&gas_limit.to_be_bytes());
+    data.extend_from_slice(&gas_msg_value.to_be_bytes());
+    // DropOff instruction (Type 2)
+    data.push(2);
+    data.extend_from_slice(&dropoff_value.to_be_bytes());
+    data.extend_from_slice(recipient);
+    data
+}
+
+/// Build relay instruction with invalid type
+fn build_relay_instructions_invalid_type() -> Vec<u8> {
+    let mut data = Vec::with_capacity(33);
+    data.push(0xFF); // Invalid type
+    data.extend_from_slice(&100u128.to_be_bytes());
+    data.extend_from_slice(&0u128.to_be_bytes());
+    data
+}
+
+/// Build two dropoff instructions (invalid - only one allowed)
+fn build_relay_instructions_two_dropoffs(recipient: &[u8; 32]) -> Vec<u8> {
+    let mut data = Vec::with_capacity(98);
+    // First dropoff
+    data.push(2);
+    data.extend_from_slice(&100u128.to_be_bytes());
+    data.extend_from_slice(recipient);
+    // Second dropoff (this is invalid)
+    data.push(2);
+    data.extend_from_slice(&200u128.to_be_bytes());
+    data.extend_from_slice(recipient);
+    data
+}
+
+/// Build truncated relay instruction (missing bytes)
+fn build_relay_instructions_truncated() -> Vec<u8> {
+    let mut data = Vec::with_capacity(10);
+    data.push(1); // Gas type
+    data.extend_from_slice(&[0u8; 8]); // Only 8 bytes instead of 32
+    data
+}
+
 /// Create a Config account with initialized data
 fn create_config_account_data(
     bump: u8,
@@ -1051,4 +1110,2037 @@ async fn test_full_flow() {
     println!("Step 4: RequestQuote - PASSED");
 
     println!("\nFull flow completed successfully!");
+}
+
+// ============================================================================
+// ERROR PATH TESTS
+// ============================================================================
+
+#[tokio::test]
+async fn test_invalid_updater_quote() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let authorized_updater = Keypair::new();
+    let unauthorized_updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        unauthorized_updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &authorized_updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let instruction_data = build_update_quote_data(
+        chain_id,
+        quote_bump,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(unauthorized_updater.pubkey(), true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(quote_body_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer, &unauthorized_updater], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with InvalidUpdater");
+
+    println!("InvalidUpdater (UpdateQuote) test passed!");
+}
+
+#[tokio::test]
+async fn test_chain_disabled_execution_quote() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        false, // DISABLED
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 0);
+    let instruction_data = build_request_execution_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with ChainDisabled");
+
+    println!("ChainDisabled (RequestExecutionQuote) test passed!");
+}
+
+#[tokio::test]
+async fn test_unsupported_instruction() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_invalid_type();
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with UnsupportedInstruction");
+
+    println!("UnsupportedInstruction test passed!");
+}
+
+#[tokio::test]
+async fn test_more_than_one_dropoff() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_two_dropoffs(&[0x03u8; 32]);
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with MoreThanOneDropOff");
+
+    println!("MoreThanOneDropOff test passed!");
+}
+
+#[tokio::test]
+async fn test_invalid_relay_instructions() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_truncated();
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with InvalidRelayInstructions");
+
+    println!("InvalidRelayInstructions test passed!");
+}
+
+#[tokio::test]
+async fn test_already_initialized() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let quoter_address = Pubkey::new_unique();
+    let updater_address = Pubkey::new_unique();
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    // Pre-add a config account (already initialized)
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &quoter_address,
+        &updater_address,
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Try to initialize again
+    let instruction_data = build_initialize_data(
+        &quoter_address,
+        &updater_address,
+        9,
+        config_bump,
+        &payee_address,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new(config_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with AlreadyInitialized");
+
+    println!("AlreadyInitialized test passed!");
+}
+
+#[tokio::test]
+async fn test_not_enough_accounts() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 0);
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    // Only provide config account, missing chain_info and quote_body
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with NotEnoughAccountKeys");
+
+    println!("NotEnoughAccountKeys test passed!");
+}
+
+// ============================================================================
+// EDGE CASE / BOUNDARY TESTS
+// ============================================================================
+
+#[tokio::test]
+async fn test_zero_gas_limit() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000, // base_fee = 1000000 (10^6 at QUOTE_DECIMALS=10 = 0.0001)
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Zero gas limit, zero msg value - should return base_fee only
+    let relay_instructions = build_relay_instructions_gas(0, 0);
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Zero gas limit should succeed: {:?}", result.err());
+
+    println!("Zero gas limit test passed!");
+}
+
+#[tokio::test]
+async fn test_zero_src_price() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    // src_price = 0 (division by zero scenario)
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000, // dst_price
+        0,               // src_price = 0!
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 0);
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with MathOverflow (division by zero)");
+
+    println!("Zero src_price test passed!");
+}
+
+#[tokio::test]
+async fn test_multiple_gas_instructions() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Build two gas instructions - they should sum
+    let mut relay_instructions = build_relay_instructions_gas(100000, 1000000000000000000); // 100k gas, 1 ETH
+    relay_instructions.extend(build_relay_instructions_gas(50000, 500000000000000000)); // 50k gas, 0.5 ETH
+
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Multiple gas instructions should succeed: {:?}", result.err());
+
+    println!("Multiple gas instructions test passed!");
+}
+
+#[tokio::test]
+async fn test_gas_plus_dropoff() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Gas instruction + DropOff instruction
+    let relay_instructions = build_relay_instructions_gas_and_dropoff(
+        200000,              // gas_limit
+        0,                   // gas msg_value
+        1000000000000000000, // dropoff value (1 ETH)
+        &[0x03u8; 32],       // recipient
+    );
+
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Gas + DropOff should succeed: {:?}", result.err());
+
+    println!("Gas + DropOff test passed!");
+}
+
+#[tokio::test]
+async fn test_empty_relay_instructions() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Empty relay instructions - should just return base_fee
+    let relay_instructions: Vec<u8> = vec![];
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Empty relay instructions should succeed: {:?}", result.err());
+
+    println!("Empty relay instructions test passed!");
+}
+
+#[tokio::test]
+async fn test_arithmetic_overflow() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        0, // gas_price_decimals = 0 (makes values larger)
+        0, // native_decimals = 0 (makes values larger)
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    // Extreme prices to cause overflow
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        u64::MAX, // dst_price
+        1,        // tiny src_price
+        u64::MAX, // dst_gas_price
+        u64::MAX, // base_fee
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Very large values that should cause overflow
+    let relay_instructions = build_relay_instructions_gas(u128::MAX / 2, u128::MAX / 2);
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_err(), "Should have failed with MathOverflow");
+
+    println!("Arithmetic overflow test passed!");
+}
+
+// ============================================================================
+// DECIMAL NORMALIZATION TESTS
+// ============================================================================
+
+#[tokio::test]
+async fn test_decimals_18_to_9() {
+    // Test with dst_native_decimals=18 (ETH), which tests the division path
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9,  // gas_price_decimals (Gwei)
+        18, // native_decimals (ETH)
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 1000000000000000000); // 200k gas, 1 ETH
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Decimals 18->9 should succeed: {:?}", result.err());
+
+    println!("Decimals 18->9 test passed!");
+}
+
+#[tokio::test]
+async fn test_decimals_6_to_9() {
+    // Test with dst_native_decimals=6 (USDC chain), which tests the multiplication path
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        6, // gas_price_decimals
+        6, // native_decimals (6 decimals like USDC)
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        1_0000000000, // dst_price: $1 at 10^10
+        200_0000000000, // src_price: $200 at 10^10
+        1_000000,    // dst_gas_price: 1 at 6 decimals
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 1_000000); // 200k gas, 1 unit at 6 decimals
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Decimals 6->9 should succeed: {:?}", result.err());
+
+    println!("Decimals 6->9 test passed!");
+}
+
+#[tokio::test]
+async fn test_decimals_9_to_9() {
+    // Test with dst_native_decimals=9 (same as SVM), identity path
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true,
+        9, // gas_price_decimals (same as SOL)
+        9, // native_decimals (same as SOL)
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        200_0000000000, // dst_price (same as src)
+        200_0000000000, // src_price
+        1_000000000,    // dst_gas_price at 9 decimals
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let relay_instructions = build_relay_instructions_gas(200000, 1_000000000); // 200k gas, 1 SOL
+    let instruction_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(result.is_ok(), "Decimals 9->9 should succeed: {:?}", result.err());
+
+    println!("Decimals 9->9 test passed!");
+}
+
+// ============================================================================
+// ACCOUNT STATE VERIFICATION TESTS
+// ============================================================================
+
+#[tokio::test]
+async fn test_update_overwrites_quote() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 10_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // First update
+    let instruction_data1 = build_update_quote_data(
+        chain_id,
+        quote_bump,
+        1000_0000000000, // dst_price
+        100_0000000000,  // src_price
+        25_000000000,    // dst_gas_price
+        500000,          // base_fee
+    );
+
+    let instruction1 = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data1,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(quote_body_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut tx1 = Transaction::new_with_payer(&[instruction1], Some(&payer.pubkey()));
+    tx1.sign(&[&payer, &updater], recent_blockhash);
+    banks_client.process_transaction(tx1).await.expect("First update failed");
+
+    // Second update with different values
+    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let instruction_data2 = build_update_quote_data(
+        chain_id,
+        quote_bump,
+        2000_0000000000, // different dst_price
+        200_0000000000,  // different src_price
+        50_000000000,    // different dst_gas_price
+        1000000,         // different base_fee
+    );
+
+    let instruction2 = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data2,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(quote_body_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut tx2 = Transaction::new_with_payer(&[instruction2], Some(&payer.pubkey()));
+    tx2.sign(&[&payer, &updater], recent_blockhash);
+    banks_client.process_transaction(tx2).await.expect("Second update failed");
+
+    // Verify the new values
+    let quote_body_account = banks_client
+        .get_account(quote_body_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("QuoteBody account not found");
+
+    // Check dst_price at offset 8 (after discriminator/padding/chain_id/bump/reserved)
+    let dst_price = u64::from_le_bytes(quote_body_account.data[8..16].try_into().unwrap());
+    assert_eq!(dst_price, 2000_0000000000, "dst_price should be updated to new value");
+
+    println!("Update overwrites quote test passed!");
+}
+
+#[tokio::test]
+async fn test_chain_toggle() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
+    let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
+    let payee_address = [0x42u8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 10_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let config_data = create_config_account_data(
+        config_bump,
+        9,
+        &Pubkey::new_unique(),
+        &updater.pubkey(),
+        &payee_address,
+    );
+    pt.add_account(
+        config_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: config_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    // Start with chain enabled
+    let chain_info_data = create_chain_info_account_data(
+        chain_info_bump,
+        chain_id,
+        true, // enabled
+        9,
+        18,
+    );
+    pt.add_account(
+        chain_info_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: chain_info_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let quote_body_data = create_quote_body_account_data(
+        quote_body_bump,
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
+    pt.add_account(
+        quote_body_pda,
+        Account {
+            lamports: 1_000_000_000,
+            data: quote_body_data,
+            owner: PROGRAM_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Disable the chain
+    let disable_data = build_update_chain_info_data(chain_id, false, 9, 18, chain_info_bump);
+    let disable_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &disable_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(chain_info_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut tx = Transaction::new_with_payer(&[disable_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    banks_client.process_transaction(tx).await.expect("Disable chain failed");
+
+    // Verify chain is disabled
+    let chain_info_account = banks_client
+        .get_account(chain_info_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("ChainInfo account not found");
+    assert_eq!(chain_info_account.data[1], 0, "Chain should be disabled");
+
+    // Try to request quote - should fail
+    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let relay_instructions = build_relay_instructions_gas(200000, 0);
+    let quote_data = build_request_quote_data(
+        chain_id,
+        &[0x01u8; 32],
+        &[0x02u8; 32],
+        &[],
+        &relay_instructions,
+    );
+    let quote_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &quote_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[quote_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer], recent_blockhash);
+    let result = banks_client.process_transaction(tx).await;
+    assert!(result.is_err(), "Quote should fail when chain disabled");
+
+    // Re-enable the chain
+    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let enable_data = build_update_chain_info_data(chain_id, true, 9, 18, chain_info_bump);
+    let enable_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &enable_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(chain_info_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[enable_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    banks_client.process_transaction(tx).await.expect("Re-enable chain failed");
+
+    // Verify chain is enabled again
+    let chain_info_account = banks_client
+        .get_account(chain_info_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("ChainInfo account not found");
+    assert_eq!(chain_info_account.data[1], 1, "Chain should be re-enabled");
+
+    // Quote should work now
+    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let quote_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &quote_data,
+        vec![
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(chain_info_pda, false),
+            AccountMeta::new_readonly(quote_body_pda, false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[quote_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer], recent_blockhash);
+    let result = banks_client.process_transaction(tx).await;
+    assert!(result.is_ok(), "Quote should succeed when chain re-enabled: {:?}", result.err());
+
+    println!("Chain toggle test passed!");
+}
+
+#[tokio::test]
+async fn test_account_data_layout() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let (config_pda, config_bump) = derive_config_pda();
+    let quoter_address = Pubkey::new_unique();
+    let updater_address = Pubkey::new_unique();
+    let payee_address = [0xABu8; 32];
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    let instruction_data = build_initialize_data(
+        &quoter_address,
+        &updater_address,
+        9, // src_token_decimals
+        config_bump,
+        &payee_address,
+    );
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new(config_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await.expect("Initialize failed");
+
+    // Verify account data layout
+    let config_account = banks_client
+        .get_account(config_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("Config account not found");
+
+    assert_eq!(config_account.data.len(), CONFIG_SIZE, "Config size mismatch");
+    assert_eq!(config_account.data[0], CONFIG_DISCRIMINATOR, "Discriminator mismatch");
+    assert_eq!(config_account.data[1], config_bump, "Bump mismatch");
+    assert_eq!(config_account.data[2], 9, "src_token_decimals mismatch");
+
+    // Verify quoter_address at offset 8
+    assert_eq!(&config_account.data[8..40], quoter_address.as_ref(), "quoter_address mismatch");
+
+    // Verify updater_address at offset 40
+    assert_eq!(&config_account.data[40..72], updater_address.as_ref(), "updater_address mismatch");
+
+    // Verify payee_address at offset 72
+    assert_eq!(&config_account.data[72..104], &payee_address, "payee_address mismatch");
+
+    println!("Account data layout test passed!");
 }

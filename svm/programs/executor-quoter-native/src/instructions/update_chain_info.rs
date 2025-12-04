@@ -1,4 +1,3 @@
-use bytemuck::{Pod, Zeroable};
 use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
@@ -12,24 +11,29 @@ use solana_program::{
 
 use crate::{
     error::ExecutorQuoterError,
-    state::{load_account, ChainInfo, Config, CHAIN_INFO_DISCRIMINATOR, CHAIN_INFO_SEED},
+    state::{
+        read_bytes32, read_u16_le, validate_account, write_u16_le, write_u8,
+        CHAIN_INFO_BUMP_OFFSET, CHAIN_INFO_CHAIN_ID_OFFSET, CHAIN_INFO_DISCRIMINATOR,
+        CHAIN_INFO_ENABLED_OFFSET, CHAIN_INFO_GAS_PRICE_DECIMALS_OFFSET, CHAIN_INFO_LEN,
+        CHAIN_INFO_NATIVE_DECIMALS_OFFSET, CHAIN_INFO_SEED, CONFIG_DISCRIMINATOR, CONFIG_LEN,
+        CONFIG_UPDATER_ADDRESS_OFFSET,
+    },
 };
 
-/// Instruction data for UpdateChainInfo
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy)]
-pub struct UpdateChainInfoData {
-    pub chain_id: u16,
-    pub enabled: u8,
-    pub gas_price_decimals: u8,
-    pub native_decimals: u8,
-    pub bump: u8,
-    pub _padding: [u8; 2],
-}
-
-impl UpdateChainInfoData {
-    pub const LEN: usize = core::mem::size_of::<Self>();
-}
+// UpdateChainInfoData layout (8 bytes):
+// Offset  Field               Type    Size
+// 0-1     chain_id            u16     2
+// 2       enabled             u8      1
+// 3       gas_price_decimals  u8      1
+// 4       native_decimals     u8      1
+// 5       bump                u8      1
+// 6-7     _padding            [u8;2]  2
+const IX_DATA_LEN: usize = 8;
+const IX_CHAIN_ID_OFFSET: usize = 0;
+const IX_ENABLED_OFFSET: usize = 2;
+const IX_GAS_PRICE_DECIMALS_OFFSET: usize = 3;
+const IX_NATIVE_DECIMALS_OFFSET: usize = 4;
+const IX_BUMP_OFFSET: usize = 5;
 
 /// Process the UpdateChainInfo instruction.
 /// Creates or updates the ChainInfo PDA for a destination chain.
@@ -56,25 +60,29 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Parse instruction data
-    if data.len() < UpdateChainInfoData::LEN {
+    // Validate instruction data length
+    if data.len() < IX_DATA_LEN {
         return Err(ExecutorQuoterError::InvalidInstructionData.into());
     }
-    let ix_data: UpdateChainInfoData =
-        bytemuck::try_pod_read_unaligned(&data[..UpdateChainInfoData::LEN])
-            .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
-    // Load and validate config (discriminator checked inside load_account)
-    let config = load_account::<Config>(config_account, program_id)?;
+    // Validate config account
+    validate_account(config_account, program_id, CONFIG_DISCRIMINATOR, CONFIG_LEN)?;
 
-    // Validate updater
-    if config.updater_address != updater.key.to_bytes() {
-        return Err(ExecutorQuoterError::InvalidUpdater.into());
+    // Read updater_address from config and validate
+    {
+        let config_data = config_account.try_borrow_data()?;
+        let updater_address = read_bytes32(&config_data, CONFIG_UPDATER_ADDRESS_OFFSET);
+        if updater_address != updater.key.as_ref() {
+            return Err(ExecutorQuoterError::InvalidUpdater.into());
+        }
     }
 
+    // Read instruction data fields
+    let chain_id = read_u16_le(data, IX_CHAIN_ID_OFFSET);
+    let bump = data[IX_BUMP_OFFSET];
+
     // Prepare seeds for PDA operations
-    let chain_id_bytes = ix_data.chain_id.to_le_bytes();
-    let bump = ix_data.bump;
+    let chain_id_bytes = chain_id.to_le_bytes();
     let bump_seed = [bump];
     let seeds: &[&[u8]] = &[CHAIN_INFO_SEED, &chain_id_bytes, &bump_seed];
 
@@ -89,14 +97,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     if needs_creation {
         // Get rent
         let rent = Rent::get()?;
-        let lamports = rent.minimum_balance(ChainInfo::LEN);
+        let lamports = rent.minimum_balance(CHAIN_INFO_LEN);
 
         // Create account via CPI
         let create_account_ix = system_instruction::create_account(
             payer.key,
             chain_info_account.key,
             lamports,
-            ChainInfo::LEN as u64,
+            CHAIN_INFO_LEN as u64,
             program_id,
         );
 
@@ -104,18 +112,37 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         invoke_signed(&create_account_ix, &accounts[0..3], &[seeds])?;
     }
 
-    // Update account data
+    // Update account data using byte offsets
     let mut account_data = chain_info_account.try_borrow_mut_data()?;
-    let chain_info = bytemuck::try_from_bytes_mut::<ChainInfo>(&mut account_data[..ChainInfo::LEN])
-        .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
-    chain_info.discriminator = CHAIN_INFO_DISCRIMINATOR;
-    chain_info.enabled = ix_data.enabled;
-    chain_info.chain_id = ix_data.chain_id;
-    chain_info.gas_price_decimals = ix_data.gas_price_decimals;
-    chain_info.native_decimals = ix_data.native_decimals;
-    chain_info.bump = bump;
-    chain_info._reserved = 0;
+    // Write discriminator
+    write_u8(&mut account_data, 0, CHAIN_INFO_DISCRIMINATOR);
+
+    // Write enabled
+    write_u8(&mut account_data, CHAIN_INFO_ENABLED_OFFSET, data[IX_ENABLED_OFFSET]);
+
+    // Write chain_id
+    write_u16_le(&mut account_data, CHAIN_INFO_CHAIN_ID_OFFSET, chain_id);
+
+    // Write gas_price_decimals
+    write_u8(
+        &mut account_data,
+        CHAIN_INFO_GAS_PRICE_DECIMALS_OFFSET,
+        data[IX_GAS_PRICE_DECIMALS_OFFSET],
+    );
+
+    // Write native_decimals
+    write_u8(
+        &mut account_data,
+        CHAIN_INFO_NATIVE_DECIMALS_OFFSET,
+        data[IX_NATIVE_DECIMALS_OFFSET],
+    );
+
+    // Write bump
+    write_u8(&mut account_data, CHAIN_INFO_BUMP_OFFSET, bump);
+
+    // Write reserved (byte 7)
+    write_u8(&mut account_data, 7, 0);
 
     Ok(())
 }
