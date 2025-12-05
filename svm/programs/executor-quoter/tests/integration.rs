@@ -753,6 +753,9 @@ async fn test_request_execution_quote() {
         &relay_instructions,
     );
 
+    // Use system program as a dummy event_cpi account (required but unused)
+    let event_cpi = system_program::ID;
+
     let instruction = Instruction::new_with_bytes(
         PROGRAM_ID,
         &instruction_data,
@@ -760,6 +763,7 @@ async fn test_request_execution_quote() {
             AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
+            AccountMeta::new_readonly(event_cpi, false),
         ],
     );
 
@@ -1288,6 +1292,9 @@ async fn test_chain_disabled_execution_quote() {
         &relay_instructions,
     );
 
+    // Use system program as a dummy event_cpi account (required but unused)
+    let event_cpi = system_program::ID;
+
     let instruction = Instruction::new_with_bytes(
         PROGRAM_ID,
         &instruction_data,
@@ -1295,6 +1302,7 @@ async fn test_chain_disabled_execution_quote() {
             AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
+            AccountMeta::new_readonly(event_cpi, false),
         ],
     );
 

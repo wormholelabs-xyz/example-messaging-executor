@@ -1,3 +1,9 @@
+#![no_std]
+
+extern crate alloc;
+use alloc::vec::Vec;
+
+// Request type prefixes
 const REQ_VAA_V1: &[u8; 4] = b"ERV1";
 const REQ_NTT_V1: &[u8; 4] = b"ERN1";
 const REQ_CCTP_V1: &[u8; 4] = b"ERC1";
@@ -61,6 +67,82 @@ pub fn make_cctp_v2_request() -> Vec<u8> {
     out.extend_from_slice(REQ_CCTP_V2);
     out.extend_from_slice(&[1]); // auto discovery
     out
+}
+
+// ============================================================================
+// Relay Instructions
+// ============================================================================
+//
+// Relay instructions tell the executor how to relay a message. The format
+// matches the Wormhole SDK `relayInstructionsLayout` from
+// @wormhole-foundation/sdk-definitions.
+//
+// Instructions are concatenated together. Each instruction starts with a
+// 1-byte type discriminator followed by type-specific data. All multi-byte
+// integers are big-endian.
+
+/// Relay instruction type discriminators
+pub const RELAY_IX_GAS: u8 = 1;
+pub const RELAY_IX_GAS_DROP_OFF: u8 = 2;
+
+/// Encodes a GasInstruction relay instruction.
+///
+/// Layout (33 bytes):
+/// - type: u8 = 1
+/// - gas_limit: u128 be (16 bytes)
+/// - msg_value: u128 be (16 bytes)
+pub fn make_relay_instruction_gas(gas_limit: u128, msg_value: u128) -> Vec<u8> {
+    let mut out = Vec::with_capacity(33);
+    out.push(RELAY_IX_GAS);
+    out.extend_from_slice(&gas_limit.to_be_bytes());
+    out.extend_from_slice(&msg_value.to_be_bytes());
+    out
+}
+
+/// Encodes a GasDropOffInstruction relay instruction.
+///
+/// Layout (49 bytes):
+/// - type: u8 = 2
+/// - drop_off: u128 be (16 bytes)
+/// - recipient: [u8; 32] (universal address)
+pub fn make_relay_instruction_gas_drop_off(drop_off: u128, recipient: &[u8; 32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(49);
+    out.push(RELAY_IX_GAS_DROP_OFF);
+    out.extend_from_slice(&drop_off.to_be_bytes());
+    out.extend_from_slice(recipient);
+    out
+}
+
+/// Builder for constructing relay instructions.
+///
+/// Multiple instructions can be combined by appending them together.
+/// This is a convenience wrapper that allows chaining.
+#[derive(Default)]
+pub struct RelayInstructionsBuilder {
+    data: Vec<u8>,
+}
+
+impl RelayInstructionsBuilder {
+    pub fn new() -> Self {
+        Self { data: Vec::new() }
+    }
+
+    /// Add a GasInstruction to the relay instructions.
+    pub fn with_gas(mut self, gas_limit: u128, msg_value: u128) -> Self {
+        self.data.extend(make_relay_instruction_gas(gas_limit, msg_value));
+        self
+    }
+
+    /// Add a GasDropOffInstruction to the relay instructions.
+    pub fn with_gas_drop_off(mut self, drop_off: u128, recipient: &[u8; 32]) -> Self {
+        self.data.extend(make_relay_instruction_gas_drop_off(drop_off, recipient));
+        self
+    }
+
+    /// Build the final relay instructions bytes.
+    pub fn build(self) -> Vec<u8> {
+        self.data
+    }
 }
 
 #[cfg(test)]
@@ -130,5 +212,64 @@ mod tests {
     fn test_cctp_v2() {
         let result = make_cctp_v2_request();
         assert_eq!(result, [0x45, 0x52, 0x43, 0x32, 0x01]);
+    }
+
+    #[test]
+    fn test_relay_instruction_gas() {
+        // GasInstruction with gasLimit=250_000 and msgValue=1_000_000
+        let result = make_relay_instruction_gas(250_000, 1_000_000);
+        assert_eq!(result.len(), 33);
+        assert_eq!(result[0], RELAY_IX_GAS); // type = 1
+
+        // gas_limit: 250_000 = 0x3D090 as u128 big-endian (16 bytes)
+        let expected_gas_limit: [u8; 16] = 250_000u128.to_be_bytes();
+        assert_eq!(&result[1..17], &expected_gas_limit);
+
+        // msg_value: 1_000_000 = 0xF4240 as u128 big-endian (16 bytes)
+        let expected_msg_value: [u8; 16] = 1_000_000u128.to_be_bytes();
+        assert_eq!(&result[17..33], &expected_msg_value);
+    }
+
+    #[test]
+    fn test_relay_instruction_gas_drop_off() {
+        let recipient = [0xAB; 32];
+        let result = make_relay_instruction_gas_drop_off(500_000, &recipient);
+        assert_eq!(result.len(), 49);
+        assert_eq!(result[0], RELAY_IX_GAS_DROP_OFF); // type = 2
+
+        // drop_off: 500_000 as u128 big-endian (16 bytes)
+        let expected_drop_off: [u8; 16] = 500_000u128.to_be_bytes();
+        assert_eq!(&result[1..17], &expected_drop_off);
+
+        // recipient: 32 bytes
+        assert_eq!(&result[17..49], &recipient);
+    }
+
+    #[test]
+    fn test_relay_instructions_builder() {
+        let recipient = [0xCD; 32];
+        let result = RelayInstructionsBuilder::new()
+            .with_gas(100_000, 200_000)
+            .with_gas_drop_off(300_000, &recipient)
+            .build();
+
+        // Total: 33 + 49 = 82 bytes
+        assert_eq!(result.len(), 82);
+
+        // First instruction: GasInstruction
+        assert_eq!(result[0], RELAY_IX_GAS);
+        assert_eq!(&result[1..17], &100_000u128.to_be_bytes());
+        assert_eq!(&result[17..33], &200_000u128.to_be_bytes());
+
+        // Second instruction: GasDropOffInstruction
+        assert_eq!(result[33], RELAY_IX_GAS_DROP_OFF);
+        assert_eq!(&result[34..50], &300_000u128.to_be_bytes());
+        assert_eq!(&result[50..82], &recipient);
+    }
+
+    #[test]
+    fn test_relay_instructions_builder_empty() {
+        let result = RelayInstructionsBuilder::new().build();
+        assert_eq!(result.len(), 0);
     }
 }

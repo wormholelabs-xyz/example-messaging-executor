@@ -42,7 +42,7 @@ pub enum Instruction {
     /// Accounts: [config, chain_info, quote_body]
     RequestQuote = 3,
     /// Request execution quote with full details
-    /// Accounts: [config, chain_info, quote_body]
+    /// Accounts: [config, chain_info, quote_body, event_cpi]
     RequestExecutionQuote = 4,
 }
 

@@ -171,14 +171,19 @@ pub fn process_request_quote(
 /// Process RequestExecutionQuote instruction.
 /// Returns the required payment, payee address, and quote body.
 ///
-/// Accounts: Same as RequestQuote
+/// Accounts:
+/// 0. `[]` config - Config PDA
+/// 1. `[]` chain_info - ChainInfo PDA for destination chain
+/// 2. `[]` quote_body - QuoteBody PDA for destination chain
+/// 3. `[]` event_cpi - Account for event CPI (unused in this implementation, but required for interface compatibility)
 pub fn process_request_execution_quote(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     data: &[u8],
 ) -> ProgramResult {
-    // Parse accounts
-    let [config_account, chain_info_account, quote_body_account] = accounts else {
+    // Parse accounts - event_cpi is required but unused in this implementation.
+    // Future quoter implementations may use it for logging via CPI.
+    let [config_account, chain_info_account, quote_body_account, _event_cpi] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
