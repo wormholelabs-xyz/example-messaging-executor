@@ -252,7 +252,5 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     reg_data[4..24].copy_from_slice(&gov_msg.quoter_address);
     reg_data[24..56].copy_from_slice(&implementation_program_id);
 
-    // TODO: Emit QuoterContractUpdate event via log
-
     Ok(())
 }
