@@ -2,6 +2,7 @@
 //!
 //! Creates the Config PDA with the executor program ID and our chain ID.
 
+use bytemuck::{Pod, Zeroable};
 use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
@@ -17,10 +18,20 @@ use crate::{
     state::{Config, CONFIG_DISCRIMINATOR, CONFIG_SEED},
 };
 
-/// Initialize instruction data layout:
-/// - executor_program_id: Pubkey (32 bytes)
-/// - our_chain: u16 le (2 bytes)
-/// - bump: u8 (1 byte)
+/// Instruction data for Initialize.
+#[repr(C)]
+#[derive(Pod, Zeroable, Clone, Copy)]
+pub struct InitializeData {
+    pub executor_program_id: Pubkey,
+    pub our_chain: u16,
+    pub bump: u8,
+    pub _padding: u8,
+}
+
+impl InitializeData {
+    pub const LEN: usize = core::mem::size_of::<Self>();
+}
+
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // Parse accounts
     let [payer, config_account, _system_program] = accounts else {
@@ -33,19 +44,17 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     }
 
     // Parse instruction data
-    if data.len() < 35 {
+    if data.len() < InitializeData::LEN {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    let executor_program_id: Pubkey = data[0..32]
-        .try_into()
-        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+    let ix_data: InitializeData =
+        bytemuck::try_pod_read_unaligned(&data[..InitializeData::LEN])
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
 
-    let mut our_chain_bytes = [0u8; 2];
-    our_chain_bytes.copy_from_slice(&data[32..34]);
-    let our_chain = u16::from_le_bytes(our_chain_bytes);
-
-    let bump = data[34];
+    let executor_program_id = ix_data.executor_program_id;
+    let our_chain = ix_data.our_chain;
+    let bump = ix_data.bump;
 
     // Verify the config PDA
     let bump_seed = [bump];

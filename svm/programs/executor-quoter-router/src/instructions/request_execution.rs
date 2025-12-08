@@ -6,6 +6,7 @@
 //! 3. Construct EQ02 signed quote
 //! 4. CPI to Executor's request_for_execution
 
+use bytemuck::{Pod, Zeroable};
 use pinocchio::{
     account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
@@ -17,6 +18,27 @@ use crate::{
     error::ExecutorQuoterRouterError,
     state::{load_account, Config, QuoterRegistration, EXPIRY_TIME_MAX},
 };
+
+/// Fixed header for RequestExecution instruction data.
+/// Fields are ordered for optimal alignment (amount first as u64).
+/// Variable-length fields (request_bytes, relay_instructions) follow after.
+/// Total size: 104 bytes (padded for u64 alignment).
+#[repr(C)]
+#[derive(Pod, Zeroable, Clone, Copy)]
+pub struct RequestExecutionHeader {
+    pub amount: u64,
+    pub quoter_address: [u8; 20],
+    pub dst_chain: u16,
+    pub dst_addr: [u8; 32],
+    pub refund_addr: [u8; 32],
+    pub _padding1: [u8; 2],
+    pub request_bytes_len: u32,
+    pub _padding2: [u8; 4],
+}
+
+impl RequestExecutionHeader {
+    pub const LEN: usize = core::mem::size_of::<Self>();
+}
 
 /// RequestExecution instruction.
 ///
@@ -30,67 +52,49 @@ use crate::{
 /// 6. `[writable]` refund_addr - Receives any excess payment
 /// 7. `[]` system_program
 ///    8-11. `[]` quoter accounts: quoter_config, chain_info, quote_body, event_cpi
-///
-/// Instruction data layout:
-/// - quoter_address: [u8; 20] (20 bytes)
-/// - amount: u64 le (8 bytes) - The amount being paid (msg.value equivalent)
-/// - dst_chain: u16 le (2 bytes)
-/// - dst_addr: [u8; 32] (32 bytes)
-/// - refund_addr_bytes: [u8; 32] (32 bytes) - Universal address for refund
-/// - request_bytes_len: u32 le (4 bytes)
-/// - request_bytes: [u8; request_bytes_len]
-/// - relay_instructions_len: u32 le (4 bytes)
-/// - relay_instructions: [u8; relay_instructions_len]
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    // Minimum data: 20 + 8 + 2 + 32 + 32 + 4 + 4 = 102 bytes
-    if data.len() < 102 {
+    // Minimum: header (98) + relay_instructions_len (4) = 102 bytes
+    if data.len() < RequestExecutionHeader::LEN + 4 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse quoter_address
-    let mut quoter_address = [0u8; 20];
-    quoter_address.copy_from_slice(&data[0..20]);
+    // Parse fixed header
+    let header: RequestExecutionHeader =
+        bytemuck::try_pod_read_unaligned(&data[..RequestExecutionHeader::LEN])
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
 
-    // Parse amount
-    let mut amount_bytes = [0u8; 8];
-    amount_bytes.copy_from_slice(&data[20..28]);
-    let amount = u64::from_le_bytes(amount_bytes);
+    let amount = header.amount;
+    let quoter_address = header.quoter_address;
+    let dst_chain = header.dst_chain;
+    let dst_addr = header.dst_addr;
+    let refund_addr_bytes = header.refund_addr;
 
-    // Parse dst_chain
-    let mut dst_chain_bytes = [0u8; 2];
-    dst_chain_bytes.copy_from_slice(&data[28..30]);
-    let dst_chain = u16::from_le_bytes(dst_chain_bytes);
+    // Parse variable-length fields after header
+    let request_bytes_len = header.request_bytes_len as usize;
+    let request_bytes_start = RequestExecutionHeader::LEN;
+    let request_bytes_end = request_bytes_start + request_bytes_len;
 
-    // Parse dst_addr
-    let mut dst_addr = [0u8; 32];
-    dst_addr.copy_from_slice(&data[30..62]);
-
-    // Parse refund_addr_bytes
-    let mut refund_addr_bytes = [0u8; 32];
-    refund_addr_bytes.copy_from_slice(&data[62..94]);
-
-    // Parse request_bytes
-    let mut request_bytes_len_arr = [0u8; 4];
-    request_bytes_len_arr.copy_from_slice(&data[94..98]);
-    let request_bytes_len = u32::from_le_bytes(request_bytes_len_arr) as usize;
-
-    if data.len() < 98 + request_bytes_len + 4 {
+    if data.len() < request_bytes_end + 4 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    let request_bytes = &data[98..98 + request_bytes_len];
+    let request_bytes = &data[request_bytes_start..request_bytes_end];
 
-    // Parse relay_instructions
-    let relay_start = 98 + request_bytes_len;
-    let mut relay_len_arr = [0u8; 4];
-    relay_len_arr.copy_from_slice(&data[relay_start..relay_start + 4]);
-    let relay_instructions_len = u32::from_le_bytes(relay_len_arr) as usize;
+    let relay_len_start = request_bytes_end;
+    let relay_instructions_len = u32::from_le_bytes(
+        data[relay_len_start..relay_len_start + 4]
+            .try_into()
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
+    ) as usize;
 
-    if data.len() < relay_start + 4 + relay_instructions_len {
+    let relay_instructions_start = relay_len_start + 4;
+    let relay_instructions_end = relay_instructions_start + relay_instructions_len;
+
+    if data.len() < relay_instructions_end {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    let relay_instructions = &data[relay_start + 4..relay_start + 4 + relay_instructions_len];
+    let relay_instructions = &data[relay_instructions_start..relay_instructions_end];
 
     // Parse accounts
     let [payer, config_account, quoter_registration_account, quoter_program, _executor_program, payee, refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =

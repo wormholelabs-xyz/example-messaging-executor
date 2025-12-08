@@ -23,7 +23,6 @@ pub struct UpdateChainInfoData {
     pub gas_price_decimals: u8,
     pub native_decimals: u8,
     pub bump: u8,
-    pub _padding: [u8; 2],
 }
 
 impl UpdateChainInfoData {

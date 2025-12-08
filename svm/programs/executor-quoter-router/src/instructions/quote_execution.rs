@@ -2,6 +2,7 @@
 //!
 //! Gets a quote from a registered quoter via CPI.
 
+use bytemuck::{Pod, Zeroable};
 use pinocchio::{
     account_info::AccountInfo, cpi::set_return_data, program_error::ProgramError, pubkey::Pubkey,
     ProgramResult,
@@ -13,31 +14,41 @@ use crate::{
     state::{load_account, QuoterRegistration},
 };
 
+/// Fixed header for QuoteExecution instruction data.
+/// Variable-length fields (request_bytes, relay_instructions) follow after.
+#[repr(C)]
+#[derive(Pod, Zeroable, Clone, Copy)]
+pub struct QuoteExecutionHeader {
+    pub quoter_address: [u8; 20],
+    pub dst_chain: u16,
+    pub dst_addr: [u8; 32],
+    pub refund_addr: [u8; 32],
+    pub _padding: [u8; 2],
+    pub request_bytes_len: u32,
+}
+
+impl QuoteExecutionHeader {
+    pub const LEN: usize = core::mem::size_of::<Self>();
+}
+
 /// QuoteExecution instruction.
 ///
 /// Accounts:
 /// 0. `[]` quoter_registration - QuoterRegistration PDA for the quoter
 /// 1. `[]` quoter_program - The quoter implementation program
 ///    2-4. `[]` quoter accounts: config, chain_info, quote_body (passed to quoter)
-///
-/// Instruction data layout:
-/// - quoter_address: [u8; 20] (20 bytes) - The quoter address to look up
-/// - dst_chain: u16 le (2 bytes)
-/// - dst_addr: [u8; 32] (32 bytes)
-/// - refund_addr: [u8; 32] (32 bytes)
-/// - request_bytes_len: u32 le (4 bytes)
-/// - request_bytes: [u8; request_bytes_len]
-/// - relay_instructions_len: u32 le (4 bytes)
-/// - relay_instructions: [u8; relay_instructions_len]
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    // Minimum data: 20 + 2 + 32 + 32 + 4 + 4 = 94 bytes
-    if data.len() < 94 {
+    // Minimum: header (90) + relay_instructions_len (4) = 94 bytes
+    if data.len() < QuoteExecutionHeader::LEN + 4 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse quoter_address from instruction data
-    let mut quoter_address = [0u8; 20];
-    quoter_address.copy_from_slice(&data[0..20]);
+    // Parse fixed header
+    let header: QuoteExecutionHeader =
+        bytemuck::try_pod_read_unaligned(&data[..QuoteExecutionHeader::LEN])
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+
+    let quoter_address = header.quoter_address;
 
     // Parse accounts
     let [quoter_registration_account, quoter_program, quoter_config, quoter_chain_info, quoter_quote_body] =
@@ -59,16 +70,40 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::QuoterNotRegistered.into());
     }
 
+    // Parse variable-length fields after header
+    let request_bytes_len = header.request_bytes_len as usize;
+    let request_bytes_start = QuoteExecutionHeader::LEN;
+    let request_bytes_end = request_bytes_start + request_bytes_len;
+
+    if data.len() < request_bytes_end + 4 {
+        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
+    }
+
+    let request_bytes = &data[request_bytes_start..request_bytes_end];
+
+    let relay_len_start = request_bytes_end;
+    let relay_instructions_len = u32::from_le_bytes(
+        data[relay_len_start..relay_len_start + 4]
+            .try_into()
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
+    ) as usize;
+
+    let relay_instructions_start = relay_len_start + 4;
+    let relay_instructions_end = relay_instructions_start + relay_instructions_len;
+
+    if data.len() < relay_instructions_end {
+        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
+    }
+
+    let relay_instructions = &data[relay_instructions_start..relay_instructions_end];
+
     // Build CPI instruction data for RequestQuote
-    // Skip the quoter_address (20 bytes) and use the rest as the quoter instruction data
     let quoter_ix_data = make_quoter_request_quote_ix(
-        u16::from_le_bytes([data[20], data[21]]), // dst_chain
-        data[22..54].try_into().unwrap(),         // dst_addr
-        data[54..86].try_into().unwrap(),         // refund_addr
-        &data[90..90 + u32::from_le_bytes([data[86], data[87], data[88], data[89]]) as usize], // request_bytes
-        &data[90
-            + u32::from_le_bytes([data[86], data[87], data[88], data[89]]) as usize
-            + 4..], // relay_instructions (simplified, should parse length properly)
+        header.dst_chain,
+        &header.dst_addr,
+        &header.refund_addr,
+        request_bytes,
+        relay_instructions,
     );
 
     // Invoke quoter's RequestQuote

@@ -68,13 +68,12 @@ fn build_initialize_data(
     bump: u8,
     payee_address: &[u8; 32],
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 32 + 32 + 1 + 1 + 30 + 32);
+    let mut data = Vec::with_capacity(1 + 32 + 32 + 1 + 1 + 32);
     data.push(IX_INITIALIZE);
     data.extend_from_slice(quoter_address.as_ref());
     data.extend_from_slice(updater_address.as_ref());
     data.push(src_token_decimals);
     data.push(bump);
-    data.extend_from_slice(&[0u8; 30]); // padding (reduced by 1 for bump)
     data.extend_from_slice(payee_address);
     data
 }
@@ -87,14 +86,13 @@ fn build_update_chain_info_data(
     native_decimals: u8,
     bump: u8,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 8);
+    let mut data = Vec::with_capacity(1 + 6);
     data.push(IX_UPDATE_CHAIN_INFO);
     data.extend_from_slice(&chain_id.to_le_bytes());
     data.push(if enabled { 1 } else { 0 });
     data.push(gas_price_decimals);
     data.push(native_decimals);
     data.push(bump);
-    data.extend_from_slice(&[0u8; 2]); // padding (reduced by 1 for bump)
     data
 }
 

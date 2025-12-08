@@ -69,11 +69,12 @@ fn derive_quoter_registration_pda(quoter_address: &[u8; 20]) -> (Pubkey, u8) {
 
 /// Build Initialize instruction data
 fn build_initialize_data(executor_program_id: &Pubkey, our_chain: u16, bump: u8) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 32 + 2 + 1);
+    let mut data = Vec::with_capacity(1 + 36);
     data.push(IX_INITIALIZE);
     data.extend_from_slice(executor_program_id.as_ref());
     data.extend_from_slice(&our_chain.to_le_bytes());
     data.push(bump);
+    data.push(0); // padding
     data
 }
 
@@ -1850,6 +1851,7 @@ fn build_quote_execution_data(
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
+    data.extend_from_slice(&[0u8; 2]); // padding for u32 alignment
     data.extend_from_slice(&(request_bytes.len() as u32).to_le_bytes());
     data.extend_from_slice(request_bytes);
     data.extend_from_slice(&(relay_instructions.len() as u32).to_le_bytes());
@@ -1857,7 +1859,7 @@ fn build_quote_execution_data(
     data
 }
 
-/// Build RequestExecution instruction data
+/// Build RequestExecution instruction data (reordered: amount first for alignment)
 fn build_request_execution_data(
     quoter_address: &[u8; 20],
     amount: u64,
@@ -1869,12 +1871,15 @@ fn build_request_execution_data(
 ) -> Vec<u8> {
     let mut data = Vec::new();
     data.push(IX_REQUEST_EXECUTION);
-    data.extend_from_slice(quoter_address);
+    // Reordered layout: amount first for u64 alignment
     data.extend_from_slice(&amount.to_le_bytes());
+    data.extend_from_slice(quoter_address);
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
+    data.extend_from_slice(&[0u8; 2]); // padding1 for u32 alignment
     data.extend_from_slice(&(request_bytes.len() as u32).to_le_bytes());
+    data.extend_from_slice(&[0u8; 4]); // padding2 for struct alignment
     data.extend_from_slice(request_bytes);
     data.extend_from_slice(&(relay_instructions.len() as u32).to_le_bytes());
     data.extend_from_slice(relay_instructions);
@@ -1969,8 +1974,7 @@ async fn test_quote_execution() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref()); // updater_address
     quoter_init_data.push(9); // src_token_decimals (SOL = 9)
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]); // padding
-    quoter_init_data.extend_from_slice(&payee_address);
+        quoter_init_data.extend_from_slice(&payee_address);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -2188,8 +2192,7 @@ async fn test_quote_execution_quoter_not_registered() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
     quoter_init_data.push(9);
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]);
-    quoter_init_data.extend_from_slice(&payee_address);
+        quoter_init_data.extend_from_slice(&payee_address);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -2339,8 +2342,7 @@ async fn test_quote_execution_chain_disabled() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
     quoter_init_data.push(9);
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]);
-    quoter_init_data.extend_from_slice(&payee_address);
+        quoter_init_data.extend_from_slice(&payee_address);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -2564,8 +2566,7 @@ async fn test_request_execution() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref()); // updater_address
     quoter_init_data.push(9); // src_token_decimals (SOL = 9)
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]); // padding
-    quoter_init_data.extend_from_slice(&payee_address_bytes); // payee_address
+        quoter_init_data.extend_from_slice(&payee_address_bytes); // payee_address
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -2811,8 +2812,7 @@ async fn test_request_execution_underpaid() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
     quoter_init_data.push(9);
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]);
-    quoter_init_data.extend_from_slice(&payee_address_bytes);
+        quoter_init_data.extend_from_slice(&payee_address_bytes);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -3050,8 +3050,7 @@ async fn test_request_execution_refunds_excess() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
     quoter_init_data.push(9);
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]);
-    quoter_init_data.extend_from_slice(&payee_address_bytes);
+        quoter_init_data.extend_from_slice(&payee_address_bytes);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,
@@ -3747,8 +3746,7 @@ async fn test_request_execution_amount_zero() {
     quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
     quoter_init_data.push(9);
     quoter_init_data.push(quoter_config_bump);
-    quoter_init_data.extend_from_slice(&[0u8; 30]);
-    quoter_init_data.extend_from_slice(&payee_address_bytes);
+        quoter_init_data.extend_from_slice(&payee_address_bytes);
 
     let quoter_init_ix = Instruction {
         program_id: QUOTER_PROGRAM_ID,

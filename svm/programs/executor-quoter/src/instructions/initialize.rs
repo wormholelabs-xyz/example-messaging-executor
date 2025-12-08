@@ -22,7 +22,6 @@ pub struct InitializeData {
     pub updater_address: Pubkey,
     pub src_token_decimals: u8,
     pub bump: u8,
-    pub _padding: [u8; 30],
     pub payee_address: [u8; 32],
 }
 
