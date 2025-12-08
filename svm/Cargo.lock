@@ -1555,6 +1555,8 @@ name = "executor-quoter"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "mollusk-svm",
+ "mollusk-svm-bencher",
  "pinocchio",
  "pinocchio-system",
  "solana-program-test",
@@ -1567,6 +1569,8 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "libsecp256k1 0.7.2",
+ "mollusk-svm",
+ "mollusk-svm-bencher",
  "pinocchio",
  "pinocchio-system",
  "rand 0.8.5",
@@ -2634,6 +2638,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "mollusk-svm"
+version = "0.0.9-solana-1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c29b97b1de2f2f1e1868b062afec7bf63b29042c5f4d2b14dadd5a653e245e7e"
+dependencies = [
+ "bincode",
+ "solana-bpf-loader-program",
+ "solana-logger",
+ "solana-program-runtime",
+ "solana-sdk",
+ "solana-system-program",
+ "thiserror",
+]
+
+[[package]]
+name = "mollusk-svm-bencher"
+version = "0.0.9-solana-1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "660f49d6d707060b3e1e07763f1359a0b6fdf6d0b3eb5d7045d13da3961da354"
+dependencies = [
+ "chrono",
+ "mollusk-svm",
+ "num-format",
+ "serde_json",
+ "solana-sdk",
+]
+
+[[package]]
 name = "nix"
 version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2733,6 +2765,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "num-format"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a652d9771a63711fd3c3deb670acfbe5c30a4072e664d7a3bf5a9e1056ac72c3"
+dependencies = [
+ "arrayvec",
+ "itoa",
 ]
 
 [[package]]
