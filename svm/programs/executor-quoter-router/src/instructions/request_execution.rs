@@ -29,7 +29,7 @@ use crate::{
 /// 5. `[writable]` payee - Receives the payment
 /// 6. `[writable]` refund_addr - Receives any excess payment
 /// 7. `[]` system_program
-/// 8-11. `[]` quoter accounts: quoter_config, chain_info, quote_body, event_cpi
+///    8-11. `[]` quoter accounts: quoter_config, chain_info, quote_body, event_cpi
 ///
 /// Instruction data layout:
 /// - quoter_address: [u8; 20] (20 bytes)

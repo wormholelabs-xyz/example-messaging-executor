@@ -18,7 +18,7 @@ use crate::{
 /// Accounts:
 /// 0. `[]` quoter_registration - QuoterRegistration PDA for the quoter
 /// 1. `[]` quoter_program - The quoter implementation program
-/// 2-4. `[]` quoter accounts: config, chain_info, quote_body (passed to quoter)
+///    2-4. `[]` quoter accounts: config, chain_info, quote_body (passed to quoter)
 ///
 /// Instruction data layout:
 /// - quoter_address: [u8; 20] (20 bytes) - The quoter address to look up

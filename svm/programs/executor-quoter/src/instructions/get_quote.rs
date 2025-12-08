@@ -151,16 +151,7 @@ pub fn process_request_quote(
     let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
-    let required_payment = math::estimate_quote(
-        quote_body.base_fee,
-        quote_body.src_price,
-        quote_body.dst_price,
-        quote_body.dst_gas_price,
-        chain_info.gas_price_decimals,
-        chain_info.native_decimals,
-        gas_limit,
-        msg_value,
-    )?;
+    let required_payment = math::estimate_quote(&quote_body, &chain_info, gas_limit, msg_value)?;
 
     // Return the quote as u64 (8 bytes, big-endian) via set_return_data.
     set_return_data(&required_payment.to_be_bytes());
@@ -226,16 +217,7 @@ pub fn process_request_execution_quote(
     let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
-    let required_payment = math::estimate_quote(
-        quote_body.base_fee,
-        quote_body.src_price,
-        quote_body.dst_price,
-        quote_body.dst_gas_price,
-        chain_info.gas_price_decimals,
-        chain_info.native_decimals,
-        gas_limit,
-        msg_value,
-    )?;
+    let required_payment = math::estimate_quote(&quote_body, &chain_info, gas_limit, msg_value)?;
 
     // Return data layout (72 bytes, all big-endian):
     // - bytes 0-7: required_payment (u64)

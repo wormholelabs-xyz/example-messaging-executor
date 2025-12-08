@@ -8,6 +8,7 @@ mod u256;
 pub use u256::{hi_lo, LoHi, U256};
 
 use crate::error::ExecutorQuoterError;
+use crate::state::{ChainInfo, QuoteBody};
 use pinocchio::program_error::ProgramError;
 
 /// Quote decimals (prices stored with 10^10 precision)
@@ -75,14 +76,16 @@ pub fn pow10(exp: u8) -> U256 {
 /// Returns None on overflow.
 #[inline]
 pub fn normalize(amount: U256, from: u8, to: u8) -> Option<U256> {
-    if from > to {
-        let divisor = pow10(from - to);
-        amount.checked_div(divisor)
-    } else if from < to {
-        let multiplier = pow10(to - from);
-        amount.checked_mul(multiplier)
-    } else {
-        Some(amount)
+    match from.cmp(&to) {
+        core::cmp::Ordering::Greater => {
+            let divisor = pow10(from - to);
+            amount.checked_div(divisor)
+        }
+        core::cmp::Ordering::Less => {
+            let multiplier = pow10(to - from);
+            amount.checked_mul(multiplier)
+        }
+        core::cmp::Ordering::Equal => Some(amount),
     }
 }
 
@@ -111,12 +114,8 @@ pub fn div_decimals(a: U256, b: U256, decimals: u8) -> Option<U256> {
 /// Returns the required payment in SVM native token decimals (lamports for SOL).
 ///
 /// # Arguments
-/// * `base_fee` - Base fee in quote decimals (10^10)
-/// * `src_price` - Source chain token USD price (10^10)
-/// * `dst_price` - Destination chain token USD price (10^10)
-/// * `dst_gas_price` - Destination chain gas price
-/// * `dst_gas_price_decimals` - Decimals for dst_gas_price
-/// * `dst_native_decimals` - Decimals for destination chain native token
+/// * `quote_body` - Quote body containing prices and fees
+/// * `chain_info` - Chain info containing decimal configurations
 /// * `gas_limit` - Total gas limit from relay instructions
 /// * `msg_value` - Total message value from relay instructions
 ///
@@ -126,38 +125,37 @@ pub fn div_decimals(a: U256, b: U256, decimals: u8) -> Option<U256> {
 /// # Errors
 /// Returns `MathOverflow` on arithmetic overflow or division by zero.
 pub fn estimate_quote(
-    base_fee: u64,
-    src_price: u64,
-    dst_price: u64,
-    dst_gas_price: u64,
-    dst_gas_price_decimals: u8,
-    dst_native_decimals: u8,
+    quote_body: &QuoteBody,
+    chain_info: &ChainInfo,
     gas_limit: u128,
     msg_value: u128,
 ) -> Result<u64, ProgramError> {
     let overflow_err = || -> ProgramError { ExecutorQuoterError::MathOverflow.into() };
 
-    let total_u256 = estimate_quote_u256(base_fee, src_price, dst_price, dst_gas_price, dst_gas_price_decimals, dst_native_decimals, gas_limit, msg_value)?;
+    let total_u256 = estimate_quote_u256(quote_body, chain_info, gas_limit, msg_value)?;
 
-    // 6. Convert from EVM_DECIMAL_RESOLUTION to SVM_DECIMAL_RESOLUTION
-    let result = normalize(total_u256, EVM_DECIMAL_RESOLUTION, SVM_DECIMAL_RESOLUTION).ok_or_else(overflow_err)?;
+    // Convert from EVM_DECIMAL_RESOLUTION to SVM_DECIMAL_RESOLUTION
+    let result = normalize(total_u256, EVM_DECIMAL_RESOLUTION, SVM_DECIMAL_RESOLUTION)
+        .ok_or_else(overflow_err)?;
 
-    // 7. Convert to u64 (should fit for reasonable quote values)
+    // Convert to u64 (should fit for reasonable quote values)
     result
         .try_into_u64()
         .ok_or_else(|| ExecutorQuoterError::MathOverflow.into())
 }
 
 fn estimate_quote_u256(
-    base_fee: u64,
-    src_price: u64,
-    dst_price: u64,
-    dst_gas_price: u64,
-    dst_gas_price_decimals: u8,
-    dst_native_decimals: u8,
+    quote_body: &QuoteBody,
+    chain_info: &ChainInfo,
     gas_limit: u128,
     msg_value: u128,
 ) -> Result<U256, ProgramError> {
+    let base_fee = quote_body.base_fee;
+    let src_price = quote_body.src_price;
+    let dst_price = quote_body.dst_price;
+    let dst_gas_price = quote_body.dst_gas_price;
+    let dst_gas_price_decimals = chain_info.gas_price_decimals;
+    let dst_native_decimals = chain_info.native_decimals;
     let overflow_err = || -> ProgramError { ExecutorQuoterError::MathOverflow.into() };
 
     // 1. Base fee conversion: normalize from QUOTE_DECIMALS to EVM_DECIMAL_RESOLUTION
@@ -223,59 +221,83 @@ fn estimate_quote_u256(
 mod tests {
     use super::*;
 
+    fn make_quote_body(base_fee: u64, src_price: u64, dst_price: u64, dst_gas_price: u64) -> QuoteBody {
+        QuoteBody {
+            discriminator: 0,
+            _padding: [0; 3],
+            chain_id: 1,
+            bump: 0,
+            _reserved: 0,
+            dst_price,
+            src_price,
+            dst_gas_price,
+            base_fee,
+        }
+    }
+
+    fn make_chain_info(gas_price_decimals: u8, native_decimals: u8) -> ChainInfo {
+        ChainInfo {
+            discriminator: 0,
+            enabled: 1,
+            chain_id: 1,
+            gas_price_decimals,
+            native_decimals,
+            bump: 0,
+            _reserved: 0,
+        }
+    }
+
     #[test]
     fn test_estimate_quote_eth_to_sol() {
-        let result_18 = estimate_quote_u256(
+        let quote_body = make_quote_body(
             100,        // base_fee
             2650000000, // src_price (SOL ~$265)
             160000000,  // dst_price (ETH ~$16 - test values)
             399146,     // dst_gas_price
-            15,         // gas_price_decimals
-            18,         // dst_native_decimals (ETH)
-            250000,     // gas_limit
-            0,          // msg_value
-        )
-        .unwrap();
+        );
+        let chain_info = make_chain_info(15, 18); // gas_price_decimals, native_decimals (ETH)
+
+        let result_18 = estimate_quote_u256(&quote_body, &chain_info, 250000, 0).unwrap();
 
         // Result is in lamports (9 decimals). Convert back to 18 decimals for comparison.
         let expected_18 = U256::from_u64(6034845283018u64);
         // Allow for truncation: result should be within 10^9 of expected
         assert!(result_18.checked_sub(expected_18).is_some());
-        assert!(result_18.checked_add(U256::from_u64(1_000_000_000 - 1)).unwrap().checked_sub(expected_18).is_some());
+        assert!(result_18
+            .checked_add(U256::from_u64(1_000_000_000 - 1))
+            .unwrap()
+            .checked_sub(expected_18)
+            .is_some());
     }
 
     #[test]
     fn test_estimate_quote_with_msg_value() {
+        let quote_body = make_quote_body(100, 2650000000, 160000000, 399146);
+        let chain_info = make_chain_info(15, 18);
+
         let result_18 = estimate_quote_u256(
-            100,        // base_fee
-            2650000000, // src_price
-            160000000,  // dst_price
-            399146,     // dst_gas_price
-            15,         // gas_price_decimals
-            18,         // dst_native_decimals
-            250000,     // gas_limit
+            &quote_body,
+            &chain_info,
+            250000,
             1_000_000_000_000_000_000, // 1 ETH in wei
         )
         .unwrap();
 
         let expected_18 = U256::from_u64(60383393335849055);
         assert!(result_18.checked_sub(expected_18).is_some());
-        assert!(result_18.checked_add(U256::from_u64(1_000_000_000 - 1)).unwrap().checked_sub(expected_18).is_some());
+        assert!(result_18
+            .checked_add(U256::from_u64(1_000_000_000 - 1))
+            .unwrap()
+            .checked_sub(expected_18)
+            .is_some());
     }
 
     #[test]
     fn test_estimate_quote_zero_gas_limit() {
-        let result = estimate_quote(
-            100,        // base_fee
-            2650000000, // src_price
-            160000000,  // dst_price
-            399146,     // dst_gas_price
-            15,         // gas_price_decimals
-            18,         // dst_native_decimals
-            0,          // gas_limit = 0
-            0,          // msg_value
-        )
-        .unwrap();
+        let quote_body = make_quote_body(100, 2650000000, 160000000, 399146);
+        let chain_info = make_chain_info(15, 18);
+
+        let result = estimate_quote(&quote_body, &chain_info, 0, 0).unwrap();
 
         // base_fee = 100 at QUOTE_DECIMALS (10)
         // Converted to 9 decimals = 10 lamports
@@ -284,32 +306,25 @@ mod tests {
 
     #[test]
     fn test_estimate_quote_zero_src_price() {
-        let result = estimate_quote(
-            100,
-            0, // zero src_price
-            160000000,
-            399146,
-            15,
-            18,
-            250000,
-            0,
-        );
+        let quote_body = make_quote_body(100, 0, 160000000, 399146); // zero src_price
+        let chain_info = make_chain_info(15, 18);
+
+        let result = estimate_quote(&quote_body, &chain_info, 250000, 0);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_estimate_quote_overflow_returns_error() {
-        let result = estimate_quote(
-            u64::MAX,  // max base_fee
-            1,         // tiny src_price (makes conversion huge)
-            u64::MAX,  // max dst_price
-            u64::MAX,  // max gas_price
-            0,         // no decimal scaling (makes values larger)
-            0,         // no decimal scaling
-            u128::MAX, // max gas_limit
-            u128::MAX, // max msg_value
+        let quote_body = make_quote_body(
+            u64::MAX, // max base_fee
+            1,        // tiny src_price (makes conversion huge)
+            u64::MAX, // max dst_price
+            u64::MAX, // max gas_price
         );
+        let chain_info = make_chain_info(0, 0); // no decimal scaling (makes values larger)
+
+        let result = estimate_quote(&quote_body, &chain_info, u128::MAX, u128::MAX);
 
         assert!(result.is_err());
     }

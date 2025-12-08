@@ -1562,23 +1562,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executor-quoter-anchor"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
-]
-
-[[package]]
-name = "executor-quoter-native"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "solana-program",
- "solana-program-test",
- "solana-sdk",
-]
-
-[[package]]
 name = "executor-quoter-router"
 version = "0.1.0"
 dependencies = [

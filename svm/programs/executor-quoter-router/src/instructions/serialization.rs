@@ -53,6 +53,7 @@ pub fn make_signed_quote_eq02(
 /// - bytes 130-161: signature_s (32 bytes)
 /// - byte 162:     signature_v (1 byte)
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct GovernanceMessage {
     pub chain_id: u16,
     pub quoter_address: [u8; 20],
@@ -116,6 +117,7 @@ impl GovernanceMessage {
     }
 
     /// Get the message bytes that were signed (bytes 0-98).
+    #[allow(dead_code)]
     pub fn signed_message<'a>(&self, original_data: &'a [u8]) -> &'a [u8] {
         &original_data[0..98]
     }
