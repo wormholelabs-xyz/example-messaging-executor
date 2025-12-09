@@ -8,8 +8,6 @@ skip-lint = false
 
 [programs.localnet]
 executor = "execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"
-executor_quoter_anchor = "2sDgzrUykBRKVzL3H4dT5wx7oiVAJg22kRVL7mhY1AqM"
-executor_quoter = "6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX"
 
 [registry]
 url = "https://api.apr.dev"
@@ -23,7 +21,3 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test.validator]
 url = "http://127.0.0.1:8899"
-
-[[test.validator.bpf_program]]
-program_id = "6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX"
-file = "target/deploy/executor_quoter.so"

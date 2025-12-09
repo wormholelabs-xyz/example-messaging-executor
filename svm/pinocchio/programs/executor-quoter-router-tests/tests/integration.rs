@@ -1572,7 +1572,6 @@ async fn test_quote_execution() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1609,7 +1608,6 @@ async fn test_quote_execution() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1835,7 +1833,6 @@ async fn test_quote_execution_chain_disabled() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1872,7 +1869,6 @@ async fn test_quote_execution_chain_disabled() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2009,7 +2005,6 @@ async fn test_request_execution() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2046,7 +2041,6 @@ async fn test_request_execution() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2204,7 +2198,6 @@ async fn test_request_execution_underpaid() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2241,7 +2234,6 @@ async fn test_request_execution_underpaid() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2566,7 +2558,6 @@ async fn test_request_execution_amount_zero() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2603,7 +2594,6 @@ async fn test_request_execution_amount_zero() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],

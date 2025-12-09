@@ -42,10 +42,6 @@ const IX_UPDATE_QUOTE: [u8; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
 const IX_REQUEST_QUOTE: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
 const IX_REQUEST_EXECUTION_QUOTE: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
-/// Helper to get a dummy config account pubkey (not used by program but required in instruction)
-fn get_dummy_config_pubkey() -> Pubkey {
-    Pubkey::new_unique()
-}
 
 /// Get the authorized updater keypair.
 /// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
@@ -61,6 +57,12 @@ fn get_updater_keypair() -> Keypair {
 /// The program must be built with QUOTER_PAYEE_PUBKEY set to this value.
 fn get_payee_address() -> [u8; 32] {
     get_updater_keypair().pubkey().to_bytes()
+}
+
+/// Get a dummy config pubkey for the _config account parameter.
+/// This account is unused in get_quote instructions but required for the interface.
+fn get_dummy_config_pubkey() -> Pubkey {
+    Pubkey::new_from_array([0u8; 32])
 }
 
 /// Helper to derive chain_info PDA
@@ -275,7 +277,6 @@ async fn test_update_chain_info() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2; // Ethereum
     let (chain_info_pda, _chain_info_bump) = derive_chain_info_pda(chain_id);
 
@@ -316,7 +317,6 @@ async fn test_update_chain_info() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -353,7 +353,6 @@ async fn test_update_quote() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
@@ -399,7 +398,6 @@ async fn test_update_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -430,11 +428,11 @@ async fn test_request_quote() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Add payer
     pt.add_account(
@@ -522,11 +520,11 @@ async fn test_request_execution_quote() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Add payer
     pt.add_account(
@@ -628,7 +626,6 @@ async fn test_invalid_updater() {
     let payer = Keypair::new();
     let authorized_updater = Keypair::new();
     let unauthorized_updater = Keypair::new();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let _payee_address = get_payee_address();
@@ -665,7 +662,6 @@ async fn test_invalid_updater() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(unauthorized_updater.pubkey(), true), // Using unauthorized
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -689,11 +685,11 @@ async fn test_chain_disabled() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Add payer
     pt.add_account(
@@ -782,11 +778,11 @@ async fn test_full_flow() {
     let payer = Keypair::new();
     let updater = get_updater_keypair();
     let quoter = Pubkey::new_unique();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Add payer and updater with funds
     pt.add_account(
@@ -820,7 +816,6 @@ async fn test_full_flow() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -850,7 +845,6 @@ async fn test_full_flow() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -913,10 +907,10 @@ async fn test_invalid_updater_quote() {
     let payer = Keypair::new();
     let authorized_updater = Keypair::new();
     let unauthorized_updater = Keypair::new();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -957,7 +951,6 @@ async fn test_invalid_updater_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(unauthorized_updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -978,11 +971,11 @@ async fn test_chain_disabled_execution_quote() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1074,11 +1067,11 @@ async fn test_unsupported_instruction() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1166,11 +1159,11 @@ async fn test_more_than_one_dropoff() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1258,11 +1251,11 @@ async fn test_invalid_relay_instructions() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1350,9 +1343,9 @@ async fn test_not_enough_accounts() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1383,7 +1376,6 @@ async fn test_not_enough_accounts() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pubkey, false),
         ],
     );
 
@@ -1406,11 +1398,11 @@ async fn test_zero_gas_limit() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1499,11 +1491,11 @@ async fn test_zero_src_price() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1592,11 +1584,11 @@ async fn test_multiple_gas_instructions() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1687,11 +1679,11 @@ async fn test_gas_plus_dropoff() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1786,11 +1778,11 @@ async fn test_empty_relay_instructions() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1879,11 +1871,11 @@ async fn test_arithmetic_overflow() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -1978,11 +1970,11 @@ async fn test_decimals_18_to_9() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -2071,11 +2063,11 @@ async fn test_decimals_6_to_9() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -2164,11 +2156,11 @@ async fn test_decimals_9_to_9() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -2260,10 +2252,10 @@ async fn test_update_overwrites_quote() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -2305,7 +2297,6 @@ async fn test_update_overwrites_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2331,7 +2322,6 @@ async fn test_update_overwrites_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2361,11 +2351,11 @@ async fn test_chain_toggle() {
 
     let payer = Keypair::new();
     let updater = get_updater_keypair();
-    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
     let _payee_address = get_payee_address();
+    let config_pubkey = get_dummy_config_pubkey();
 
     pt.add_account(
         payer.pubkey(),
@@ -2438,7 +2428,6 @@ async fn test_chain_toggle() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2490,7 +2479,6 @@ async fn test_chain_toggle() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2510,6 +2498,8 @@ async fn test_chain_toggle() {
 
     // Quote should work now
     let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    // Force account cache refresh - see solana-program-test behavior with BPF programs
+    let _acc = banks_client.get_account(chain_info_pda).await.expect("get").expect("exists");
     let quote_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &quote_data,

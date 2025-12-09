@@ -37,12 +37,11 @@ impl UpdateChainInfoData {
 /// Accounts:
 /// 0. `[signer, writable]` payer - pays for account creation if needed
 /// 1. `[signer]` updater - must match UPDATER_ADDRESS constant
-/// 2. `[]` _config - reserved for future use
-/// 3. `[writable]` chain_info - ChainInfo PDA to create/update
-/// 4. `[]` system_program - System program for account creation
+/// 2. `[writable]` chain_info - ChainInfo PDA to create/update
+/// 3. `[]` system_program - System program for account creation
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // Parse accounts
-    let [payer, updater, _config, chain_info_account, _system_program] = accounts else {
+    let [payer, updater, chain_info_account, _system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 

@@ -147,7 +147,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     let relay_instructions = &cpi_data[relay_instructions_start..relay_instructions_end];
 
     // Parse accounts
-    let [payer, _config, quoter_registration_account, quoter_program, _executor_program, payee, refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =
+    let [payer, _config, quoter_registration_account, quoter_program, _executor_program, payee, _refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
