@@ -224,10 +224,9 @@ mod tests {
     fn make_quote_body(base_fee: u64, src_price: u64, dst_price: u64, dst_gas_price: u64) -> QuoteBody {
         QuoteBody {
             discriminator: 0,
-            _padding: [0; 3],
-            chain_id: 1,
             bump: 0,
-            _reserved: 0,
+            chain_id: 1,
+            _padding: [0; 4],
             dst_price,
             src_price,
             dst_gas_price,
@@ -243,7 +242,7 @@ mod tests {
             gas_price_decimals,
             native_decimals,
             bump: 0,
-            _reserved: 0,
+            _padding: 0,
         }
     }
 

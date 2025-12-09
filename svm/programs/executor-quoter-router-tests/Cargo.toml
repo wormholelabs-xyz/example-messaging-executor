@@ -1,0 +1,23 @@
+[package]
+name = "executor-quoter-router-tests"
+version = "0.1.0"
+description = "Integration tests and benchmarks for executor-quoter-router"
+edition = "2021"
+
+[lib]
+name = "executor_quoter_router_tests"
+
+[features]
+default = []
+
+[dev-dependencies]
+solana-program-test = "1.18"
+solana-sdk = "1.18"
+libsecp256k1 = "0.7"
+rand = "0.8"
+mollusk-svm = "0.0.9-solana-1.18"
+mollusk-svm-bencher = "0.0.9-solana-1.18"
+
+[[bench]]
+name = "compute_units"
+harness = false

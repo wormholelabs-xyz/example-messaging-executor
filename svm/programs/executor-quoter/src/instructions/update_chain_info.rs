@@ -3,7 +3,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::Pubkey,
+    pubkey::{find_program_address, Pubkey},
     sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
@@ -11,10 +11,12 @@ use pinocchio_system::instructions::CreateAccount;
 
 use crate::{
     error::ExecutorQuoterError,
-    state::{load_account, ChainInfo, Config, CHAIN_INFO_DISCRIMINATOR, CHAIN_INFO_SEED},
+    state::{ChainInfo, CHAIN_INFO_DISCRIMINATOR, CHAIN_INFO_SEED},
+    UPDATER_ADDRESS,
 };
 
-/// Instruction data for UpdateChainInfo
+/// Instruction data for UpdateChainInfo.
+/// Field order matches ChainInfo account bytes 2-6 for direct copy_from_slice on updates.
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy)]
 pub struct UpdateChainInfoData {
@@ -22,7 +24,7 @@ pub struct UpdateChainInfoData {
     pub enabled: u8,
     pub gas_price_decimals: u8,
     pub native_decimals: u8,
-    pub bump: u8,
+    pub _padding: u8,
 }
 
 impl UpdateChainInfoData {
@@ -34,13 +36,13 @@ impl UpdateChainInfoData {
 ///
 /// Accounts:
 /// 0. `[signer, writable]` payer - pays for account creation if needed
-/// 1. `[signer]` updater - must match config.updater_address
-/// 2. `[]` config - Config PDA for validation
+/// 1. `[signer]` updater - must match UPDATER_ADDRESS constant
+/// 2. `[]` _config - reserved for future use
 /// 3. `[writable]` chain_info - ChainInfo PDA to create/update
 /// 4. `[]` system_program - System program for account creation
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     // Parse accounts
-    let [payer, updater, config_account, chain_info_account, _system_program] = accounts else {
+    let [payer, updater, _config, chain_info_account, _system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -49,41 +51,39 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Parse instruction data
+    // Validate instruction data length
     if data.len() < UpdateChainInfoData::LEN {
         return Err(ExecutorQuoterError::InvalidInstructionData.into());
     }
-    let ix_data: UpdateChainInfoData =
-        bytemuck::try_pod_read_unaligned(&data[..UpdateChainInfoData::LEN])
-            .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
-    // Load and validate config (discriminator checked inside load_account)
-    let config = load_account::<Config>(config_account, program_id)?;
-
-    // Validate updater
-    if config.updater_address != *updater.key() {
+    // Validate updater against hardcoded address
+    if UPDATER_ADDRESS != *updater.key() {
         return Err(ExecutorQuoterError::InvalidUpdater.into());
     }
 
-    // Prepare seeds for PDA operations
-    let chain_id_bytes = ix_data.chain_id.to_le_bytes();
-    let bump = ix_data.bump;
-    let bump_seed = [bump];
-
     // Check if account needs to be created
-    let needs_creation = chain_info_account.data_is_empty();
+    if chain_info_account.data_is_empty() {
+        // Parse instruction data (only needed for creation)
+        let ix_data: UpdateChainInfoData =
+            bytemuck::try_pod_read_unaligned(&data[..UpdateChainInfoData::LEN])
+                .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
 
-    // If account exists, verify it's owned by this program (PDA validation happens via CPI signing during creation)
-    if !needs_creation && chain_info_account.owner() != program_id {
-        return Err(ExecutorQuoterError::InvalidOwner.into());
-    }
+        // Derive canonical PDA and bump
+        let chain_id_bytes = ix_data.chain_id.to_le_bytes();
+        let (expected_pda, canonical_bump) =
+            find_program_address(&[CHAIN_INFO_SEED, &chain_id_bytes], program_id);
 
-    if needs_creation {
+        // Verify passed account matches expected PDA
+        if *chain_info_account.key() != expected_pda {
+            return Err(ExecutorQuoterError::InvalidPda.into());
+        }
+
         // Get rent
         let rent = Rent::get()?;
         let lamports = rent.minimum_balance(ChainInfo::LEN);
 
-        // Create signer seeds (bump_seed already defined above)
+        // Create signer seeds with canonical bump
+        let bump_seed = [canonical_bump];
         let signer_seeds = [
             Seed::from(CHAIN_INFO_SEED),
             Seed::from(chain_id_bytes.as_slice()),
@@ -100,20 +100,45 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
             owner: program_id,
         }
         .invoke_signed(&signers)?;
+
+        // Initialize account data
+        let chain_info = ChainInfo {
+            discriminator: CHAIN_INFO_DISCRIMINATOR,
+            bump: canonical_bump,
+            chain_id: ix_data.chain_id,
+            enabled: ix_data.enabled,
+            gas_price_decimals: ix_data.gas_price_decimals,
+            native_decimals: ix_data.native_decimals,
+            _padding: 0,
+        };
+        chain_info_account
+            .try_borrow_mut_data()?
+            .copy_from_slice(bytemuck::bytes_of(&chain_info));
+    } else {
+        // Account exists - verify ownership
+        if chain_info_account.owner() != program_id {
+            return Err(ExecutorQuoterError::InvalidOwner.into());
+        }
+
+        // Update mutable fields directly via slice copy.
+        // Layout: enabled, gas_price_decimals, native_decimals are at
+        // bytes 4-7 in account data and bytes 2-5 in instruction data.
+        // Safety: owner check above guarantees correct size (only our program can
+        // create accounts it owns, and we always use ChainInfo::LEN).
+        let mut account_data = chain_info_account.try_borrow_mut_data()?;
+
+        // Verify discriminator (first byte)
+        if account_data[0] != CHAIN_INFO_DISCRIMINATOR {
+            return Err(ExecutorQuoterError::InvalidDiscriminator.into());
+        }
+
+        // Verify chain_id matches (cannot change which chain this account is for)
+        if account_data[2..4] != data[0..2] {
+            return Err(ExecutorQuoterError::ChainIdMismatch.into());
+        }
+
+        account_data[4..7].copy_from_slice(&data[2..5]);
     }
-
-    // Update account data
-    let mut account_data = chain_info_account.try_borrow_mut_data()?;
-    let chain_info = bytemuck::try_from_bytes_mut::<ChainInfo>(&mut account_data[..ChainInfo::LEN])
-        .map_err(|_| ExecutorQuoterError::InvalidInstructionData)?;
-
-    chain_info.discriminator = CHAIN_INFO_DISCRIMINATOR;
-    chain_info.enabled = ix_data.enabled;
-    chain_info.chain_id = ix_data.chain_id;
-    chain_info.gas_price_decimals = ix_data.gas_price_decimals;
-    chain_info.native_decimals = ix_data.native_decimals;
-    chain_info.bump = bump;
-    chain_info._reserved = 0;
 
     Ok(())
 }

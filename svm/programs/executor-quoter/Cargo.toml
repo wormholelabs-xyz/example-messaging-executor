@@ -19,12 +19,5 @@ pinocchio = "0.9.2"
 pinocchio-system = "0.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 
-[dev-dependencies]
-solana-program-test = "1.18"
-solana-sdk = "1.18"
-mollusk-svm = "0.0.9-solana-1.18"
-mollusk-svm-bencher = "0.0.9-solana-1.18"
-
-[[bench]]
-name = "compute_units"
-harness = false
+[build-dependencies]
+bs58 = "0.5"

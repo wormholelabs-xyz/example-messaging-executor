@@ -1554,13 +1554,10 @@ dependencies = [
 name = "executor-quoter"
 version = "0.1.0"
 dependencies = [
+ "bs58 0.5.1",
  "bytemuck",
- "mollusk-svm",
- "mollusk-svm-bencher",
  "pinocchio",
  "pinocchio-system",
- "solana-program-test",
- "solana-sdk",
 ]
 
 [[package]]
@@ -1568,12 +1565,28 @@ name = "executor-quoter-router"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "pinocchio",
+ "pinocchio-system",
+]
+
+[[package]]
+name = "executor-quoter-router-tests"
+version = "0.1.0"
+dependencies = [
  "libsecp256k1 0.7.2",
  "mollusk-svm",
  "mollusk-svm-bencher",
- "pinocchio",
- "pinocchio-system",
  "rand 0.8.5",
+ "solana-program-test",
+ "solana-sdk",
+]
+
+[[package]]
+name = "executor-quoter-tests"
+version = "0.1.0"
+dependencies = [
+ "mollusk-svm",
+ "mollusk-svm-bencher",
  "solana-program-test",
  "solana-sdk",
 ]

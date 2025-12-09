@@ -23,31 +23,44 @@ const PROGRAM_ID: Pubkey = Pubkey::new_from_array([
     0xad, 0x51, 0x9d, 0x3d, 0xcd, 0xf3, 0x86, 0x58,
 ]);
 
-/// Account discriminators
-const CONFIG_DISCRIMINATOR: u8 = 1;
-const QUOTE_BODY_DISCRIMINATOR: u8 = 2;
-const CHAIN_INFO_DISCRIMINATOR: u8 = 3;
+/// Account discriminators (updated - no config)
+const QUOTE_BODY_DISCRIMINATOR: u8 = 1;
+const CHAIN_INFO_DISCRIMINATOR: u8 = 2;
 
 /// PDA seeds
-const CONFIG_SEED: &[u8] = b"config";
 const QUOTE_SEED: &[u8] = b"quote";
 const CHAIN_INFO_SEED: &[u8] = b"chain_info";
 
 /// Account sizes
-const CONFIG_SIZE: usize = 104;
 const CHAIN_INFO_SIZE: usize = 8;
 const QUOTE_BODY_SIZE: usize = 40;
 
-/// Instruction discriminators
-const IX_INITIALIZE: u8 = 0;
-const IX_UPDATE_CHAIN_INFO: u8 = 1;
-const IX_UPDATE_QUOTE: u8 = 2;
-const IX_REQUEST_QUOTE: u8 = 3;
-const IX_REQUEST_EXECUTION_QUOTE: u8 = 4;
+/// Instruction discriminators (8 bytes, Anchor-compatible)
+/// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
+const IX_UPDATE_CHAIN_INFO: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+const IX_UPDATE_QUOTE: [u8; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+const IX_REQUEST_QUOTE: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
+const IX_REQUEST_EXECUTION_QUOTE: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
-/// Helper to derive config PDA
-fn derive_config_pda() -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[CONFIG_SEED], &PROGRAM_ID)
+/// Helper to get a dummy config account pubkey (not used by program but required in instruction)
+fn get_dummy_config_pubkey() -> Pubkey {
+    Pubkey::new_unique()
+}
+
+/// Get the authorized updater keypair.
+/// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
+/// The program must be built with QUOTER_UPDATER_PUBKEY set to this keypair's pubkey.
+fn get_updater_keypair() -> Keypair {
+    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH")
+        .expect("QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file");
+    solana_sdk::signature::read_keypair_file(&keypair_path)
+        .expect("Failed to read updater keypair from file")
+}
+
+/// Get the payee address (32 bytes) from the updater keypair.
+/// The program must be built with QUOTER_PAYEE_PUBKEY set to this value.
+fn get_payee_address() -> [u8; 32] {
+    get_updater_keypair().pubkey().to_bytes()
 }
 
 /// Helper to derive chain_info PDA
@@ -60,56 +73,35 @@ fn derive_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[QUOTE_SEED, &chain_id.to_le_bytes()], &PROGRAM_ID)
 }
 
-/// Build Initialize instruction data
-fn build_initialize_data(
-    quoter_address: &Pubkey,
-    updater_address: &Pubkey,
-    src_token_decimals: u8,
-    bump: u8,
-    payee_address: &[u8; 32],
-) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 32 + 32 + 1 + 1 + 32);
-    data.push(IX_INITIALIZE);
-    data.extend_from_slice(quoter_address.as_ref());
-    data.extend_from_slice(updater_address.as_ref());
-    data.push(src_token_decimals);
-    data.push(bump);
-    data.extend_from_slice(payee_address);
-    data
-}
-
 /// Build UpdateChainInfo instruction data
 fn build_update_chain_info_data(
     chain_id: u16,
     enabled: bool,
     gas_price_decimals: u8,
     native_decimals: u8,
-    bump: u8,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 6);
-    data.push(IX_UPDATE_CHAIN_INFO);
+    let mut data = Vec::with_capacity(8 + 6);
+    data.extend_from_slice(&IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
     data.push(if enabled { 1 } else { 0 });
     data.push(gas_price_decimals);
     data.push(native_decimals);
-    data.push(bump);
+    data.push(0); // padding (was bump)
     data
 }
 
 /// Build UpdateQuote instruction data
 fn build_update_quote_data(
     chain_id: u16,
-    bump: u8,
     dst_price: u64,
     src_price: u64,
     dst_gas_price: u64,
     base_fee: u64,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 40);
-    data.push(IX_UPDATE_QUOTE);
+    let mut data = Vec::with_capacity(8 + 40);
+    data.extend_from_slice(&IX_UPDATE_QUOTE); // 8-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
-    data.push(bump);
-    data.extend_from_slice(&[0u8; 5]); // padding (reduced by 1 for bump)
+    data.extend_from_slice(&[0u8; 6]); // padding (was bump + 5 padding)
     data.extend_from_slice(&dst_price.to_le_bytes());
     data.extend_from_slice(&src_price.to_le_bytes());
     data.extend_from_slice(&dst_gas_price.to_le_bytes());
@@ -126,7 +118,7 @@ fn build_request_quote_data(
     relay_instructions: &[u8],
 ) -> Vec<u8> {
     let mut data = Vec::new();
-    data.push(IX_REQUEST_QUOTE);
+    data.extend_from_slice(&IX_REQUEST_QUOTE); // 8-byte discriminator
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
@@ -146,7 +138,7 @@ fn build_request_execution_quote_data(
     relay_instructions: &[u8],
 ) -> Vec<u8> {
     let mut data = Vec::new();
-    data.push(IX_REQUEST_EXECUTION_QUOTE);
+    data.extend_from_slice(&IX_REQUEST_EXECUTION_QUOTE); // 8-byte discriminator
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
@@ -225,26 +217,8 @@ fn build_relay_instructions_truncated() -> Vec<u8> {
     data
 }
 
-/// Create a Config account with initialized data
-fn create_config_account_data(
-    bump: u8,
-    src_token_decimals: u8,
-    quoter_address: &Pubkey,
-    updater_address: &Pubkey,
-    payee_address: &[u8; 32],
-) -> Vec<u8> {
-    let mut data = vec![0u8; CONFIG_SIZE];
-    data[0] = CONFIG_DISCRIMINATOR;
-    data[1] = bump;
-    data[2] = src_token_decimals;
-    // padding at 3..8
-    data[8..40].copy_from_slice(quoter_address.as_ref());
-    data[40..72].copy_from_slice(updater_address.as_ref());
-    data[72..104].copy_from_slice(payee_address);
-    data
-}
-
 /// Create a ChainInfo account with initialized data
+/// Layout: discriminator, bump, chain_id (u16), enabled, gas_price_decimals, native_decimals, padding
 fn create_chain_info_account_data(
     bump: u8,
     chain_id: u16,
@@ -254,16 +228,17 @@ fn create_chain_info_account_data(
 ) -> Vec<u8> {
     let mut data = vec![0u8; CHAIN_INFO_SIZE];
     data[0] = CHAIN_INFO_DISCRIMINATOR;
-    data[1] = if enabled { 1 } else { 0 };
+    data[1] = bump;
     data[2..4].copy_from_slice(&chain_id.to_le_bytes());
-    data[4] = gas_price_decimals;
-    data[5] = native_decimals;
-    data[6] = bump;
-    data[7] = 0; // reserved
+    data[4] = if enabled { 1 } else { 0 };
+    data[5] = gas_price_decimals;
+    data[6] = native_decimals;
+    data[7] = 0; // padding
     data
 }
 
 /// Create a QuoteBody account with initialized data
+/// Layout: discriminator, bump, chain_id (u16), padding (4), dst_price, src_price, dst_gas_price, base_fee
 fn create_quote_body_account_data(
     bump: u8,
     chain_id: u16,
@@ -274,10 +249,9 @@ fn create_quote_body_account_data(
 ) -> Vec<u8> {
     let mut data = vec![0u8; QUOTE_BODY_SIZE];
     data[0] = QUOTE_BODY_DISCRIMINATOR;
-    // padding at 1..4
-    data[4..6].copy_from_slice(&chain_id.to_le_bytes());
-    data[6] = bump;
-    data[7] = 0; // reserved
+    data[1] = bump;
+    data[2..4].copy_from_slice(&chain_id.to_le_bytes());
+    // padding at 4..8
     data[8..16].copy_from_slice(&dst_price.to_le_bytes());
     data[16..24].copy_from_slice(&src_price.to_le_bytes());
     data[24..32].copy_from_slice(&dst_gas_price.to_le_bytes());
@@ -296,77 +270,14 @@ fn create_program_test() -> ProgramTest {
 }
 
 #[tokio::test]
-async fn test_initialize() {
-    let mut pt = create_program_test();
-
-    let payer = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
-    let quoter_address = Pubkey::new_unique();
-    let updater_address = Pubkey::new_unique();
-    let payee_address = [0x42u8; 32];
-
-    // Add payer with funds
-    pt.add_account(
-        payer.pubkey(),
-        Account {
-            lamports: 1_000_000_000,
-            data: vec![],
-            owner: system_program::id(),
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
-
-    let instruction_data = build_initialize_data(
-        &quoter_address,
-        &updater_address,
-        9, // SOL decimals
-        config_bump,
-        &payee_address,
-    );
-
-    let instruction = Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &instruction_data,
-        vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ],
-    );
-
-    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-    transaction.sign(&[&payer], recent_blockhash);
-
-    let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Initialize failed: {:?}", result.err());
-
-    // Verify config account was created
-    let config_account = banks_client
-        .get_account(config_pda)
-        .await
-        .expect("Failed to get account")
-        .expect("Config account not found");
-
-    assert_eq!(config_account.data.len(), CONFIG_SIZE);
-    assert_eq!(config_account.data[0], CONFIG_DISCRIMINATOR);
-    assert_eq!(config_account.data[2], 9); // src_token_decimals
-
-    println!("Initialize test passed!");
-}
-
-#[tokio::test]
 async fn test_update_chain_info() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2; // Ethereum
-    let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let (chain_info_pda, _chain_info_bump) = derive_chain_info_pda(chain_id);
 
     // Add payer and updater with funds
     pt.add_account(
@@ -390,25 +301,6 @@ async fn test_update_chain_info() {
         },
     );
 
-    // Add pre-existing config account
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_chain_info_data(
@@ -416,7 +308,6 @@ async fn test_update_chain_info() {
         true, // enabled
         9,    // gas_price_decimals (Gwei)
         18,   // native_decimals (ETH)
-        chain_info_bump,
     );
 
     let instruction = Instruction::new_with_bytes(
@@ -425,7 +316,7 @@ async fn test_update_chain_info() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -450,7 +341,8 @@ async fn test_update_chain_info() {
 
     assert_eq!(chain_info_account.data.len(), CHAIN_INFO_SIZE);
     assert_eq!(chain_info_account.data[0], CHAIN_INFO_DISCRIMINATOR);
-    assert_eq!(chain_info_account.data[1], 1); // enabled
+    // ChainInfo layout: discriminator (0), bump (1), chain_id (2-3), enabled (4)
+    assert_eq!(chain_info_account.data[4], 1); // enabled
 
     println!("UpdateChainInfo test passed!");
 }
@@ -460,11 +352,11 @@ async fn test_update_quote() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer and updater
     pt.add_account(
@@ -489,29 +381,12 @@ async fn test_update_quote() {
     );
 
     // Add pre-existing config account
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_quote_data(
         chain_id,
-        quote_bump,
         2000_0000000000, // dst_price: $2000 in 10^10
         200_0000000000,  // src_price: $200 in 10^10
         50_000000000,    // dst_gas_price: 50 Gwei
@@ -524,7 +399,7 @@ async fn test_update_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -554,12 +429,12 @@ async fn test_request_quote() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer
     pt.add_account(
@@ -574,23 +449,7 @@ async fn test_request_quote() {
     );
 
     // Add pre-existing accounts
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -642,7 +501,7 @@ async fn test_request_quote() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -662,12 +521,12 @@ async fn test_request_execution_quote() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer
     pt.add_account(
@@ -682,23 +541,7 @@ async fn test_request_execution_quote() {
     );
 
     // Add pre-existing accounts
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -758,7 +601,7 @@ async fn test_request_execution_quote() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),
@@ -785,10 +628,10 @@ async fn test_invalid_updater() {
     let payer = Keypair::new();
     let authorized_updater = Keypair::new();
     let unauthorized_updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer and unauthorized updater
     pt.add_account(
@@ -812,28 +655,9 @@ async fn test_invalid_updater() {
         },
     );
 
-    // Create config with authorized_updater
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &authorized_updater.pubkey(), // Note: this is the authorized one
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
-    let instruction_data = build_update_chain_info_data(chain_id, true, 9, 18, chain_info_bump);
+    let instruction_data = build_update_chain_info_data(chain_id, true, 9, 18);
 
     let instruction = Instruction::new_with_bytes(
         PROGRAM_ID,
@@ -841,7 +665,7 @@ async fn test_invalid_updater() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(unauthorized_updater.pubkey(), true), // Using unauthorized
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -864,12 +688,12 @@ async fn test_chain_disabled() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer
     pt.add_account(
@@ -883,23 +707,7 @@ async fn test_chain_disabled() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     // Create chain_info with enabled = false
     let chain_info_data = create_chain_info_account_data(
@@ -952,7 +760,7 @@ async fn test_chain_disabled() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -972,13 +780,13 @@ async fn test_full_flow() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
+    let updater = get_updater_keypair();
     let quoter = Pubkey::new_unique();
-    let (config_pda, config_bump) = derive_config_pda();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     // Add payer and updater with funds
     pt.add_account(
@@ -1004,35 +812,15 @@ async fn test_full_flow() {
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
-    // Step 1: Initialize
-    let init_data = build_initialize_data(&quoter, &updater.pubkey(), 9, config_bump, &payee_address);
-    let init_ix = Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &init_data,
-        vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ],
-    );
-
-    let mut tx = Transaction::new_with_payer(&[init_ix], Some(&payer.pubkey()));
-    tx.sign(&[&payer], recent_blockhash);
-    banks_client
-        .process_transaction(tx)
-        .await
-        .expect("Initialize failed");
-    println!("Step 1: Initialize - PASSED");
-
-    // Step 2: UpdateChainInfo
-    let update_chain_data = build_update_chain_info_data(chain_id, true, 9, 18, chain_info_bump);
+    // Step 1: UpdateChainInfo
+    let update_chain_data = build_update_chain_info_data(chain_id, true, 9, 18);
     let update_chain_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &update_chain_data,
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -1055,14 +843,14 @@ async fn test_full_flow() {
 
     // Step 3: UpdateQuote
     let update_quote_data =
-        build_update_quote_data(chain_id, quote_bump, 2000_0000000000, 200_0000000000, 50_000000000, 1000000);
+        build_update_quote_data(chain_id, 2000_0000000000, 200_0000000000, 50_000000000, 1000000);
     let update_quote_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &update_quote_data,
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -1093,7 +881,7 @@ async fn test_full_flow() {
         PROGRAM_ID,
         &request_quote_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -1125,10 +913,10 @@ async fn test_invalid_updater_quote() {
     let payer = Keypair::new();
     let authorized_updater = Keypair::new();
     let unauthorized_updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1151,29 +939,12 @@ async fn test_invalid_updater_quote() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &authorized_updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_quote_data(
         chain_id,
-        quote_bump,
         2000_0000000000,
         200_0000000000,
         50_000000000,
@@ -1186,7 +957,7 @@ async fn test_invalid_updater_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(unauthorized_updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -1206,12 +977,12 @@ async fn test_chain_disabled_execution_quote() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1224,23 +995,7 @@ async fn test_chain_disabled_execution_quote() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1297,7 +1052,7 @@ async fn test_chain_disabled_execution_quote() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),
@@ -1318,12 +1073,12 @@ async fn test_unsupported_instruction() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1336,23 +1091,7 @@ async fn test_unsupported_instruction() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1406,7 +1145,7 @@ async fn test_unsupported_instruction() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -1426,12 +1165,12 @@ async fn test_more_than_one_dropoff() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1444,23 +1183,7 @@ async fn test_more_than_one_dropoff() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1514,7 +1237,7 @@ async fn test_more_than_one_dropoff() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -1534,12 +1257,12 @@ async fn test_invalid_relay_instructions() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1552,23 +1275,7 @@ async fn test_invalid_relay_instructions() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1622,7 +1329,7 @@ async fn test_invalid_relay_instructions() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -1638,84 +1345,14 @@ async fn test_invalid_relay_instructions() {
 }
 
 #[tokio::test]
-async fn test_already_initialized() {
-    let mut pt = create_program_test();
-
-    let payer = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
-    let quoter_address = Pubkey::new_unique();
-    let updater_address = Pubkey::new_unique();
-    let payee_address = [0x42u8; 32];
-
-    pt.add_account(
-        payer.pubkey(),
-        Account {
-            lamports: 1_000_000_000,
-            data: vec![],
-            owner: system_program::id(),
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
-    // Pre-add a config account (already initialized)
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &quoter_address,
-        &updater_address,
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
-
-    // Try to initialize again
-    let instruction_data = build_initialize_data(
-        &quoter_address,
-        &updater_address,
-        9,
-        config_bump,
-        &payee_address,
-    );
-
-    let instruction = Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &instruction_data,
-        vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ],
-    );
-
-    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-    transaction.sign(&[&payer], recent_blockhash);
-
-    let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with AlreadyInitialized");
-
-    println!("AlreadyInitialized test passed!");
-}
-
-#[tokio::test]
 async fn test_not_enough_accounts() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1728,23 +1365,7 @@ async fn test_not_enough_accounts() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
@@ -1762,7 +1383,7 @@ async fn test_not_enough_accounts() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
         ],
     );
 
@@ -1784,12 +1405,12 @@ async fn test_zero_gas_limit() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1802,23 +1423,7 @@ async fn test_zero_gas_limit() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1873,7 +1478,7 @@ async fn test_zero_gas_limit() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -1893,12 +1498,12 @@ async fn test_zero_src_price() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -1911,23 +1516,7 @@ async fn test_zero_src_price() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1982,7 +1571,7 @@ async fn test_zero_src_price() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2002,12 +1591,12 @@ async fn test_multiple_gas_instructions() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2020,23 +1609,7 @@ async fn test_multiple_gas_instructions() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2093,7 +1666,7 @@ async fn test_multiple_gas_instructions() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2113,12 +1686,12 @@ async fn test_gas_plus_dropoff() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2131,23 +1704,7 @@ async fn test_gas_plus_dropoff() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2208,7 +1765,7 @@ async fn test_gas_plus_dropoff() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2228,12 +1785,12 @@ async fn test_empty_relay_instructions() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2246,23 +1803,7 @@ async fn test_empty_relay_instructions() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2317,7 +1858,7 @@ async fn test_empty_relay_instructions() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2337,12 +1878,12 @@ async fn test_arithmetic_overflow() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2355,23 +1896,7 @@ async fn test_arithmetic_overflow() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2427,7 +1952,7 @@ async fn test_arithmetic_overflow() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2452,12 +1977,12 @@ async fn test_decimals_18_to_9() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2470,23 +1995,7 @@ async fn test_decimals_18_to_9() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2540,7 +2049,7 @@ async fn test_decimals_18_to_9() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2561,12 +2070,12 @@ async fn test_decimals_6_to_9() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2579,23 +2088,7 @@ async fn test_decimals_6_to_9() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2649,7 +2142,7 @@ async fn test_decimals_6_to_9() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2670,12 +2163,12 @@ async fn test_decimals_9_to_9() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2688,23 +2181,7 @@ async fn test_decimals_9_to_9() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2758,7 +2235,7 @@ async fn test_decimals_9_to_9() {
         PROGRAM_ID,
         &instruction_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -2782,11 +2259,11 @@ async fn test_update_overwrites_quote() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (quote_body_pda, quote_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2809,30 +2286,13 @@ async fn test_update_overwrites_quote() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     // First update
     let instruction_data1 = build_update_quote_data(
         chain_id,
-        quote_bump,
         1000_0000000000, // dst_price
         100_0000000000,  // src_price
         25_000000000,    // dst_gas_price
@@ -2845,7 +2305,7 @@ async fn test_update_overwrites_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2859,7 +2319,6 @@ async fn test_update_overwrites_quote() {
     let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
     let instruction_data2 = build_update_quote_data(
         chain_id,
-        quote_bump,
         2000_0000000000, // different dst_price
         200_0000000000,  // different src_price
         50_000000000,    // different dst_gas_price
@@ -2872,7 +2331,7 @@ async fn test_update_overwrites_quote() {
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -2901,12 +2360,12 @@ async fn test_chain_toggle() {
     let mut pt = create_program_test();
 
     let payer = Keypair::new();
-    let updater = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
+    let updater = get_updater_keypair();
+    let config_pubkey = get_dummy_config_pubkey();
     let chain_id: u16 = 2;
     let (chain_info_pda, chain_info_bump) = derive_chain_info_pda(chain_id);
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(chain_id);
-    let payee_address = [0x42u8; 32];
+    let _payee_address = get_payee_address();
 
     pt.add_account(
         payer.pubkey(),
@@ -2929,23 +2388,7 @@ async fn test_chain_toggle() {
         },
     );
 
-    let config_data = create_config_account_data(
-        config_bump,
-        9,
-        &Pubkey::new_unique(),
-        &updater.pubkey(),
-        &payee_address,
-    );
-    pt.add_account(
-        config_pda,
-        Account {
-            lamports: 1_000_000_000,
-            data: config_data,
-            owner: PROGRAM_ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
+
 
     // Start with chain enabled
     let chain_info_data = create_chain_info_account_data(
@@ -2988,14 +2431,14 @@ async fn test_chain_toggle() {
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     // Disable the chain
-    let disable_data = build_update_chain_info_data(chain_id, false, 9, 18, chain_info_bump);
+    let disable_data = build_update_chain_info_data(chain_id, false, 9, 18);
     let disable_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &disable_data,
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -3011,7 +2454,8 @@ async fn test_chain_toggle() {
         .await
         .expect("Failed to get account")
         .expect("ChainInfo account not found");
-    assert_eq!(chain_info_account.data[1], 0, "Chain should be disabled");
+    // ChainInfo layout: discriminator (0), bump (1), chain_id (2-3), enabled (4)
+    assert_eq!(chain_info_account.data[4], 0, "Chain should be disabled");
 
     // Try to request quote - should fail
     let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
@@ -3027,7 +2471,7 @@ async fn test_chain_toggle() {
         PROGRAM_ID,
         &quote_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -3039,14 +2483,14 @@ async fn test_chain_toggle() {
 
     // Re-enable the chain
     let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
-    let enable_data = build_update_chain_info_data(chain_id, true, 9, 18, chain_info_bump);
+    let enable_data = build_update_chain_info_data(chain_id, true, 9, 18);
     let enable_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &enable_data,
         vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(updater.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::id(), false),
         ],
@@ -3061,7 +2505,8 @@ async fn test_chain_toggle() {
         .await
         .expect("Failed to get account")
         .expect("ChainInfo account not found");
-    assert_eq!(chain_info_account.data[1], 1, "Chain should be re-enabled");
+    // ChainInfo layout: discriminator (0), bump (1), chain_id (2-3), enabled (4)
+    assert_eq!(chain_info_account.data[4], 1, "Chain should be re-enabled");
 
     // Quote should work now
     let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
@@ -3069,7 +2514,7 @@ async fn test_chain_toggle() {
         PROGRAM_ID,
         &quote_data,
         vec![
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(chain_info_pda, false),
             AccountMeta::new_readonly(quote_body_pda, false),
         ],
@@ -3082,71 +2527,5 @@ async fn test_chain_toggle() {
     println!("Chain toggle test passed!");
 }
 
-#[tokio::test]
-async fn test_account_data_layout() {
-    let mut pt = create_program_test();
-
-    let payer = Keypair::new();
-    let (config_pda, config_bump) = derive_config_pda();
-    let quoter_address = Pubkey::new_unique();
-    let updater_address = Pubkey::new_unique();
-    let payee_address = [0xABu8; 32];
-
-    pt.add_account(
-        payer.pubkey(),
-        Account {
-            lamports: 1_000_000_000,
-            data: vec![],
-            owner: system_program::id(),
-            executable: false,
-            rent_epoch: 0,
-        },
-    );
-
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
-
-    let instruction_data = build_initialize_data(
-        &quoter_address,
-        &updater_address,
-        9, // src_token_decimals
-        config_bump,
-        &payee_address,
-    );
-
-    let instruction = Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &instruction_data,
-        vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ],
-    );
-
-    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
-    transaction.sign(&[&payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.expect("Initialize failed");
-
-    // Verify account data layout
-    let config_account = banks_client
-        .get_account(config_pda)
-        .await
-        .expect("Failed to get account")
-        .expect("Config account not found");
-
-    assert_eq!(config_account.data.len(), CONFIG_SIZE, "Config size mismatch");
-    assert_eq!(config_account.data[0], CONFIG_DISCRIMINATOR, "Discriminator mismatch");
-    assert_eq!(config_account.data[1], config_bump, "Bump mismatch");
-    assert_eq!(config_account.data[2], 9, "src_token_decimals mismatch");
-
-    // Verify quoter_address at offset 8
-    assert_eq!(&config_account.data[8..40], quoter_address.as_ref(), "quoter_address mismatch");
-
-    // Verify updater_address at offset 40
-    assert_eq!(&config_account.data[40..72], updater_address.as_ref(), "updater_address mismatch");
-
-    // Verify payee_address at offset 72
-    assert_eq!(&config_account.data[72..104], &payee_address, "payee_address mismatch");
-
-    println!("Account data layout test passed!");
-}
+// Note: test_account_data_layout removed - Config account no longer exists
+// Values are now hardcoded in the program

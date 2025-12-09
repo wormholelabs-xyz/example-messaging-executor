@@ -33,6 +33,8 @@ pub enum ExecutorQuoterRouterError {
     InvalidReturnData = 13,
     /// Math overflow
     MathOverflow = 14,
+    /// Invalid account data
+    InvalidAccountData = 15,
 }
 
 impl From<ExecutorQuoterRouterError> for ProgramError {

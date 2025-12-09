@@ -4,47 +4,16 @@ use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::
 use crate::error::ExecutorQuoterError;
 
 /// Account discriminators for type safety
-pub const CONFIG_DISCRIMINATOR: u8 = 1;
-pub const QUOTE_BODY_DISCRIMINATOR: u8 = 2;
-pub const CHAIN_INFO_DISCRIMINATOR: u8 = 3;
+pub const QUOTE_BODY_DISCRIMINATOR: u8 = 1;
+pub const CHAIN_INFO_DISCRIMINATOR: u8 = 2;
 
 /// PDA seed prefixes
-pub const CONFIG_SEED: &[u8] = b"config";
 pub const QUOTE_SEED: &[u8] = b"quote";
 pub const CHAIN_INFO_SEED: &[u8] = b"chain_info";
 
 /// Trait for accounts with a discriminator byte at offset 0.
 pub trait Discriminator {
     const DISCRIMINATOR: u8;
-}
-
-/// Global configuration for the ExecutorQuoter.
-/// PDA seeds: ["config"]
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
-pub struct Config {
-    /// Discriminator for account type validation
-    pub discriminator: u8,
-    /// PDA bump seed
-    pub bump: u8,
-    /// Decimals of the source chain native token (SOL = 9)
-    pub src_token_decimals: u8,
-    /// Padding for alignment
-    pub _padding: [u8; 5],
-    /// The address of the quoter (for identification purposes)
-    pub quoter_address: Pubkey,
-    /// The address authorized to update quotes and chain info
-    pub updater_address: Pubkey,
-    /// Universal address format for payee (32 bytes)
-    pub payee_address: [u8; 32],
-}
-
-impl Discriminator for Config {
-    const DISCRIMINATOR: u8 = CONFIG_DISCRIMINATOR;
-}
-
-impl Config {
-    pub const LEN: usize = core::mem::size_of::<Self>();
 }
 
 /// On-chain quote body for a specific destination chain.
@@ -55,14 +24,12 @@ impl Config {
 pub struct QuoteBody {
     /// Discriminator for account type validation
     pub discriminator: u8,
-    /// Padding for alignment
-    pub _padding: [u8; 3],
-    /// The destination chain ID this quote applies to
-    pub chain_id: u16,
     /// PDA bump seed
     pub bump: u8,
-    /// Reserved
-    pub _reserved: u8,
+    /// The destination chain ID this quote applies to
+    pub chain_id: u16,
+    /// Padding
+    pub _padding: [u8; 4],
     /// The USD price, in 10^10, of the destination chain native currency
     pub dst_price: u64,
     /// The USD price, in 10^10, of the source chain native currency
@@ -98,23 +65,27 @@ impl QuoteBody {
 
 /// Chain-specific configuration.
 /// PDA seeds: ["chain_info", chain_id (u16 le bytes)]
+///
+/// Field order is optimized for efficient updates: mutable fields (chain_id,
+/// enabled, gas_price_decimals, native_decimals) are contiguous at bytes 2-6,
+/// matching the instruction data layout for direct copy_from_slice.
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
 pub struct ChainInfo {
     /// Discriminator for account type validation
     pub discriminator: u8,
-    /// Whether this chain is enabled for quoting
-    pub enabled: u8,
+    /// PDA bump seed
+    pub bump: u8,
     /// The chain ID this info applies to
     pub chain_id: u16,
+    /// Whether this chain is enabled for quoting
+    pub enabled: u8,
     /// Decimals used for gas price on this chain
     pub gas_price_decimals: u8,
     /// Decimals of the native token on this chain
     pub native_decimals: u8,
-    /// PDA bump seed
-    pub bump: u8,
-    /// Reserved
-    pub _reserved: u8,
+    /// Padding
+    pub _padding: u8,
 }
 
 impl Discriminator for ChainInfo {

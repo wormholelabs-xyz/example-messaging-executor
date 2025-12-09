@@ -28,6 +28,8 @@ pub enum ExecutorQuoterError {
     InvalidInstructionData = 0x100A,
     /// Invalid account discriminator
     InvalidDiscriminator = 0x100B,
+    /// Chain ID in instruction does not match account
+    ChainIdMismatch = 0x100C,
 }
 
 impl From<ExecutorQuoterError> for ProgramError {

@@ -5,99 +5,149 @@
 //! 2. Handle payment (transfer to payee, refund excess)
 //! 3. Construct EQ02 signed quote
 //! 4. CPI to Executor's request_for_execution
+//!
+//! Input layout (zero-copy optimized):
+//! - bytes 0-7: amount (u64 le, payment amount)
+//! - bytes 8-27: quoter_address (20 bytes, for registration lookup)
+//! - bytes 28+: quoter CPI data (passed directly, includes 8-byte discriminator)
+//!
+//! The client must set bytes 28-35 to the quoter's RequestExecutionQuote discriminator
+//! (Anchor-compatible: byte 0 = 3, bytes 1-7 = padding zeros).
 
-use bytemuck::{Pod, Zeroable};
 use pinocchio::{
     account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
-use pinocchio_system::instructions::Transfer;
 
-use super::quoter_cpi::{make_executor_request_for_execution_ix, make_quoter_request_execution_quote_ix};
+use super::executor_cpi::make_executor_request_for_execution_ix;
 use super::serialization::make_signed_quote_eq02;
 use crate::{
     error::ExecutorQuoterRouterError,
-    state::{load_account, Config, QuoterRegistration, EXPIRY_TIME_MAX},
+    state::{load_account, QuoterRegistration, EXPIRY_TIME_MAX},
+    EXECUTOR_PROGRAM_ID, OUR_CHAIN,
 };
 
-/// Fixed header for RequestExecution instruction data.
-/// Fields are ordered for optimal alignment (amount first as u64).
-/// Variable-length fields (request_bytes, relay_instructions) follow after.
-/// Total size: 104 bytes (padded for u64 alignment).
-#[repr(C)]
-#[derive(Pod, Zeroable, Clone, Copy)]
-pub struct RequestExecutionHeader {
-    pub amount: u64,
-    pub quoter_address: [u8; 20],
-    pub dst_chain: u16,
-    pub dst_addr: [u8; 32],
-    pub refund_addr: [u8; 32],
-    pub _padding1: [u8; 2],
-    pub request_bytes_len: u32,
-    pub _padding2: [u8; 4],
-}
+/// Offset where quoter CPI data starts (after amount + quoter_address).
+const QUOTER_CPI_OFFSET: usize = 28;
 
-impl RequestExecutionHeader {
-    pub const LEN: usize = core::mem::size_of::<Self>();
-}
+/// Expected discriminator for quoter RequestExecutionQuote instruction (8 bytes, Anchor-compatible).
+/// Byte 0 = instruction ID (3), bytes 1-7 = padding (zeros).
+const EXPECTED_QUOTER_DISCRIMINATOR: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
+
+/// Minimum instruction data size:
+/// amount (8) + quoter_address (20) + discriminator (8) + dst_chain (2) + dst_addr (32) +
+/// refund_addr (32) + request_bytes_len (4) + relay_instructions_len (4) = 110
+const MIN_DATA_LEN: usize = 110;
 
 /// RequestExecution instruction.
 ///
 /// Accounts:
 /// 0. `[signer, writable]` payer - Pays for execution
-/// 1. `[]` config - Router config PDA
+/// 1. `[]` _config - reserved for integrator use
 /// 2. `[]` quoter_registration - QuoterRegistration PDA for the quoter
 /// 3. `[]` quoter_program - The quoter implementation program
 /// 4. `[]` executor_program - The executor program to CPI into
 /// 5. `[writable]` payee - Receives the payment
 /// 6. `[writable]` refund_addr - Receives any excess payment
 /// 7. `[]` system_program
-///    8-11. `[]` quoter accounts: quoter_config, chain_info, quote_body, event_cpi
+/// 8-11. `[]` quoter accounts: quoter_config, chain_info, quote_body, event_cpi
+///
+/// Instruction Data Layout (minimum 110 bytes):
+/// ```text
+/// Offset  Size  Field
+/// ------  ----  -----
+/// 0       8     amount (u64 LE) - Payment amount
+/// 8       20    quoter_address - For registration lookup
+///
+/// --- Quoter CPI data (passed directly to quoter) ---
+/// 28      8     discriminator - Must be [3, 0, 0, 0, 0, 0, 0, 0]
+/// 36      2     dst_chain (u16 LE) - Destination chain ID
+/// 38      32    dst_addr - Destination address
+/// 70      32    refund_addr - Refund address
+/// 102     4     request_bytes_len (u32 LE)
+/// 106     var   request_bytes
+/// var     4     relay_instructions_len (u32 LE)
+/// var     var   relay_instructions
+/// ```
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    // Minimum: header (98) + relay_instructions_len (4) = 102 bytes
-    if data.len() < RequestExecutionHeader::LEN + 4 {
+    if data.len() < MIN_DATA_LEN {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse fixed header
-    let header: RequestExecutionHeader =
-        bytemuck::try_pod_read_unaligned(&data[..RequestExecutionHeader::LEN])
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+    // Parse amount (bytes 0-7)
+    let amount = u64::from_le_bytes(
+        data[0..8]
+            .try_into()
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
+    );
 
-    let amount = header.amount;
-    let quoter_address = header.quoter_address;
-    let dst_chain = header.dst_chain;
-    let dst_addr = header.dst_addr;
-    let refund_addr_bytes = header.refund_addr;
+    // Parse quoter_address (bytes 8-27)
+    let quoter_address: [u8; 20] = data[8..28]
+        .try_into()
+        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
 
-    // Parse variable-length fields after header
-    let request_bytes_len = header.request_bytes_len as usize;
-    let request_bytes_start = RequestExecutionHeader::LEN;
-    let request_bytes_end = request_bytes_start + request_bytes_len;
+    // CPI data starts at byte 28
+    let cpi_data = &data[QUOTER_CPI_OFFSET..];
 
-    if data.len() < request_bytes_end + 4 {
+    // Validate CPI data structure and extract fields we need for executor CPI
+    // CPI layout: discriminator (8) + dst_chain (2) + dst_addr (32) + refund_addr (32) +
+    // request_bytes_len (4) + request_bytes + relay_instructions_len (4) + relay_instructions
+    if cpi_data.len() < 82 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    let request_bytes = &data[request_bytes_start..request_bytes_end];
+    // Validate discriminator matches expected RequestExecutionQuote instruction (8-byte Anchor-compatible)
+    if cpi_data[0..8] != EXPECTED_QUOTER_DISCRIMINATOR {
+        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
+    }
 
-    let relay_len_start = request_bytes_end;
-    let relay_instructions_len = u32::from_le_bytes(
-        data[relay_len_start..relay_len_start + 4]
+    // Extract fields from CPI data (after 8-byte discriminator)
+    let dst_chain = u16::from_le_bytes(
+        cpi_data[8..10]
+            .try_into()
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
+    );
+
+    let dst_addr: [u8; 32] = cpi_data[10..42]
+        .try_into()
+        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+
+    let refund_addr_bytes: [u8; 32] = cpi_data[42..74]
+        .try_into()
+        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+
+    let request_bytes_len = u32::from_le_bytes(
+        cpi_data[74..78]
             .try_into()
             .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
     ) as usize;
 
-    let relay_instructions_start = relay_len_start + 4;
-    let relay_instructions_end = relay_instructions_start + relay_instructions_len;
+    let request_bytes_start = 78;
+    let request_bytes_end = request_bytes_start + request_bytes_len;
 
-    if data.len() < relay_instructions_end {
+    if cpi_data.len() < request_bytes_end + 4 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    let relay_instructions = &data[relay_instructions_start..relay_instructions_end];
+    let request_bytes = &cpi_data[request_bytes_start..request_bytes_end];
+
+    let relay_len_offset = request_bytes_end;
+    let relay_instructions_len = u32::from_le_bytes(
+        cpi_data[relay_len_offset..relay_len_offset + 4]
+            .try_into()
+            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
+    ) as usize;
+
+    let relay_instructions_start = relay_len_offset + 4;
+    let relay_instructions_end = relay_instructions_start + relay_instructions_len;
+
+    if cpi_data.len() < relay_instructions_end {
+        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
+    }
+
+    let relay_instructions = &cpi_data[relay_instructions_start..relay_instructions_end];
 
     // Parse accounts
-    let [payer, config_account, quoter_registration_account, quoter_program, _executor_program, payee, refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =
+    let [payer, _config, quoter_registration_account, quoter_program, _executor_program, payee, refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -107,9 +157,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     if !payer.is_signer() {
         return Err(ProgramError::MissingRequiredSignature);
     }
-
-    // Load config
-    let config = load_account::<Config>(config_account, program_id)?;
 
     // Load and verify quoter registration
     let registration = load_account::<QuoterRegistration>(quoter_registration_account, program_id)?;
@@ -122,16 +169,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::QuoterNotRegistered.into());
     }
 
-    // Step 1: CPI to quoter's RequestExecutionQuote
-    let quoter_ix_data = make_quoter_request_execution_quote_ix(
-        dst_chain,
-        &dst_addr,
-        &refund_addr_bytes,
-        request_bytes,
-        relay_instructions,
-    );
-
-    let cpi_instruction = pinocchio::instruction::Instruction {
+    // Step 1: CPI to quoter's RequestExecutionQuote (zero-copy)
+    let quoter_cpi_instruction = pinocchio::instruction::Instruction {
         program_id: &registration.implementation_program_id,
         accounts: &[
             pinocchio::instruction::AccountMeta {
@@ -155,11 +194,11 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
                 is_writable: false,
             },
         ],
-        data: &quoter_ix_data,
+        data: cpi_data,
     };
 
     pinocchio::cpi::invoke(
-        &cpi_instruction,
+        &quoter_cpi_instruction,
         &[quoter_config, quoter_chain_info, quoter_quote_body, event_cpi],
     )?;
 
@@ -187,57 +226,41 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::Underpaid.into());
     }
 
-    // Transfer required payment to payee
-    Transfer {
-        from: payer,
-        to: payee,
-        lamports: required_payment,
-    }
-    .invoke()?;
-
-    // Refund excess (no check since check done above)
-    let excess = amount - required_payment;
-
-    if excess > 0 {
-        Transfer {
-            from: payer,
-            to: refund_account,
-            lamports: excess,
-        }
-        .invoke()?;
-    }
-
     // Step 3: Construct EQ02 signed quote
     let signed_quote = make_signed_quote_eq02(
         &quoter_address,
         &payee_address,
-        config.our_chain,
+        OUR_CHAIN,
         dst_chain,
-        EXPIRY_TIME_MAX, // Use max expiry for on-chain quotes
+        EXPIRY_TIME_MAX,
         &quote_body,
     );
 
     // Step 4: CPI to Executor's request_for_execution
-    // Build the instruction data for Anchor's request_for_execution
-    let executor_ix_data =
-        make_executor_request_for_execution_ix(amount, dst_chain, &dst_addr, &refund_addr_bytes, &signed_quote, request_bytes, relay_instructions);
+    // Note: This still requires allocation due to signed_quote being constructed on-chain
+    let executor_ix_data = make_executor_request_for_execution_ix(
+        amount,
+        dst_chain,
+        &dst_addr,
+        &refund_addr_bytes,
+        &signed_quote,
+        request_bytes,
+        relay_instructions,
+    );
 
     let executor_cpi_instruction = pinocchio::instruction::Instruction {
-        program_id: &config.executor_program_id,
+        program_id: &EXECUTOR_PROGRAM_ID,
         accounts: &[
-            // payer - signer, writable
             pinocchio::instruction::AccountMeta {
                 pubkey: payer.key(),
                 is_signer: true,
                 is_writable: true,
             },
-            // payee - writable (receives the payment)
             pinocchio::instruction::AccountMeta {
                 pubkey: payee.key(),
                 is_signer: false,
                 is_writable: true,
             },
-            // system_program
             pinocchio::instruction::AccountMeta {
                 pubkey: &pinocchio_system::ID,
                 is_signer: false,

@@ -33,30 +33,26 @@ const EXECUTOR_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
     0x3c, 0x65, 0x1f, 0x7a, 0x9c, 0xcd, 0xe3, 0xea, 0xd5, 0x2b, 0x42, 0xf6, 0xb7, 0xda, 0xc2, 0xd2,
 ]);
 
-// Account discriminators
-const CONFIG_DISCRIMINATOR: u8 = 1;
-const QUOTER_REGISTRATION_DISCRIMINATOR: u8 = 2;
+// Account discriminators (updated - no config)
+const QUOTER_REGISTRATION_DISCRIMINATOR: u8 = 1;
 
 // PDA seeds
-const CONFIG_SEED: &[u8] = b"config";
 const QUOTER_REGISTRATION_SEED: &[u8] = b"quoter_registration";
 
 // Account sizes
-const CONFIG_SIZE: usize = 40; // 1 + 1 + 2 + 4 + 32
-const QUOTER_REGISTRATION_SIZE: usize = 56; // 1 + 1 + 2 + 20 + 32
+const QUOTER_REGISTRATION_SIZE: usize = 54; // 1 + 1 + 20 + 32
 
-// Instruction discriminators
-const IX_INITIALIZE: u8 = 0;
-const IX_UPDATE_QUOTER_CONTRACT: u8 = 1;
-const IX_QUOTE_EXECUTION: u8 = 2;
-const IX_REQUEST_EXECUTION: u8 = 3;
+// Instruction discriminators (updated - no initialize)
+const IX_UPDATE_QUOTER_CONTRACT: u8 = 0;
+const IX_QUOTE_EXECUTION: u8 = 1;
+const IX_REQUEST_EXECUTION: u8 = 2;
 
 // Wormhole chain ID for Solana
 const SOLANA_CHAIN_ID: u16 = 1;
 
-/// Helper to derive config PDA
-fn derive_config_pda() -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[CONFIG_SEED], &ROUTER_PROGRAM_ID)
+/// Helper to get a dummy config pubkey (not used by program but required in instruction)
+fn get_dummy_config_pubkey() -> Pubkey {
+    Pubkey::new_unique()
 }
 
 /// Helper to derive quoter registration PDA
@@ -67,16 +63,7 @@ fn derive_quoter_registration_pda(quoter_address: &[u8; 20]) -> (Pubkey, u8) {
     )
 }
 
-/// Build Initialize instruction data
-fn build_initialize_data(executor_program_id: &Pubkey, our_chain: u16, bump: u8) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 36);
-    data.push(IX_INITIALIZE);
-    data.extend_from_slice(executor_program_id.as_ref());
-    data.extend_from_slice(&our_chain.to_le_bytes());
-    data.push(bump);
-    data.push(0); // padding
-    data
-}
+// Note: build_initialize_data removed - program no longer has Initialize instruction
 
 /// Secp256k1 quoter identity for testing.
 /// Contains the secret key and derived Ethereum address.
@@ -188,11 +175,9 @@ fn build_signed_update_quoter_contract_data(
     implementation_program_id: &Pubkey,
     sender: &Pubkey,
     expiry_time: u64,
-    bump: u8,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 1 + 163);
+    let mut data = Vec::with_capacity(1 + 163);
     data.push(IX_UPDATE_QUOTER_CONTRACT);
-    data.push(bump);
     data.extend(build_signed_governance_message(
         chain_id,
         quoter,
@@ -210,11 +195,9 @@ fn build_update_quoter_contract_data(
     implementation_program_id: &Pubkey,
     sender: &Pubkey,
     expiry_time: u64,
-    bump: u8,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(1 + 1 + 163);
+    let mut data = Vec::with_capacity(1 + 163);
     data.push(IX_UPDATE_QUOTER_CONTRACT);
-    data.push(bump);
     data.extend(build_governance_message(
         chain_id,
         quoter_address,
@@ -287,142 +270,11 @@ fn setup_program_test_full() -> ProgramTest {
 }
 
 #[tokio::test]
-async fn test_initialize() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, bump) = derive_config_pda();
-
-    // Build initialize instruction
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, bump);
-
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "Initialize failed: {:?}", result);
-
-    // Verify config account was created
-    let config_account = banks_client.get_account(config_pda).await.unwrap();
-    assert!(config_account.is_some(), "Config account not created");
-
-    let config_data = config_account.unwrap().data;
-    assert_eq!(config_data.len(), CONFIG_SIZE);
-    assert_eq!(config_data[0], CONFIG_DISCRIMINATOR);
-    assert_eq!(config_data[1], bump);
-
-    // Verify our_chain (little-endian u16 at offset 2)
-    let our_chain = u16::from_le_bytes([config_data[2], config_data[3]]);
-    assert_eq!(our_chain, SOLANA_CHAIN_ID);
-
-    // Verify executor_program_id (at offset 8 after padding)
-    let stored_executor: [u8; 32] = config_data[8..40].try_into().unwrap();
-    assert_eq!(stored_executor, EXECUTOR_PROGRAM_ID.to_bytes());
-}
-
-#[tokio::test]
-async fn test_initialize_twice_fails() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, bump) = derive_config_pda();
-
-    // First initialization
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Second initialization should fail
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Second initialization should fail");
-}
-
-#[tokio::test]
 async fn test_update_quoter_contract() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // First initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Create a secp256k1 quoter identity
     let quoter = QuoterIdentity::new();
@@ -445,7 +297,6 @@ async fn test_update_quoter_contract() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         expiry_time,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -453,7 +304,7 @@ async fn test_update_quoter_contract() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),         // payer
             AccountMeta::new_readonly(sender.pubkey(), true), // sender
-            AccountMeta::new_readonly(config_pda, false),   // config
+            AccountMeta::new_readonly(config_pubkey, false),   // config
             AccountMeta::new(quoter_registration_pda, false), // quoter_registration
             AccountMeta::new_readonly(system_program::ID, false), // system_program
         ],
@@ -490,11 +341,11 @@ async fn test_update_quoter_contract() {
     assert_eq!(reg_data[0], QUOTER_REGISTRATION_DISCRIMINATOR);
 
     // Verify quoter_address (at offset 4 after discriminator, bump, padding)
-    let stored_quoter_addr: [u8; 20] = reg_data[4..24].try_into().unwrap();
+    let stored_quoter_addr: [u8; 20] = reg_data[2..22].try_into().unwrap();
     assert_eq!(stored_quoter_addr, quoter.eth_address);
 
     // Verify implementation_program_id (at offset 24)
-    let stored_impl: [u8; 32] = reg_data[24..56].try_into().unwrap();
+    let stored_impl: [u8; 32] = reg_data[22..54].try_into().unwrap();
     assert_eq!(stored_impl, QUOTER_PROGRAM_ID.to_bytes());
 }
 
@@ -503,28 +354,7 @@ async fn test_update_quoter_contract_wrong_chain_fails() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router with SOLANA_CHAIN_ID
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try to register quoter with wrong chain ID (Ethereum = 2)
     let quoter_address: [u8; 20] = [0xAB; 20];
@@ -544,7 +374,6 @@ async fn test_update_quoter_contract_wrong_chain_fails() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -552,7 +381,7 @@ async fn test_update_quoter_contract_wrong_chain_fails() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -579,28 +408,7 @@ async fn test_update_quoter_contract_expired_fails() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try to register quoter with expired timestamp
     let quoter_address: [u8; 20] = [0xAB; 20];
@@ -620,7 +428,6 @@ async fn test_update_quoter_contract_expired_fails() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         expired_time,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -628,7 +435,7 @@ async fn test_update_quoter_contract_expired_fails() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -655,28 +462,7 @@ async fn test_update_quoter_contract_wrong_sender_fails() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try to register with mismatched sender
     let quoter_address: [u8; 20] = [0xAB; 20];
@@ -696,7 +482,6 @@ async fn test_update_quoter_contract_wrong_sender_fails() {
         &QUOTER_PROGRAM_ID,
         &different_sender.pubkey(), // Mismatch!
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -704,7 +489,7 @@ async fn test_update_quoter_contract_wrong_sender_fails() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true), // Actual signer
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -731,28 +516,7 @@ async fn test_update_quoter_contract_update_existing() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Create a secp256k1 quoter identity
     let quoter = QuoterIdentity::new();
@@ -770,7 +534,6 @@ async fn test_update_quoter_contract_update_existing() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -778,7 +541,7 @@ async fn test_update_quoter_contract_update_existing() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -800,7 +563,7 @@ async fn test_update_quoter_contract_update_existing() {
         .await
         .unwrap()
         .unwrap();
-    let stored_impl: [u8; 32] = reg_account.data[24..56].try_into().unwrap();
+    let stored_impl: [u8; 32] = reg_account.data[22..54].try_into().unwrap();
     assert_eq!(stored_impl, QUOTER_PROGRAM_ID.to_bytes());
 
     // Now update to a different implementation (same quoter signs for different implementation)
@@ -817,7 +580,6 @@ async fn test_update_quoter_contract_update_existing() {
         &new_implementation,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -825,7 +587,7 @@ async fn test_update_quoter_contract_update_existing() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -849,7 +611,7 @@ async fn test_update_quoter_contract_update_existing() {
         .await
         .unwrap()
         .unwrap();
-    let stored_impl: [u8; 32] = reg_account.data[24..56].try_into().unwrap();
+    let stored_impl: [u8; 32] = reg_account.data[22..54].try_into().unwrap();
     assert_eq!(stored_impl, new_implementation.to_bytes());
 }
 
@@ -858,28 +620,7 @@ async fn test_update_quoter_contract_bad_signature() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try with unsigned governance message (all zeros signature)
     let quoter_address: [u8; 20] = [0xAB; 20];
@@ -898,7 +639,6 @@ async fn test_update_quoter_contract_bad_signature() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -906,7 +646,7 @@ async fn test_update_quoter_contract_bad_signature() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -930,28 +670,7 @@ async fn test_update_quoter_contract_quoter_mismatch() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Create two different quoter identities
     let quoter_alice = QuoterIdentity::new();
@@ -985,9 +704,8 @@ async fn test_update_quoter_contract_quoter_mismatch() {
     gov_data.extend_from_slice(&s);
     gov_data.push(v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -995,7 +713,7 @@ async fn test_update_quoter_contract_quoter_mismatch() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1019,28 +737,7 @@ async fn test_update_quoter_contract_invalid_governance_prefix() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try to register with invalid governance prefix
     let quoter_address: [u8; 20] = [0xAB; 20];
@@ -1053,9 +750,8 @@ async fn test_update_quoter_contract_invalid_governance_prefix() {
         .unwrap();
 
     // Build governance message with wrong prefix
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend_from_slice(b"BAD!"); // Wrong prefix (should be "EG01")
     ix_data.extend_from_slice(&SOLANA_CHAIN_ID.to_be_bytes());
     ix_data.extend_from_slice(&quoter_address);
@@ -1069,7 +765,7 @@ async fn test_update_quoter_contract_invalid_governance_prefix() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1104,28 +800,7 @@ async fn test_ecrecover_valid_signature() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize the router
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Create multiple quoter identities and verify each one works
     for i in 0..3 {
@@ -1144,7 +819,6 @@ async fn test_ecrecover_valid_signature() {
             &QUOTER_PROGRAM_ID,
             &sender.pubkey(),
             u64::MAX,
-            quoter_bump,
         );
 
         let ix = Instruction {
@@ -1152,7 +826,7 @@ async fn test_ecrecover_valid_signature() {
             accounts: vec![
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new_readonly(sender.pubkey(), true),
-                AccountMeta::new_readonly(config_pda, false),
+                AccountMeta::new_readonly(config_pubkey, false),
                 AccountMeta::new(quoter_registration_pda, false),
                 AccountMeta::new_readonly(system_program::ID, false),
             ],
@@ -1181,7 +855,7 @@ async fn test_ecrecover_valid_signature() {
             .await
             .unwrap()
             .unwrap();
-        let stored_quoter_addr: [u8; 20] = reg_account.data[4..24].try_into().unwrap();
+        let stored_quoter_addr: [u8; 20] = reg_account.data[2..22].try_into().unwrap();
         assert_eq!(
             stored_quoter_addr, quoter.eth_address,
             "Stored quoter address should match"
@@ -1195,27 +869,7 @@ async fn test_ecrecover_same_key_different_messages() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Same quoter, different implementations
     let quoter = QuoterIdentity::new();
@@ -1235,7 +889,6 @@ async fn test_ecrecover_same_key_different_messages() {
         &impl1,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -1243,7 +896,7 @@ async fn test_ecrecover_same_key_different_messages() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1264,7 +917,7 @@ async fn test_ecrecover_same_key_different_messages() {
         .await
         .unwrap()
         .unwrap();
-    let stored_impl: [u8; 32] = reg_account.data[24..56].try_into().unwrap();
+    let stored_impl: [u8; 32] = reg_account.data[22..54].try_into().unwrap();
     assert_eq!(stored_impl, impl1.to_bytes());
 
     // Update to second implementation with new signature
@@ -1280,7 +933,6 @@ async fn test_ecrecover_same_key_different_messages() {
         &impl2,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
 
     let ix = Instruction {
@@ -1288,7 +940,7 @@ async fn test_ecrecover_same_key_different_messages() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1309,7 +961,7 @@ async fn test_ecrecover_same_key_different_messages() {
         .await
         .unwrap()
         .unwrap();
-    let stored_impl: [u8; 32] = reg_account.data[24..56].try_into().unwrap();
+    let stored_impl: [u8; 32] = reg_account.data[22..54].try_into().unwrap();
     assert_eq!(stored_impl, impl2.to_bytes());
 }
 
@@ -1319,27 +971,7 @@ async fn test_ecrecover_wrong_recovery_id() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
@@ -1372,9 +1004,8 @@ async fn test_ecrecover_wrong_recovery_id() {
     gov_data.extend_from_slice(&s);
     gov_data.push(wrong_v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -1382,7 +1013,7 @@ async fn test_ecrecover_wrong_recovery_id() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1410,27 +1041,7 @@ async fn test_ecrecover_corrupted_r() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
@@ -1461,9 +1072,8 @@ async fn test_ecrecover_corrupted_r() {
     gov_data.extend_from_slice(&s);
     gov_data.push(v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -1471,7 +1081,7 @@ async fn test_ecrecover_corrupted_r() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1496,27 +1106,7 @@ async fn test_ecrecover_corrupted_s() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
@@ -1547,9 +1137,8 @@ async fn test_ecrecover_corrupted_s() {
     gov_data.extend_from_slice(&s);
     gov_data.push(v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -1557,7 +1146,7 @@ async fn test_ecrecover_corrupted_s() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1582,27 +1171,7 @@ async fn test_ecrecover_modified_message() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
@@ -1636,9 +1205,8 @@ async fn test_ecrecover_modified_message() {
     gov_data.extend_from_slice(&s);
     gov_data.push(v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -1646,7 +1214,7 @@ async fn test_ecrecover_modified_message() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1675,27 +1243,7 @@ async fn test_ecrecover_deterministic_key() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Initialize
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Create quoter from deterministic secret key
     let secret_bytes: [u8; 32] = [
@@ -1755,9 +1303,8 @@ async fn test_ecrecover_deterministic_key() {
     gov_data.extend_from_slice(&s);
     gov_data.push(v);
 
-    let mut ix_data = Vec::with_capacity(1 + 1 + 163);
+    let mut ix_data = Vec::with_capacity(1 + 163);
     ix_data.push(IX_UPDATE_QUOTER_CONTRACT);
-    ix_data.push(quoter_bump);
     ix_data.extend(gov_data);
 
     let ix = Instruction {
@@ -1765,7 +1312,7 @@ async fn test_ecrecover_deterministic_key() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1793,7 +1340,7 @@ async fn test_ecrecover_deterministic_key() {
         .await
         .unwrap()
         .unwrap();
-    let stored_quoter_addr: [u8; 20] = reg_account.data[4..24].try_into().unwrap();
+    let stored_quoter_addr: [u8; 20] = reg_account.data[2..22].try_into().unwrap();
     assert_eq!(stored_quoter_addr, eth_address);
 }
 
@@ -1802,14 +1349,8 @@ async fn test_ecrecover_deterministic_key() {
 // ============================================================================
 
 // Quoter PDA seeds
-const QUOTER_CONFIG_SEED: &[u8] = b"config";
 const QUOTER_CHAIN_INFO_SEED: &[u8] = b"chain_info";
 const QUOTER_QUOTE_SEED: &[u8] = b"quote";
-
-/// Derive quoter config PDA
-fn derive_quoter_config_pda() -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[QUOTER_CONFIG_SEED], &QUOTER_PROGRAM_ID)
-}
 
 /// Derive quoter chain_info PDA
 fn derive_quoter_chain_info_pda(chain_id: u16) -> (Pubkey, u8) {
@@ -1827,6 +1368,35 @@ fn derive_quoter_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
     )
 }
 
+/// Quoter updater address (hardcoded in quoter program) - 9r6q2iEg4MBevjC8reaLmQUDxueF3vabUoqDkZ2LoAYe
+const QUOTER_UPDATER_ADDRESS: Pubkey = Pubkey::new_from_array([
+    0x83, 0x71, 0x8b, 0x7e, 0xc8, 0x96, 0x17, 0xb7,
+    0x04, 0x06, 0x85, 0xe0, 0x1b, 0xdc, 0xca, 0x03,
+    0x21, 0x40, 0x22, 0x98, 0x0d, 0xaa, 0xe9, 0x13,
+    0x40, 0xe0, 0xc3, 0xf8, 0x40, 0xc0, 0x05, 0xef,
+]);
+
+/// Helper to get a dummy config pubkey for the quoter program (not used by program)
+fn get_quoter_dummy_config_pubkey() -> Pubkey {
+    Pubkey::new_unique()
+}
+
+/// Get the authorized updater keypair for quoter program.
+/// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
+fn get_quoter_updater_keypair() -> Keypair {
+    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH")
+        .expect("QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file");
+    solana_sdk::signature::read_keypair_file(&keypair_path)
+        .expect("Failed to read updater keypair from file")
+}
+
+// Quoter instruction discriminators (8 bytes, Anchor-compatible)
+// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
+const QUOTER_IX_UPDATE_CHAIN_INFO: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+const QUOTER_IX_UPDATE_QUOTE: [u8; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+// Note: QUOTER_IX_REQUEST_QUOTE and QUOTER_IX_REQUEST_EXECUTION_QUOTE
+// are defined above as IX_QUOTER_REQUEST_QUOTE and IX_QUOTER_REQUEST_EXECUTION_QUOTE
+
 /// Build relay instructions with gas limit and msg value (Type 1)
 fn build_relay_instructions_gas(gas_limit: u128, msg_value: u128) -> Vec<u8> {
     let mut data = Vec::with_capacity(33);
@@ -1836,7 +1406,27 @@ fn build_relay_instructions_gas(gas_limit: u128, msg_value: u128) -> Vec<u8> {
     data
 }
 
-/// Build QuoteExecution instruction data
+/// Quoter discriminator for RequestQuote (8 bytes, Anchor-compatible)
+/// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
+const IX_QUOTER_REQUEST_QUOTE: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
+/// Quoter discriminator for RequestExecutionQuote (8 bytes, Anchor-compatible)
+/// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
+const IX_QUOTER_REQUEST_EXECUTION_QUOTE: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
+
+/// Build QuoteExecution instruction data (zero-copy layout).
+///
+/// Layout:
+/// - router_discriminator (1)
+/// - quoter_address (20) - for registration lookup
+/// - quoter CPI data:
+///   - quoter_discriminator (8) - Anchor-compatible, byte 0 = RequestQuote (2)
+///   - dst_chain (2)
+///   - dst_addr (32)
+///   - refund_addr (32)
+///   - request_bytes_len (4)
+///   - request_bytes
+///   - relay_instructions_len (4)
+///   - relay_instructions
 fn build_quote_execution_data(
     quoter_address: &[u8; 20],
     dst_chain: u16,
@@ -1846,12 +1436,15 @@ fn build_quote_execution_data(
     relay_instructions: &[u8],
 ) -> Vec<u8> {
     let mut data = Vec::new();
+    // Router discriminator
     data.push(IX_QUOTE_EXECUTION);
+    // Quoter address for registration lookup
     data.extend_from_slice(quoter_address);
+    // Quoter CPI data (passed directly to quoter)
+    data.extend_from_slice(&IX_QUOTER_REQUEST_QUOTE); // 8-byte quoter discriminator
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
-    data.extend_from_slice(&[0u8; 2]); // padding for u32 alignment
     data.extend_from_slice(&(request_bytes.len() as u32).to_le_bytes());
     data.extend_from_slice(request_bytes);
     data.extend_from_slice(&(relay_instructions.len() as u32).to_le_bytes());
@@ -1859,7 +1452,21 @@ fn build_quote_execution_data(
     data
 }
 
-/// Build RequestExecution instruction data (reordered: amount first for alignment)
+/// Build RequestExecution instruction data (zero-copy layout).
+///
+/// Layout:
+/// - router_discriminator (1)
+/// - amount (8) - payment amount
+/// - quoter_address (20) - for registration lookup
+/// - quoter CPI data:
+///   - quoter_discriminator (8) - Anchor-compatible, byte 0 = RequestExecutionQuote (3)
+///   - dst_chain (2)
+///   - dst_addr (32)
+///   - refund_addr (32)
+///   - request_bytes_len (4)
+///   - request_bytes
+///   - relay_instructions_len (4)
+///   - relay_instructions
 fn build_request_execution_data(
     quoter_address: &[u8; 20],
     amount: u64,
@@ -1870,16 +1477,18 @@ fn build_request_execution_data(
     relay_instructions: &[u8],
 ) -> Vec<u8> {
     let mut data = Vec::new();
+    // Router discriminator
     data.push(IX_REQUEST_EXECUTION);
-    // Reordered layout: amount first for u64 alignment
+    // Amount for payment
     data.extend_from_slice(&amount.to_le_bytes());
+    // Quoter address for registration lookup
     data.extend_from_slice(quoter_address);
+    // Quoter CPI data (passed directly to quoter)
+    data.extend_from_slice(&IX_QUOTER_REQUEST_EXECUTION_QUOTE); // 8-byte quoter discriminator
     data.extend_from_slice(&dst_chain.to_le_bytes());
     data.extend_from_slice(dst_addr);
     data.extend_from_slice(refund_addr);
-    data.extend_from_slice(&[0u8; 2]); // padding1 for u32 alignment
     data.extend_from_slice(&(request_bytes.len() as u32).to_le_bytes());
-    data.extend_from_slice(&[0u8; 4]); // padding2 for struct alignment
     data.extend_from_slice(request_bytes);
     data.extend_from_slice(&(relay_instructions.len() as u32).to_le_bytes());
     data.extend_from_slice(relay_instructions);
@@ -1894,26 +1503,7 @@ async fn test_quote_execution() {
     let pt = setup_program_test_with_quoter();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter
     let quoter = QuoterIdentity::new();
@@ -1931,14 +1521,13 @@ async fn test_quote_execution() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -1957,42 +1546,10 @@ async fn test_quote_execution() {
     // Note: We need to initialize the quoter program's accounts
     // For this test, we'll use the quoter's initialize instruction
 
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _quoter_chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _quoter_quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
-
-    // Initialize quoter config
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let payee_address = [0x42u8; 32];
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0); // IX_INITIALIZE
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref()); // quoter_address
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref()); // updater_address
-    quoter_init_data.push(9); // src_token_decimals (SOL = 9)
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let updater = get_quoter_updater_keypair();
 
     // Update chain info
     let recent_blockhash = banks_client
@@ -2002,7 +1559,7 @@ async fn test_quote_execution() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.push(1); // IX_UPDATE_CHAIN_INFO
+    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1); // enabled
     chain_info_data.push(9); // gas_price_decimals
@@ -2014,8 +1571,8 @@ async fn test_quote_execution() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2025,7 +1582,7 @@ async fn test_quote_execution() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, chain_info_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2038,7 +1595,7 @@ async fn test_quote_execution() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.push(2); // IX_UPDATE_QUOTE
+    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -2051,8 +1608,8 @@ async fn test_quote_execution() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2062,7 +1619,7 @@ async fn test_quote_execution() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, quote_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2091,7 +1648,7 @@ async fn test_quote_execution() {
         accounts: vec![
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
         ],
@@ -2115,26 +1672,7 @@ async fn test_quote_execution_quoter_not_registered() {
     let pt = setup_program_test_with_quoter();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter A
     let quoter_a = QuoterIdentity::new();
@@ -2152,14 +1690,13 @@ async fn test_quote_execution_quoter_not_registered() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2175,42 +1712,9 @@ async fn test_quote_execution_quoter_not_registered() {
     banks_client.process_transaction(tx).await.unwrap();
 
     // Setup quoter accounts
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
-
-    // Initialize quoter config
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let payee_address = [0x42u8; 32];
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0);
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref());
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
-    quoter_init_data.push(9);
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
 
     // Try to call QuoteExecution with a different quoter address (quoter B)
     let recent_blockhash = banks_client
@@ -2238,7 +1742,7 @@ async fn test_quote_execution_quoter_not_registered() {
         accounts: vec![
             AccountMeta::new_readonly(quoter_registration_pda, false), // quoter_a's registration
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
         ],
@@ -2265,26 +1769,7 @@ async fn test_quote_execution_chain_disabled() {
     let pt = setup_program_test_with_quoter();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter
     let quoter = QuoterIdentity::new();
@@ -2302,14 +1787,13 @@ async fn test_quote_execution_chain_disabled() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2325,42 +1809,10 @@ async fn test_quote_execution_chain_disabled() {
     banks_client.process_transaction(tx).await.unwrap();
 
     // Setup quoter accounts but with chain DISABLED
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
-
-    // Initialize quoter config
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let payee_address = [0x42u8; 32];
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0);
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref());
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
-    quoter_init_data.push(9);
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let updater = get_quoter_updater_keypair();
 
     // Update chain info with enabled = FALSE
     let recent_blockhash = banks_client
@@ -2370,7 +1822,7 @@ async fn test_quote_execution_chain_disabled() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.push(1); // IX_UPDATE_CHAIN_INFO
+    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(0); // enabled = FALSE (chain disabled)
     chain_info_data.push(9); // gas_price_decimals
@@ -2382,8 +1834,8 @@ async fn test_quote_execution_chain_disabled() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2393,7 +1845,7 @@ async fn test_quote_execution_chain_disabled() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, chain_info_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2406,7 +1858,7 @@ async fn test_quote_execution_chain_disabled() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.push(2); // IX_UPDATE_QUOTE
+    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -2419,8 +1871,8 @@ async fn test_quote_execution_chain_disabled() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2430,7 +1882,7 @@ async fn test_quote_execution_chain_disabled() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, quote_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2459,7 +1911,7 @@ async fn test_quote_execution_chain_disabled() {
         accounts: vec![
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
         ],
@@ -2486,26 +1938,7 @@ async fn test_request_execution() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter
     let quoter = QuoterIdentity::new();
@@ -2523,14 +1956,13 @@ async fn test_request_execution() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2546,45 +1978,15 @@ async fn test_request_execution() {
     banks_client.process_transaction(tx).await.unwrap();
 
     // Setup quoter accounts
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
+    let updater = get_quoter_updater_keypair();
 
-    // Create payee keypair (the account that will receive payment)
-    let payee = Keypair::new();
-    let payee_address_bytes: [u8; 32] = payee.pubkey().to_bytes();
-
-    // Initialize quoter config with the payee address
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0); // IX_INITIALIZE
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref()); // quoter_address
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref()); // updater_address
-    quoter_init_data.push(9); // src_token_decimals (SOL = 9)
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address_bytes); // payee_address
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    // Payee is the hardcoded PAYEE_ADDRESS in the quoter program
+    // This must match what the quoter returns via CPI (updater.pubkey() when built
+    // with QUOTER_PAYEE_PUBKEY=QUOTER_UPDATER_PUBKEY)
+    let payee_pubkey = updater.pubkey();
 
     // Update chain info
     let recent_blockhash = banks_client
@@ -2594,7 +1996,7 @@ async fn test_request_execution() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.push(1); // IX_UPDATE_CHAIN_INFO
+    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1); // enabled
     chain_info_data.push(12); // gas_price_decimals (matching EVM tests: 0x12 = 18, but the hex update shows 12)
@@ -2606,8 +2008,8 @@ async fn test_request_execution() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2617,7 +2019,7 @@ async fn test_request_execution() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, chain_info_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2630,7 +2032,7 @@ async fn test_request_execution() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.push(2); // IX_UPDATE_QUOTE
+    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -2643,8 +2045,8 @@ async fn test_request_execution() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true), // updater
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2654,7 +2056,7 @@ async fn test_request_execution() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, quote_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2690,14 +2092,14 @@ async fn test_request_execution() {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),      // payer
-            AccountMeta::new_readonly(config_pda, false), // config
+            AccountMeta::new_readonly(config_pubkey, false), // config
             AccountMeta::new_readonly(quoter_registration_pda, false), // quoter_registration
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false), // quoter_program
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false), // executor_program
-            AccountMeta::new(payee.pubkey(), false),     // payee
+            AccountMeta::new(payee_pubkey, false),     // payee
             AccountMeta::new(payer.pubkey(), false),     // refund_addr
             AccountMeta::new_readonly(system_program::ID, false), // system_program
-            AccountMeta::new_readonly(quoter_config_pda, false), // quoter_config
+            AccountMeta::new_readonly(quoter_config_pubkey, false), // quoter_config
             AccountMeta::new_readonly(quoter_chain_info_pda, false), // quoter_chain_info
             AccountMeta::new_readonly(quoter_quote_body_pda, false), // quoter_quote_body
             AccountMeta::new_readonly(event_cpi, false), // event_cpi
@@ -2717,7 +2119,7 @@ async fn test_request_execution() {
     assert!(result.is_ok(), "RequestExecution failed: {:?}", result);
 
     // Verify payee received payment
-    let payee_account = banks_client.get_account(payee.pubkey()).await.unwrap();
+    let payee_account = banks_client.get_account(payee_pubkey).await.unwrap();
     assert!(
         payee_account.is_some(),
         "Payee account should exist after payment"
@@ -2733,26 +2135,7 @@ async fn test_request_execution_underpaid() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter
     let quoter = QuoterIdentity::new();
@@ -2770,14 +2153,13 @@ async fn test_request_execution_underpaid() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2793,44 +2175,13 @@ async fn test_request_execution_underpaid() {
     banks_client.process_transaction(tx).await.unwrap();
 
     // Setup quoter accounts
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
+    let updater = get_quoter_updater_keypair();
 
     let payee = Keypair::new();
     let payee_address_bytes: [u8; 32] = payee.pubkey().to_bytes();
-
-    // Initialize quoter config
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0);
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref());
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
-    quoter_init_data.push(9);
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address_bytes);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
 
     // Update chain info
     let recent_blockhash = banks_client
@@ -2840,7 +2191,7 @@ async fn test_request_execution_underpaid() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.push(1);
+    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1);
     chain_info_data.push(9);
@@ -2852,8 +2203,8 @@ async fn test_request_execution_underpaid() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2863,7 +2214,7 @@ async fn test_request_execution_underpaid() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, chain_info_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2876,7 +2227,7 @@ async fn test_request_execution_underpaid() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.push(2);
+    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]);
@@ -2889,8 +2240,8 @@ async fn test_request_execution_underpaid() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -2900,7 +2251,7 @@ async fn test_request_execution_underpaid() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, quote_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -2934,14 +2285,14 @@ async fn test_request_execution_underpaid() {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false),
             AccountMeta::new(payee.pubkey(), false),
             AccountMeta::new(payer.pubkey(), false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),
@@ -2964,455 +2315,9 @@ async fn test_request_execution_underpaid() {
     );
 }
 
-#[tokio::test]
-async fn test_request_execution_refunds_excess() {
-    let pt = setup_program_test_full();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Register quoter
-    let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
-    let sender = Keypair::new();
-
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let ix_data = build_signed_update_quoter_contract_data(
-        SOLANA_CHAIN_ID,
-        &quoter,
-        &QUOTER_PROGRAM_ID,
-        &sender.pubkey(),
-        u64::MAX,
-        quoter_bump,
-    );
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
-            AccountMeta::new(quoter_registration_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer, &sender],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Setup quoter accounts
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
-    let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
-    let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
-
-    // Create payee and refund keypairs
-    let payee = Keypair::new();
-    let payee_address_bytes: [u8; 32] = payee.pubkey().to_bytes();
-    let refund_account = Keypair::new();
-
-    // Initialize quoter config
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0); // IX_INITIALIZE
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref());
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
-    quoter_init_data.push(9);
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address_bytes);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Update chain info
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
-    let mut chain_info_data = Vec::new();
-    chain_info_data.push(1);
-    chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
-    chain_info_data.push(1);
-    chain_info_data.push(12);
-    chain_info_data.push(18);
-    chain_info_data.push(chain_info_bump);
-    chain_info_data.extend_from_slice(&[0u8; 2]);
-
-    let chain_info_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
-            AccountMeta::new(quoter_chain_info_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: chain_info_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, chain_info_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Update quote - use reasonable values
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
-    let mut quote_data = Vec::new();
-    quote_data.push(2);
-    quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
-    quote_data.push(quote_body_bump);
-    quote_data.extend_from_slice(&[0u8; 5]);
-    quote_data.extend_from_slice(&35751300000000u64.to_le_bytes());
-    quote_data.extend_from_slice(&35751300000000u64.to_le_bytes());
-    quote_data.extend_from_slice(&100000000u64.to_le_bytes());
-    quote_data.extend_from_slice(&27971u64.to_le_bytes());
-
-    let quote_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
-            AccountMeta::new(quoter_quote_body_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quote_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quote_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
-
-    // Record refund account balance before (should be 0)
-    let refund_balance_before = banks_client
-        .get_account(refund_account.pubkey())
-        .await
-        .unwrap()
-        .map(|a| a.lamports)
-        .unwrap_or(0);
-    assert_eq!(refund_balance_before, 0, "Refund account should start empty");
-
-    // Call RequestExecution with excess payment
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let dst_addr = [0x01u8; 32];
-    let refund_addr = refund_account.pubkey().to_bytes();
-    let relay_instructions = build_relay_instructions_gas(250000, 0);
-
-    // Pay significantly more than the required quote
-    let amount: u64 = 100_000_000_000; // 100 SOL
-
-    let request_ix_data = build_request_execution_data(
-        &quoter.eth_address,
-        amount,
-        DST_CHAIN_ID,
-        &dst_addr,
-        &refund_addr,
-        &[],
-        &relay_instructions,
-    );
-
-    let event_cpi = Pubkey::new_unique();
-
-    let request_ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
-            AccountMeta::new_readonly(quoter_registration_pda, false),
-            AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false),
-            AccountMeta::new(payee.pubkey(), false),
-            AccountMeta::new(refund_account.pubkey(), false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
-            AccountMeta::new_readonly(quoter_chain_info_pda, false),
-            AccountMeta::new_readonly(quoter_quote_body_pda, false),
-            AccountMeta::new_readonly(event_cpi, false),
-        ],
-        data: request_ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(400_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, request_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "RequestExecution failed: {:?}", result);
-
-    // Verify payee received payment
-    let payee_account = banks_client.get_account(payee.pubkey()).await.unwrap();
-    assert!(payee_account.is_some(), "Payee account should exist");
-    let payee_balance = payee_account.unwrap().lamports;
-    assert!(payee_balance > 0, "Payee should have received payment");
-
-    // Verify refund account received excess
-    let refund_balance_after = banks_client
-        .get_account(refund_account.pubkey())
-        .await
-        .unwrap()
-        .map(|a| a.lamports)
-        .unwrap_or(0);
-
-    // The refund should be: amount - required_payment
-    // With our quote params and 250k gas, required payment should be much less than 100 SOL
-    let excess_refunded = refund_balance_after - refund_balance_before;
-    assert!(
-        excess_refunded > 0,
-        "Refund account should have received excess payment"
-    );
-
-    // Verify the refund is less than the amount paid (i.e., some payment went to payee)
-    assert!(
-        excess_refunded < amount,
-        "Refund should be less than amount paid (some should go to payee)"
-    );
-
-    // Verify payee received more than the refund (i.e., required_payment > 0)
-    // Note: The executor also transfers to payee, so payee receives both the router's
-    // required_payment transfer AND the executor's amount transfer.
-    assert!(
-        payee_balance > excess_refunded,
-        "Payee should have received the required payment"
-    );
-}
-
 // ============================================================================
 // Boundary Condition Tests
 // ============================================================================
-
-// --- Initialize Boundary Tests ---
-
-#[tokio::test]
-async fn test_initialize_empty_instruction_data() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, _) = derive_config_pda();
-
-    // Empty instruction data (just discriminator, no actual data)
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: vec![0], // Only discriminator, missing executor_program_id, chain, bump
-    };
-
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with empty instruction data");
-}
-
-#[tokio::test]
-async fn test_initialize_partial_instruction_data() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, _) = derive_config_pda();
-
-    // Partial data - only 20 bytes instead of required 35
-    let mut ix_data = vec![0u8; 21]; // discriminator + 20 bytes
-    ix_data[0] = 0; // Initialize discriminator
-
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with partial instruction data");
-}
-
-#[tokio::test]
-async fn test_initialize_invalid_bump() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, correct_bump) = derive_config_pda();
-
-    // Use wrong bump
-    let wrong_bump = if correct_bump == 255 { 254 } else { correct_bump + 1 };
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, wrong_bump);
-
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with invalid bump");
-}
-
-#[tokio::test]
-async fn test_initialize_chain_id_zero() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Chain ID 0
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, 0, config_bump);
-
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    // Chain ID 0 should be allowed (it's a valid value)
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "Chain ID 0 should be valid");
-}
-
-#[tokio::test]
-async fn test_initialize_chain_id_max() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (config_pda, config_bump) = derive_config_pda();
-
-    // Max chain ID (u16::MAX = 65535)
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, u16::MAX, config_bump);
-
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "Chain ID max should be valid");
-}
-
-#[tokio::test]
-async fn test_initialize_missing_accounts() {
-    let pt = setup_program_test();
-    let (mut banks_client, payer, recent_blockhash) = pt.start().await;
-
-    let (_, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-
-    // Missing config account
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            // Missing config_pda
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
-    let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with missing accounts");
-}
 
 // Note: Signer verification tests are omitted because the Solana runtime
 // handles signature verification before the program is invoked. Testing
@@ -3425,26 +2330,7 @@ async fn test_update_quoter_contract_empty_data() {
     let pt = setup_program_test();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize first
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Try UpdateQuoterContract with empty data
     let quoter = QuoterIdentity::new();
@@ -3461,7 +2347,7 @@ async fn test_update_quoter_contract_empty_data() {
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -3490,30 +2376,11 @@ async fn test_quote_execution_empty_data() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, _) = derive_quoter_registration_pda(&quoter.eth_address);
-    let (quoter_config_pda, _) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
 
@@ -3528,7 +2395,7 @@ async fn test_quote_execution_empty_data() {
         accounts: vec![
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
         ],
@@ -3545,30 +2412,11 @@ async fn test_quote_execution_partial_data() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, _) = derive_quoter_registration_pda(&quoter.eth_address);
-    let (quoter_config_pda, _) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
 
@@ -3586,7 +2434,7 @@ async fn test_quote_execution_partial_data() {
         accounts: vec![
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
         ],
@@ -3605,31 +2453,12 @@ async fn test_request_execution_empty_data() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, _) = derive_quoter_registration_pda(&quoter.eth_address);
     let payee = Keypair::new();
-    let (quoter_config_pda, _) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let event_cpi = Pubkey::new_unique();
@@ -3644,14 +2473,14 @@ async fn test_request_execution_empty_data() {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false),
             AccountMeta::new(payee.pubkey(), false),
             AccountMeta::new(payer.pubkey(), false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),
@@ -3669,26 +2498,7 @@ async fn test_request_execution_amount_zero() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     // Register quoter
     let quoter = QuoterIdentity::new();
@@ -3706,14 +2516,13 @@ async fn test_request_execution_amount_zero() {
         &QUOTER_PROGRAM_ID,
         &sender.pubkey(),
         u64::MAX,
-        quoter_bump,
     );
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(sender.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new(quoter_registration_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -3728,43 +2537,13 @@ async fn test_request_execution_amount_zero() {
     );
     banks_client.process_transaction(tx).await.unwrap();
 
-    // Setup quoter config
-    let (quoter_config_pda, quoter_config_bump) = derive_quoter_config_pda();
+    // Setup quoter accounts
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let payee = Keypair::new();
     let payee_address_bytes: [u8; 32] = payee.pubkey().to_bytes();
-
-    let recent_blockhash = banks_client
-        .get_new_latest_blockhash(&recent_blockhash)
-        .await
-        .unwrap();
-
-    let mut quoter_init_data = Vec::new();
-    quoter_init_data.push(0);
-    quoter_init_data.extend_from_slice(Pubkey::new_unique().as_ref());
-    quoter_init_data.extend_from_slice(payer.pubkey().as_ref());
-    quoter_init_data.push(9);
-    quoter_init_data.push(quoter_config_bump);
-        quoter_init_data.extend_from_slice(&payee_address_bytes);
-
-    let quoter_init_ix = Instruction {
-        program_id: QUOTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(quoter_config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: quoter_init_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, quoter_init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let updater = get_quoter_updater_keypair();
 
     // Update chain info
     let recent_blockhash = banks_client
@@ -3774,7 +2553,7 @@ async fn test_request_execution_amount_zero() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.push(1);
+    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1);
     chain_info_data.push(12);
@@ -3786,8 +2565,8 @@ async fn test_request_execution_amount_zero() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -3797,7 +2576,7 @@ async fn test_request_execution_amount_zero() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, chain_info_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -3810,7 +2589,7 @@ async fn test_request_execution_amount_zero() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.push(2);
+    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]);
@@ -3823,8 +2602,8 @@ async fn test_request_execution_amount_zero() {
         program_id: QUOTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(updater.pubkey(), true), // updater
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -3834,7 +2613,7 @@ async fn test_request_execution_amount_zero() {
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, quote_ix],
         Some(&payer.pubkey()),
-        &[&payer],
+        &[&payer, &updater],
         recent_blockhash,
     );
     banks_client.process_transaction(tx).await.unwrap();
@@ -3865,14 +2644,14 @@ async fn test_request_execution_amount_zero() {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false),
             AccountMeta::new(payee.pubkey(), false),
             AccountMeta::new(payer.pubkey(), false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),
@@ -3898,31 +2677,12 @@ async fn test_request_execution_max_request_bytes_len() {
     let pt = setup_program_test_full();
     let (mut banks_client, payer, recent_blockhash) = pt.start().await;
 
-    // Initialize router
-    let (config_pda, config_bump) = derive_config_pda();
-    let ix_data = build_initialize_data(&EXECUTOR_PROGRAM_ID, SOLANA_CHAIN_ID, config_bump);
-    let ix = Instruction {
-        program_id: ROUTER_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new(config_pda, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: ix_data,
-    };
-    let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-    let tx = Transaction::new_signed_with_payer(
-        &[compute_ix, ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        recent_blockhash,
-    );
-    banks_client.process_transaction(tx).await.unwrap();
+    let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
     let (quoter_registration_pda, _) = derive_quoter_registration_pda(&quoter.eth_address);
     let payee = Keypair::new();
-    let (quoter_config_pda, _) = derive_quoter_config_pda();
+    let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
     let (quoter_chain_info_pda, _) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let (quoter_quote_body_pda, _) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let event_cpi = Pubkey::new_unique();
@@ -3947,14 +2707,14 @@ async fn test_request_execution_max_request_bytes_len() {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer.pubkey(), true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(config_pubkey, false),
             AccountMeta::new_readonly(quoter_registration_pda, false),
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false),
             AccountMeta::new(payee.pubkey(), false),
             AccountMeta::new(payer.pubkey(), false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(quoter_config_pda, false),
+            AccountMeta::new_readonly(quoter_config_pubkey, false),
             AccountMeta::new_readonly(quoter_chain_info_pda, false),
             AccountMeta::new_readonly(quoter_quote_body_pda, false),
             AccountMeta::new_readonly(event_cpi, false),

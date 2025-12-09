@@ -117,7 +117,6 @@ impl GovernanceMessage {
     }
 
     /// Get the message bytes that were signed (bytes 0-98).
-    #[allow(dead_code)]
     pub fn signed_message<'a>(&self, original_data: &'a [u8]) -> &'a [u8] {
         &original_data[0..98]
     }

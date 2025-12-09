@@ -6,7 +6,8 @@ use pinocchio::{
 use crate::{
     error::ExecutorQuoterError,
     math,
-    state::{load_account, ChainInfo, Config, QuoteBody},
+    state::{load_account, ChainInfo, QuoteBody},
+    PAYEE_ADDRESS,
 };
 
 /// Relay instruction type constants (matching EVM)
@@ -106,13 +107,11 @@ pub fn process_request_quote(
     data: &[u8],
 ) -> ProgramResult {
     // Parse accounts
-    let [config_account, chain_info_account, quote_body_account] = accounts else {
+    let [_config, chain_info_account, quote_body_account] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
     // Load accounts (discriminator checked inside load_account)
-    let _config = load_account::<Config>(config_account, program_id)?;
-
     let chain_info = load_account::<ChainInfo>(chain_info_account, program_id)?;
     if !chain_info.is_enabled() {
         return Err(ExecutorQuoterError::ChainDisabled.into());
@@ -172,15 +171,13 @@ pub fn process_request_execution_quote(
     accounts: &[AccountInfo],
     data: &[u8],
 ) -> ProgramResult {
-    // Parse accounts - event_cpi is required but unused in this implementation.
-    // Future quoter implementations may use it for logging via CPI.
-    let [config_account, chain_info_account, quote_body_account, _event_cpi] = accounts else {
+    // Parse accounts - _config and event_cpi are required but unused in this implementation.
+    // Future quoter implementations may use them.
+    let [_config, chain_info_account, quote_body_account, _event_cpi] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
     // Load accounts (discriminator checked inside load_account)
-    let config = load_account::<Config>(config_account, program_id)?;
-
     let chain_info = load_account::<ChainInfo>(chain_info_account, program_id)?;
     if !chain_info.is_enabled() {
         return Err(ExecutorQuoterError::ChainDisabled.into());
@@ -225,7 +222,7 @@ pub fn process_request_execution_quote(
     // - bytes 40-71: quote_body (32 bytes, EQ01 format)
     let mut return_data = [0u8; 72];
     return_data[0..8].copy_from_slice(&required_payment.to_be_bytes());
-    return_data[8..40].copy_from_slice(&config.payee_address);
+    return_data[8..40].copy_from_slice(&PAYEE_ADDRESS);
     return_data[40..72].copy_from_slice(&quote_body.to_bytes32());
 
     set_return_data(&return_data);

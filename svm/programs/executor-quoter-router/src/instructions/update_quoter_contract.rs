@@ -7,34 +7,29 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{self, Pubkey},
+    pubkey::{find_program_address, Pubkey},
     sysvars::{clock::Clock, rent::Rent, Sysvar},
     ProgramResult,
 };
 
-#[cfg(target_os = "solana")]
 use pinocchio::syscalls::{sol_keccak256, sol_secp256k1_recover};
 use pinocchio_system::instructions::CreateAccount;
 
 use crate::{
     error::ExecutorQuoterRouterError,
-    state::{
-        load_account, Config, QuoterRegistration, QUOTER_REGISTRATION_DISCRIMINATOR,
-        QUOTER_REGISTRATION_SEED,
-    },
+    state::{QuoterRegistration, QUOTER_REGISTRATION_DISCRIMINATOR, QUOTER_REGISTRATION_SEED},
+    OUR_CHAIN,
 };
 
 use super::serialization::GovernanceMessage;
 
 /// Secp256k1 public key length (uncompressed, without 0x04 prefix)
-#[cfg(target_os = "solana")]
 const SECP256K1_PUBKEY_LEN: usize = 64;
 
 /// Keccak256 hash length
-#[cfg(target_os = "solana")]
 const KECCAK256_HASH_LEN: usize = 32;
 
-/// Verifies an secp256k1 signature and recovers the Ethereum address of the signer.
+/// Verifies a secp256k1 signature and recovers the Ethereum address of the signer.
 ///
 /// This mirrors the EVM ecrecover behavior:
 /// 1. Hash the message with keccak256
@@ -42,7 +37,6 @@ const KECCAK256_HASH_LEN: usize = 32;
 /// 3. Derive the Ethereum address: keccak256(pubkey)[12:32]
 ///
 /// Returns the 20-byte Ethereum address of the signer.
-#[cfg(target_os = "solana")]
 fn ecrecover(
     message: &[u8],
     signature_r: &[u8; 32],
@@ -50,6 +44,7 @@ fn ecrecover(
     signature_v: u8,
 ) -> Result<[u8; 20], ProgramError> {
     // Step 1: Compute keccak256 hash of the message
+    // Docs for this are here: https://github.com/solana-labs/solana/blob/master/programs/bpf_loader/src/syscalls/mod.rs
     // The syscall expects a slice format: [ptr, len] pairs
     let mut digest = [0u8; KECCAK256_HASH_LEN];
 
@@ -128,26 +123,22 @@ fn ecrecover(
 /// Accounts:
 /// 0. `[signer, writable]` payer - Pays for account creation
 /// 1. `[signer]` sender - Must match universal_sender_address in governance message
-/// 2. `[]` config - Router config PDA
+/// 2. `[]` _config - reserved for integrator implementations
 /// 3. `[writable]` quoter_registration - QuoterRegistration PDA (created if needed)
 /// 4. `[]` system_program
 ///
 /// Instruction data layout:
-/// - bump: u8 (1 byte) - The PDA bump seed (client-derived)
 /// - governance_message: [u8; 163] - The full EG01 governance message
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
-    // Minimum data: 1 byte bump + 163 byte governance message
-    if data.len() < 164 {
+    // Minimum data: 163 byte governance message
+    if data.len() < 163 {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse bump from instruction data
-    let bump = data[0];
-    let gov_data = &data[1..];
+    let gov_data = data;
 
     // Parse accounts
-    let [payer, sender, config_account, quoter_registration_account, _system_program] = accounts
-    else {
+    let [payer, sender, _config, quoter_registration_account, _system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -156,14 +147,11 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Load config to get our_chain
-    let config = load_account::<Config>(config_account, program_id)?;
-
     // Parse governance message
     let gov_msg = GovernanceMessage::parse(gov_data)?;
 
-    // Verify chain ID
-    if gov_msg.chain_id != config.our_chain {
+    // Verify chain ID against hardcoded constant
+    if gov_msg.chain_id != OUR_CHAIN {
         return Err(ExecutorQuoterRouterError::ChainIdMismatch.into());
     }
 
@@ -185,7 +173,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     // Verify secp256k1 signature
     // The signed message is bytes 0-98 of the governance message (before signature)
     // This mirrors EVM: bytes32 hash = keccak256(gov[0:98]);
-    #[cfg(target_os = "solana")]
     {
         let signed_message = gov_msg.signed_message(gov_data);
         let recovered_address = ecrecover(
@@ -202,31 +189,29 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         }
     }
 
-    // Verify QuoterRegistration PDA using client-provided bump
-    let bump_seed = [bump];
-    let expected_pda = pubkey::create_program_address(
-        &[QUOTER_REGISTRATION_SEED, &gov_msg.quoter_address[..], &bump_seed],
-        program_id,
-    )
-    .map_err(|_| ProgramError::InvalidSeeds)?;
-
-    if quoter_registration_account.key() != &expected_pda {
-        return Err(ProgramError::InvalidSeeds);
-    }
-
     // Extract implementation program ID from universal_contract_address
     // For SVM, this is just the full 32 bytes (a Solana pubkey)
     let implementation_program_id: Pubkey = gov_msg.universal_contract_address;
 
-    // Create or update the quoter registration
-    let bump_seed = [bump];
-
+    // Check if account needs to be created
     if quoter_registration_account.data_is_empty() {
+        // Derive canonical PDA and bump using find_program_address
+        let (expected_pda, canonical_bump) = find_program_address(
+            &[QUOTER_REGISTRATION_SEED, &gov_msg.quoter_address[..]],
+            program_id,
+        );
+
+        // Verify passed account matches expected PDA
+        if quoter_registration_account.key() != &expected_pda {
+            return Err(ProgramError::InvalidSeeds);
+        }
+
         // Create new account
         let rent = Rent::get()?;
         let space = QuoterRegistration::LEN;
         let lamports = rent.minimum_balance(space);
 
+        let bump_seed = [canonical_bump];
         let signer_seeds = [
             Seed::from(QUOTER_REGISTRATION_SEED),
             Seed::from(&gov_msg.quoter_address[..]),
@@ -242,15 +227,36 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
             owner: program_id,
         }
         .invoke_signed(&signers)?;
-    }
 
-    // Write registration data
-    let mut reg_data = quoter_registration_account.try_borrow_mut_data()?;
-    reg_data[0] = QUOTER_REGISTRATION_DISCRIMINATOR;
-    reg_data[1] = bump;
-    // Padding at bytes 2-3
-    reg_data[4..24].copy_from_slice(&gov_msg.quoter_address);
-    reg_data[24..56].copy_from_slice(&implementation_program_id);
+        // Initialize registration data
+        let registration = QuoterRegistration {
+            discriminator: QUOTER_REGISTRATION_DISCRIMINATOR,
+            bump: canonical_bump,
+            quoter_address: gov_msg.quoter_address,
+            implementation_program_id,
+        };
+        quoter_registration_account
+            .try_borrow_mut_data()?
+            .copy_from_slice(bytemuck::bytes_of(&registration));
+    } else {
+        // Account exists - verify ownership
+        if quoter_registration_account.owner() != program_id {
+            return Err(ExecutorQuoterRouterError::InvalidOwner.into());
+        }
+
+        // Update registration data.
+        // Safety: owner check above guarantees correct size (only our program can
+        // create accounts it owns, and we always use QuoterRegistration::LEN).
+        let mut reg_data = quoter_registration_account.try_borrow_mut_data()?;
+
+        // Verify discriminator
+        if reg_data[0] != QUOTER_REGISTRATION_DISCRIMINATOR {
+            return Err(ExecutorQuoterRouterError::InvalidDiscriminator.into());
+        }
+
+        // Only update mutable field (implementation program ID)
+        reg_data[22..54].copy_from_slice(&implementation_program_id);
+    }
 
     Ok(())
 }
