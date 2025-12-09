@@ -6,8 +6,8 @@ This directory contains Solana programs built with the Pinocchio framework for t
 
 - `programs/executor-quoter/` - Quoter program for price quotes
 - `programs/executor-quoter-router/` - Router program for quoter registration and execution routing
-- `programs/executor-quoter-tests/` - Integration tests for executor-quoter
-- `programs/executor-quoter-router-tests/` - Integration tests for executor-quoter-router
+- `tests/executor-quoter-tests/` - Integration tests and benchmarks for executor-quoter
+- `tests/executor-quoter-router-tests/` - Integration tests and benchmarks for executor-quoter-router
 
 ## Prerequisites
 
@@ -69,11 +69,14 @@ export QUOTER_UPDATER_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-updater.
 export QUOTER_UPDATER_KEYPAIR_PATH=$(pwd)/../test-keys/quoter-updater.json
 export SBF_OUT_DIR=$(pwd)/target/deploy
 
-# Run all tests
-cargo test -p executor-quoter -p executor-quoter-tests -p executor-quoter-router-tests
+# Run unit tests (pure Rust math module)
+cargo test -p executor-quoter
+
+# Run integration tests (uses mollusk-svm to simulate program execution)
+cargo test -p executor-quoter-tests -p executor-quoter-router-tests
 ```
 
-Note: Do not use `cargo test --all` as it attempts to compile the BPF programs for native targets, which fails due to SBF-specific syscalls.
+Note: These tests use native `cargo test`, not `cargo test-sbf`. The unit tests are pure Rust without SBF dependencies. The integration tests use mollusk-svm which loads the pre-built `.so` files and simulates program execution natively.
 
 ## Running Benchmarks
 
