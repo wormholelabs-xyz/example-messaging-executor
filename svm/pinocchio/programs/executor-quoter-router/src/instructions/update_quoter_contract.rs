@@ -8,12 +8,11 @@ use pinocchio::{
     instruction::{Seed, Signer},
     program_error::ProgramError,
     pubkey::{find_program_address, Pubkey},
-    sysvars::{clock::Clock, rent::Rent, Sysvar},
+    sysvars::{clock::Clock, Sysvar},
     ProgramResult,
 };
 
 use pinocchio::syscalls::{sol_keccak256, sol_secp256k1_recover};
-use pinocchio_system::instructions::CreateAccount;
 
 use crate::{
     error::ExecutorQuoterRouterError,
@@ -31,7 +30,7 @@ const KECCAK256_HASH_LEN: usize = 32;
 
 /// Verifies a secp256k1 signature and recovers the Ethereum address of the signer.
 ///
-/// This mirrors the EVM ecrecover behavior:
+/// This mirrors the shim contract ecrecover behavior (https://github.com/wormhole-foundation/wormhole/blob/main/svm/wormhole-core-shims/programs/verify-vaa/src/lib.rs):
 /// 1. Hash the message with keccak256
 /// 2. Recover the public key using secp256k1_recover
 /// 3. Derive the Ethereum address: keccak256(pubkey)[12:32]
@@ -206,11 +205,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
             return Err(ProgramError::InvalidSeeds);
         }
 
-        // Create new account
-        let rent = Rent::get()?;
-        let space = QuoterRegistration::LEN;
-        let lamports = rent.minimum_balance(space);
-
+        // Create signer seeds with canonical bump
         let bump_seed = [canonical_bump];
         let signer_seeds = [
             Seed::from(QUOTER_REGISTRATION_SEED),
@@ -219,14 +214,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         ];
         let signers = [Signer::from(&signer_seeds[..])];
 
-        CreateAccount {
-            from: payer,
-            to: quoter_registration_account,
-            lamports,
-            space: space as u64,
-            owner: program_id,
-        }
-        .invoke_signed(&signers)?;
+        // Create account via CPI (handles pre-funded accounts to prevent griefing)
+        pinocchio_system::create_account_with_minimum_balance_signed(
+            quoter_registration_account,
+            QuoterRegistration::LEN,
+            program_id,
+            payer,
+            None,
+            &signers,
+        )?;
 
         // Initialize registration data
         let registration = QuoterRegistration {

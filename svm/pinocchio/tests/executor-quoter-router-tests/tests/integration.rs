@@ -1390,10 +1390,10 @@ fn get_quoter_updater_keypair() -> Keypair {
         .expect("Failed to read updater keypair from file")
 }
 
-// Quoter instruction discriminators (8 bytes, Anchor-compatible)
-// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
-const QUOTER_IX_UPDATE_CHAIN_INFO: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-const QUOTER_IX_UPDATE_QUOTE: [u8; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+// Quoter instruction discriminators
+// Admin instructions (0, 1): 1-byte discriminator for minimal tx size
+const QUOTER_IX_UPDATE_CHAIN_INFO: u8 = 0;
+const QUOTER_IX_UPDATE_QUOTE: u8 = 1;
 // Note: QUOTER_IX_REQUEST_QUOTE and QUOTER_IX_REQUEST_EXECUTION_QUOTE
 // are defined above as IX_QUOTER_REQUEST_QUOTE and IX_QUOTER_REQUEST_EXECUTION_QUOTE
 
@@ -1559,7 +1559,7 @@ async fn test_quote_execution() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    chain_info_data.push(QUOTER_IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1); // enabled
     chain_info_data.push(9); // gas_price_decimals
@@ -1594,7 +1594,7 @@ async fn test_quote_execution() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
+    quote_data.push(QUOTER_IX_UPDATE_QUOTE); // 1-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -1820,7 +1820,7 @@ async fn test_quote_execution_chain_disabled() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    chain_info_data.push(QUOTER_IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(0); // enabled = FALSE (chain disabled)
     chain_info_data.push(9); // gas_price_decimals
@@ -1855,7 +1855,7 @@ async fn test_quote_execution_chain_disabled() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
+    quote_data.push(QUOTER_IX_UPDATE_QUOTE); // 1-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -1992,7 +1992,7 @@ async fn test_request_execution() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    chain_info_data.push(QUOTER_IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1); // enabled
     chain_info_data.push(12); // gas_price_decimals (matching EVM tests: 0x12 = 18, but the hex update shows 12)
@@ -2027,7 +2027,7 @@ async fn test_request_execution() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
+    quote_data.push(QUOTER_IX_UPDATE_QUOTE); // 1-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]); // padding
@@ -2185,7 +2185,7 @@ async fn test_request_execution_underpaid() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    chain_info_data.push(QUOTER_IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1);
     chain_info_data.push(9);
@@ -2220,7 +2220,7 @@ async fn test_request_execution_underpaid() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
+    quote_data.push(QUOTER_IX_UPDATE_QUOTE); // 1-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]);
@@ -2545,7 +2545,7 @@ async fn test_request_execution_amount_zero() {
 
     let (_, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
     let mut chain_info_data = Vec::new();
-    chain_info_data.extend_from_slice(&QUOTER_IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    chain_info_data.push(QUOTER_IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     chain_info_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     chain_info_data.push(1);
     chain_info_data.push(12);
@@ -2580,7 +2580,7 @@ async fn test_request_execution_amount_zero() {
 
     let (_, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let mut quote_data = Vec::new();
-    quote_data.extend_from_slice(&QUOTER_IX_UPDATE_QUOTE); // 8-byte discriminator
+    quote_data.push(QUOTER_IX_UPDATE_QUOTE); // 1-byte discriminator
     quote_data.extend_from_slice(&DST_CHAIN_ID.to_le_bytes());
     quote_data.push(quote_body_bump);
     quote_data.extend_from_slice(&[0u8; 5]);

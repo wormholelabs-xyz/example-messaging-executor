@@ -1,89 +1,15 @@
+use executor_requests::parse_relay_instructions;
 use pinocchio::{
     account_info::AccountInfo, cpi::set_return_data, program_error::ProgramError, pubkey::Pubkey,
     ProgramResult,
 };
 
 use crate::{
-    error::ExecutorQuoterError,
+    error::{relay_parse_error_to_program_error, ExecutorQuoterError},
     math,
     state::{load_account, ChainInfo, QuoteBody},
     PAYEE_ADDRESS,
 };
-
-/// Relay instruction type constants (matching EVM)
-const IX_TYPE_GAS: u8 = 1;
-const IX_TYPE_DROP_OFF: u8 = 2;
-
-/// Parses relay instructions to extract total gas limit and msg value.
-/// Instruction format:
-/// - Type 1 (Gas): 1 byte type + 16 bytes gas_limit + 16 bytes msg_value
-/// - Type 2 (DropOff): 1 byte type + 48 bytes (16 msg_value + 32 recipient)
-fn parse_relay_instructions(relay_instructions: &[u8]) -> Result<(u128, u128), ProgramError> {
-    let mut offset = 0;
-    let mut gas_limit: u128 = 0;
-    let mut msg_value: u128 = 0;
-    let mut has_drop_off = false;
-
-    while offset < relay_instructions.len() {
-        if offset >= relay_instructions.len() {
-            return Err(ExecutorQuoterError::InvalidRelayInstructions.into());
-        }
-
-        let ix_type = relay_instructions[offset];
-        offset += 1;
-
-        match ix_type {
-            IX_TYPE_GAS => {
-                // Gas instruction: 16 bytes gas_limit + 16 bytes msg_value
-                if offset + 32 > relay_instructions.len() {
-                    return Err(ExecutorQuoterError::InvalidRelayInstructions.into());
-                }
-
-                let mut ix_gas_bytes = [0u8; 16];
-                ix_gas_bytes.copy_from_slice(&relay_instructions[offset..offset + 16]);
-                let ix_gas_limit = u128::from_be_bytes(ix_gas_bytes);
-                offset += 16;
-
-                let mut ix_val_bytes = [0u8; 16];
-                ix_val_bytes.copy_from_slice(&relay_instructions[offset..offset + 16]);
-                let ix_msg_value = u128::from_be_bytes(ix_val_bytes);
-                offset += 16;
-
-                gas_limit = gas_limit
-                    .checked_add(ix_gas_limit)
-                    .ok_or(ExecutorQuoterError::MathOverflow)?;
-                msg_value = msg_value
-                    .checked_add(ix_msg_value)
-                    .ok_or(ExecutorQuoterError::MathOverflow)?;
-            }
-            IX_TYPE_DROP_OFF => {
-                if has_drop_off {
-                    return Err(ExecutorQuoterError::MoreThanOneDropOff.into());
-                }
-                has_drop_off = true;
-
-                // DropOff instruction: 16 bytes msg_value + 32 bytes recipient
-                if offset + 48 > relay_instructions.len() {
-                    return Err(ExecutorQuoterError::InvalidRelayInstructions.into());
-                }
-
-                let mut ix_val_bytes = [0u8; 16];
-                ix_val_bytes.copy_from_slice(&relay_instructions[offset..offset + 16]);
-                let ix_msg_value = u128::from_be_bytes(ix_val_bytes);
-                offset += 48; // Skip msg_value (16) + recipient (32)
-
-                msg_value = msg_value
-                    .checked_add(ix_msg_value)
-                    .ok_or(ExecutorQuoterError::MathOverflow)?;
-            }
-            _ => {
-                return Err(ExecutorQuoterError::UnsupportedInstruction.into());
-            }
-        }
-    }
-
-    Ok((gas_limit, msg_value))
-}
 
 /// Process RequestQuote instruction.
 /// Returns the required payment amount for cross-chain execution.
@@ -147,7 +73,8 @@ pub fn process_request_quote(
     let relay_instructions = &data[relay_data_start..relay_data_start + relay_instructions_len];
 
     // Parse relay instructions
-    let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
+    let (gas_limit, msg_value) =
+        parse_relay_instructions(relay_instructions).map_err(relay_parse_error_to_program_error)?;
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(&quote_body, &chain_info, gas_limit, msg_value)?;
@@ -211,7 +138,8 @@ pub fn process_request_execution_quote(
     let relay_instructions = &data[relay_data_start..relay_data_start + relay_instructions_len];
 
     // Parse relay instructions
-    let (gas_limit, msg_value) = parse_relay_instructions(relay_instructions)?;
+    let (gas_limit, msg_value) =
+        parse_relay_instructions(relay_instructions).map_err(relay_parse_error_to_program_error)?;
 
     // Calculate quote - returns u64 in SVM native decimals (lamports)
     let required_payment = math::estimate_quote(&quote_body, &chain_info, gas_limit, msg_value)?;

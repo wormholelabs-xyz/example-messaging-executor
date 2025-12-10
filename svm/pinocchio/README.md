@@ -1,24 +1,33 @@
 # Pinocchio Programs
 
-This directory contains Solana programs built with the Pinocchio framework for the executor quoter system.
+Solana programs for the executor quoter system.
+
+## Overview
+
+- **executor-quoter-router** - Defines the quoter interface specification and routes CPI calls to registered quoter implementations. See [programs/executor-quoter-router/README.md](programs/executor-quoter-router/README.md).
+- **executor-quoter** - Example quoter implementation. Integrators can use this as a reference or build their own. See [programs/executor-quoter/README.md](programs/executor-quoter/README.md).
+
+These programs use the [Pinocchio](https://github.com/febo/pinocchio) framework, but quoter implementations are framework-agnostic. Any program adhering to the CPI interface defined by the router will work.
 
 ## Directory Structure
 
-- `programs/executor-quoter/` - Quoter program for price quotes
-- `programs/executor-quoter-router/` - Router program for quoter registration and execution routing
+- `programs/executor-quoter/` - Example quoter implementation
+- `programs/executor-quoter-router/` - Router program defining the quoter spec
 - `tests/executor-quoter-tests/` - Integration tests and benchmarks for executor-quoter
 - `tests/executor-quoter-router-tests/` - Integration tests and benchmarks for executor-quoter-router
 
 ## Prerequisites
 
 - Solana CLI v1.18.17 or later
-- A keypair file for the quoter updater address
 
-Generate a test keypair if you don't have one:
+### Testing Prerequisites
+
+Generate test keypairs before building or running tests:
 
 ```bash
 mkdir -p ../test-keys
 solana-keygen new --no-bip39-passphrase -o ../test-keys/quoter-updater.json
+solana-keygen new --no-bip39-passphrase -o ../test-keys/quoter-payee.json
 ```
 
 ## Building
@@ -72,11 +81,13 @@ export SBF_OUT_DIR=$(pwd)/target/deploy
 # Run unit tests (pure Rust math module)
 cargo test -p executor-quoter
 
-# Run integration tests (uses mollusk-svm to simulate program execution)
-cargo test -p executor-quoter-tests -p executor-quoter-router-tests
+# Run integration tests (uses solana-program-test to simulate program execution)
+cargo test -p executor-quoter-tests -p executor-quoter-router-tests -- --test-threads=1
 ```
 
-Note: These tests use native `cargo test`, not `cargo test-sbf`. The unit tests are pure Rust without SBF dependencies. The integration tests use mollusk-svm which loads the pre-built `.so` files and simulates program execution natively.
+Note: These tests use native `cargo test`, not `cargo test-sbf`. The unit tests are pure Rust without SBF dependencies. The integration tests use solana-program-test which loads the pre-built `.so` files and simulates program execution natively.
+
+The `--test-threads=1` flag is required because `solana-program-test` can exhibit race conditions when multiple tests load BPF programs in parallel. Running tests sequentially avoids these issues.
 
 ## Running Benchmarks
 
@@ -92,6 +103,6 @@ cargo bench -p executor-quoter-router-tests
 
 ## Notes
 
-- The test crates use `solana-program-test` and [mollusk-svm](https://github.com/buffalojoec/mollusk) to load and execute the compiled `.so` files in a simulated SVM environment.
+- The test crates use `solana-program-test` to load and execute the compiled `.so` files in a simulated SVM environment. Benchmarks use [mollusk-svm](https://github.com/buffalojoec/mollusk) for compute unit measurements.
 - Tests will fail if the `.so` files are not built first.
 - The `QUOTER_UPDATER_PUBKEY` is baked into the program at compile time and cannot be changed without rebuilding.

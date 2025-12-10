@@ -78,13 +78,26 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    // Anchor-compatible: 8-byte discriminator (byte 0 = instruction ID, bytes 1-7 ignored)
-    if instruction_data.len() < 8 {
+    if instruction_data.is_empty() {
         return Err(ProgramError::InvalidInstructionData);
     }
 
-    let (instruction_discriminator, data) = instruction_data.split_at(8);
-    let instruction = Instruction::try_from(instruction_discriminator[0])?;
+    let instruction_id = instruction_data[0];
+
+    // Admin instructions (0, 1): 1-byte discriminator for minimal tx size
+    // CPI instructions (2, 3): 8-byte discriminator for Anchor compatibility
+    let data = match instruction_id {
+        0 | 1 => &instruction_data[1..],
+        2 | 3 => {
+            if instruction_data.len() < 8 {
+                return Err(ProgramError::InvalidInstructionData);
+            }
+            &instruction_data[8..]
+        }
+        _ => return Err(ProgramError::InvalidInstructionData),
+    };
+
+    let instruction = Instruction::try_from(instruction_id)?;
 
     match instruction {
         Instruction::UpdateChainInfo => update_chain_info::process(program_id, accounts, data),

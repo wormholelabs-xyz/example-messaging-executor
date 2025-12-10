@@ -124,9 +124,9 @@ fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
 }
 
 /// Build UpdateChainInfo instruction data
-/// Layout: ix_discriminator (8 bytes), chain_id (u16), enabled, gas_price_decimals, native_decimals, _padding
+/// Layout: ix_discriminator (1 byte), chain_id (u16), enabled, gas_price_decimals, native_decimals, _padding
 fn build_update_chain_info_data(chain_id: u16) -> Vec<u8> {
-    let mut data = vec![IX_UPDATE_CHAIN_INFO, 0, 0, 0, 0, 0, 0, 0]; // 8-byte discriminator
+    let mut data = vec![IX_UPDATE_CHAIN_INFO]; // 1-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
     data.push(1); // enabled
     data.push(18); // gas_price_decimals
@@ -136,9 +136,9 @@ fn build_update_chain_info_data(chain_id: u16) -> Vec<u8> {
 }
 
 /// Build UpdateQuote instruction data
-/// Layout: ix_discriminator (8 bytes), chain_id (u16), _padding (6), dst_price, src_price, dst_gas_price, base_fee
+/// Layout: ix_discriminator (1 byte), chain_id (u16), _padding (6), dst_price, src_price, dst_gas_price, base_fee
 fn build_update_quote_data(chain_id: u16) -> Vec<u8> {
-    let mut data = vec![IX_UPDATE_QUOTE, 0, 0, 0, 0, 0, 0, 0]; // 8-byte discriminator
+    let mut data = vec![IX_UPDATE_QUOTE]; // 1-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
     data.extend_from_slice(&[0u8; 6]); // padding
     data.extend_from_slice(&20_000_000_000_000u64.to_le_bytes()); // dst_price

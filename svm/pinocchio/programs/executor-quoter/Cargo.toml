@@ -18,6 +18,7 @@ custom-panic = []
 pinocchio = "0.9.2"
 pinocchio-system = "0.4"
 bytemuck = { version = "1.14", features = ["derive"] }
+executor-requests = { path = "../../../modules/executor-requests" }
 
 [build-dependencies]
 bs58 = "0.5"

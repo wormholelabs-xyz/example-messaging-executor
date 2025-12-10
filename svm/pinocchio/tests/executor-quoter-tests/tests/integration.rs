@@ -35,10 +35,11 @@ const CHAIN_INFO_SEED: &[u8] = b"chain_info";
 const CHAIN_INFO_SIZE: usize = 8;
 const QUOTE_BODY_SIZE: usize = 40;
 
-/// Instruction discriminators (8 bytes, Anchor-compatible)
-/// Byte 0 = instruction ID, bytes 1-7 = padding (zeros)
-const IX_UPDATE_CHAIN_INFO: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-const IX_UPDATE_QUOTE: [u8; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+/// Instruction discriminators
+/// Admin instructions (0, 1): 1-byte discriminator for minimal tx size
+/// CPI instructions (2, 3): 8-byte discriminator for Anchor compatibility
+const IX_UPDATE_CHAIN_INFO: u8 = 0;
+const IX_UPDATE_QUOTE: u8 = 1;
 const IX_REQUEST_QUOTE: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
 const IX_REQUEST_EXECUTION_QUOTE: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
@@ -82,13 +83,13 @@ fn build_update_chain_info_data(
     gas_price_decimals: u8,
     native_decimals: u8,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(8 + 6);
-    data.extend_from_slice(&IX_UPDATE_CHAIN_INFO); // 8-byte discriminator
+    let mut data = Vec::with_capacity(1 + 6);
+    data.push(IX_UPDATE_CHAIN_INFO); // 1-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
     data.push(if enabled { 1 } else { 0 });
     data.push(gas_price_decimals);
     data.push(native_decimals);
-    data.push(0); // padding (was bump)
+    data.push(0); // padding
     data
 }
 
@@ -100,10 +101,10 @@ fn build_update_quote_data(
     dst_gas_price: u64,
     base_fee: u64,
 ) -> Vec<u8> {
-    let mut data = Vec::with_capacity(8 + 40);
-    data.extend_from_slice(&IX_UPDATE_QUOTE); // 8-byte discriminator
+    let mut data = Vec::with_capacity(1 + 40);
+    data.push(IX_UPDATE_QUOTE); // 1-byte discriminator
     data.extend_from_slice(&chain_id.to_le_bytes());
-    data.extend_from_slice(&[0u8; 6]); // padding (was bump + 5 padding)
+    data.extend_from_slice(&[0u8; 6]); // padding
     data.extend_from_slice(&dst_price.to_le_bytes());
     data.extend_from_slice(&src_price.to_le_bytes());
     data.extend_from_slice(&dst_gas_price.to_le_bytes());

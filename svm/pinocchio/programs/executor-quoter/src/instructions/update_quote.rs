@@ -4,10 +4,8 @@ use pinocchio::{
     instruction::{Seed, Signer},
     program_error::ProgramError,
     pubkey::{find_program_address, Pubkey},
-    sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
-use pinocchio_system::instructions::CreateAccount;
 
 use crate::{
     error::ExecutorQuoterError,
@@ -77,10 +75,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
             return Err(ExecutorQuoterError::InvalidPda.into());
         }
 
-        // Get rent
-        let rent = Rent::get()?;
-        let lamports = rent.minimum_balance(QuoteBody::LEN);
-
         // Create signer seeds with canonical bump
         let bump_seed = [canonical_bump];
         let signer_seeds = [
@@ -90,15 +84,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         ];
         let signers = [Signer::from(&signer_seeds[..])];
 
-        // Create account via CPI
-        CreateAccount {
-            from: payer,
-            to: quote_body_account,
-            lamports,
-            space: QuoteBody::LEN as u64,
-            owner: program_id,
-        }
-        .invoke_signed(&signers)?;
+        // Create account via CPI (handles pre-funded accounts to prevent griefing)
+        pinocchio_system::create_account_with_minimum_balance_signed(
+            quote_body_account,
+            QuoteBody::LEN,
+            program_id,
+            payer,
+            None,
+            &signers,
+        )?;
 
         // Initialize account data
         let quote_body = QuoteBody {

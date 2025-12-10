@@ -37,3 +37,19 @@ impl From<ExecutorQuoterError> for ProgramError {
         ProgramError::Custom(e as u32)
     }
 }
+
+/// Base error code for relay parsing errors.
+/// Aligns with UnsupportedInstruction (0x1002) as the first relay-specific error.
+pub const RELAY_PARSE_ERROR_BASE: u32 = 0x1002;
+
+/// Converts a relay parse error code to a ProgramError.
+///
+/// Direct arithmetic conversion:
+/// - UnsupportedType(0) -> 0x1002 (UnsupportedInstruction)
+/// - MultipleDropoff(1) -> 0x1003 (MoreThanOneDropOff)
+/// - Overflow(2)        -> 0x1004 (MathOverflow)
+/// - Truncated(3)       -> 0x1005 (InvalidRelayInstructions)
+#[inline]
+pub fn relay_parse_error_to_program_error(e: executor_requests::RelayParseError) -> ProgramError {
+    ProgramError::Custom(RELAY_PARSE_ERROR_BASE + e as u32)
+}

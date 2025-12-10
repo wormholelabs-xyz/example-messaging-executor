@@ -1358,6 +1358,7 @@ version = "0.1.0"
 dependencies = [
  "bs58 0.5.1",
  "bytemuck",
+ "executor-requests",
  "pinocchio",
  "pinocchio-system",
 ]

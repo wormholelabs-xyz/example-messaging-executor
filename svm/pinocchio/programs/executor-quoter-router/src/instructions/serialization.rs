@@ -53,7 +53,6 @@ pub fn make_signed_quote_eq02(
 /// - bytes 130-161: signature_s (32 bytes)
 /// - byte 162:     signature_v (1 byte)
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub struct GovernanceMessage {
     pub chain_id: u16,
     pub quoter_address: [u8; 20],
