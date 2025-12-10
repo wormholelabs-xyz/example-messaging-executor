@@ -35,4 +35,10 @@ contract ExecutorMessagesTest is Test {
         bytes memory buf = ExecutorMessages.makeCCTPv2Request();
         assertEq(keccak256(expected), keccak256(buf));
     }
+
+    function test_makeBaseBridgeV1Request() public pure {
+        bytes memory expected = abi.encodePacked("ERB1", uint8(1));
+        bytes memory buf = ExecutorMessages.makeBaseBridgeV1Request();
+        assertEq(keccak256(expected), keccak256(buf));
+    }
 }
