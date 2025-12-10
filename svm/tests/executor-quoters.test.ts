@@ -39,18 +39,85 @@ const IX_ROUTER_QUOTE_EXECUTION = 1;
 const CHAIN_ID_SOLANA = 1;
 const CHAIN_ID_ETHEREUM = 2;
 
+// Testnet chain IDs
+const CHAIN_ID_ETH_SEPOLIA = 10002;
+const CHAIN_ID_ARBITRUM_SEPOLIA = 10003;
+const CHAIN_ID_BASE_SEPOLIA = 10004;
+const CHAIN_ID_OPTIMISM_SEPOLIA = 10005;
+
 // Quote calculation constants (must match Rust)
 const QUOTE_DECIMALS = 10n;
 const SVM_DECIMAL_RESOLUTION = 9n;
 const EVM_DECIMAL_RESOLUTION = 18n;
 
-// Test quote parameters
+// Test quote parameters for mainnet Ethereum
 const TEST_DST_PRICE = 3000n * 10n ** QUOTE_DECIMALS;  // ETH $3000
 const TEST_SRC_PRICE = 200n * 10n ** QUOTE_DECIMALS;   // SOL $200
 const TEST_DST_GAS_PRICE = 20n;                         // 20 gwei (decimals=9)
 const TEST_BASE_FEE = 1_000_000n;                       // 0.001 SOL in lamports
 const TEST_GAS_PRICE_DECIMALS = 9;                      // gwei decimals
 const TEST_NATIVE_DECIMALS = 18;                        // ETH decimals
+
+// Testnet chain configurations with realistic gas prices
+// All testnets use ETH as native token (18 decimals)
+// Gas prices vary by L2 characteristics
+interface ChainConfig {
+  chainId: number;
+  name: string;
+  dstPrice: bigint;        // Native token price in QUOTE_DECIMALS
+  gasPriceDecimals: number;
+  nativeDecimals: number;
+  dstGasPrice: bigint;     // Gas price in gasPriceDecimals
+  baseFee: bigint;         // Base fee in lamports
+}
+
+const TESTNET_CHAINS: ChainConfig[] = [
+  {
+    // Ethereum Sepolia - standard L1 gas prices
+    // All EVM chains store gas price in wei (gasPriceDecimals=18)
+    // Reference: w7-executor/src/env/testnet.ts
+    chainId: CHAIN_ID_ETH_SEPOLIA,
+    name: "Ethereum Sepolia",
+    dstPrice: 3000n * 10n ** QUOTE_DECIMALS,  // ETH ~$3000
+    gasPriceDecimals: 18,                      // gas price stored in wei
+    nativeDecimals: 18,
+    dstGasPrice: 25_000_000_000n,              // 25 gwei in wei
+    baseFee: 1_000_000n,                       // 0.001 SOL
+  },
+  {
+    // Arbitrum Sepolia - L2 with lower gas prices
+    // Arbitrum min gas price floor is 0.01 gwei
+    chainId: CHAIN_ID_ARBITRUM_SEPOLIA,
+    name: "Arbitrum Sepolia",
+    dstPrice: 3000n * 10n ** QUOTE_DECIMALS,  // ETH ~$3000
+    gasPriceDecimals: 18,                      // gas price stored in wei
+    nativeDecimals: 18,
+    dstGasPrice: 100_000_000n,                 // 0.1 gwei in wei
+    baseFee: 500_000n,                         // 0.0005 SOL (lower for L2)
+  },
+  {
+    // Base Sepolia - L2 with very low gas prices
+    // Base typically has gas prices around 0.001-0.01 gwei
+    chainId: CHAIN_ID_BASE_SEPOLIA,
+    name: "Base Sepolia",
+    dstPrice: 3000n * 10n ** QUOTE_DECIMALS,  // ETH ~$3000
+    gasPriceDecimals: 18,                      // gas price stored in wei
+    nativeDecimals: 18,
+    dstGasPrice: 10_000_000n,                  // 0.01 gwei in wei
+    baseFee: 500_000n,                         // 0.0005 SOL
+  },
+  {
+    // Optimism Sepolia - L2 with low gas prices
+    // OP typically has gas prices around 0.001-0.05 gwei
+    chainId: CHAIN_ID_OPTIMISM_SEPOLIA,
+    name: "Optimism Sepolia",
+    dstPrice: 3000n * 10n ** QUOTE_DECIMALS,  // ETH ~$3000
+    gasPriceDecimals: 18,                      // gas price stored in wei
+    nativeDecimals: 18,
+    dstGasPrice: 50_000_000n,                  // 0.05 gwei in wei
+    baseFee: 500_000n,                         // 0.0005 SOL
+  },
+];
 
 // Test request parameters
 const TEST_GAS_LIMIT = 100_000n;
@@ -576,6 +643,116 @@ describe("executor-quoter", () => {
     const expectedDiff = 15_000_000_000n;
     expect(quoteWithValue - quoteNoValue).toBe(expectedDiff);
   });
+});
+
+describe("executor-quoter testnet chains", () => {
+  beforeAll(async () => {
+    connection = new Connection("https://api.devnet.solana.com", "confirmed");
+    wallet = loadWallet();
+    [quoterConfigPda] = deriveQuoterConfigPda();
+  });
+
+  for (const chain of TESTNET_CHAINS) {
+    test(`updates chain info for ${chain.name} (${chain.chainId})`, async () => {
+      const [chainInfoPda] = deriveQuoterChainInfoPda(chain.chainId);
+
+      const ix = new TransactionInstruction({
+        programId: QUOTER_PROGRAM_ID,
+        keys: [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: false },
+          { pubkey: chainInfoPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: buildUpdateChainInfoData(
+          chain.chainId,
+          1, // enabled
+          chain.gasPriceDecimals,
+          chain.nativeDecimals,
+        ),
+      });
+
+      const tx = new Transaction().add(ix);
+      await sendAndConfirmTransaction(connection, tx, [wallet]);
+
+      const accountInfo = await connection.getAccountInfo(chainInfoPda);
+      expect(accountInfo).not.toBeNull();
+      console.log(`  Chain info PDA for ${chain.name}: ${chainInfoPda.toBase58()}`);
+    });
+
+    test(`updates quote for ${chain.name} (${chain.chainId})`, async () => {
+      const [quoteBodyPda] = deriveQuoterQuoteBodyPda(chain.chainId);
+
+      const ix = new TransactionInstruction({
+        programId: QUOTER_PROGRAM_ID,
+        keys: [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: false },
+          { pubkey: quoteBodyPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: buildUpdateQuoteData(
+          chain.chainId,
+          chain.dstPrice,
+          TEST_SRC_PRICE,
+          chain.dstGasPrice,
+          chain.baseFee
+        ),
+      });
+
+      const tx = new Transaction().add(ix);
+      await sendAndConfirmTransaction(connection, tx, [wallet]);
+
+      const accountInfo = await connection.getAccountInfo(quoteBodyPda);
+      expect(accountInfo).not.toBeNull();
+      console.log(`  Quote body PDA for ${chain.name}: ${quoteBodyPda.toBase58()}`);
+    });
+
+    test(`returns correct quote for ${chain.name} (${chain.chainId})`, async () => {
+      const [chainInfoPda] = deriveQuoterChainInfoPda(chain.chainId);
+      const [quoteBodyPda] = deriveQuoterQuoteBodyPda(chain.chainId);
+
+      const dstAddr = new Uint8Array(32).fill(0xAB);
+      const refundAddr = new Uint8Array(32);
+      wallet.publicKey.toBuffer().copy(Buffer.from(refundAddr));
+
+      const ix = new TransactionInstruction({
+        programId: QUOTER_PROGRAM_ID,
+        keys: [
+          { pubkey: quoterConfigPda, isSigner: false, isWritable: false },
+          { pubkey: chainInfoPda, isSigner: false, isWritable: false },
+          { pubkey: quoteBodyPda, isSigner: false, isWritable: false },
+        ],
+        data: buildRequestQuoteData(
+          chain.chainId,
+          dstAddr,
+          refundAddr,
+          new Uint8Array(0),
+          buildGasRelayInstruction(TEST_GAS_LIMIT, TEST_MSG_VALUE)
+        ),
+      });
+
+      const { returnData } = await simulateInstruction(connection, wallet, ix);
+
+      expect(returnData.length).toBe(8);
+      const payment = returnData.readBigUInt64BE(0);
+
+      // Calculate expected quote
+      const expectedQuote = calculateExpectedQuote(
+        chain.baseFee,
+        TEST_SRC_PRICE,
+        chain.dstPrice,
+        chain.dstGasPrice,
+        chain.gasPriceDecimals,
+        chain.nativeDecimals,
+        TEST_GAS_LIMIT,
+        TEST_MSG_VALUE
+      );
+
+      expect(payment).toBe(expectedQuote);
+      console.log(`  Quote for ${chain.name}: ${payment} lamports (${Number(payment) / 1e9} SOL)`);
+    });
+  }
 });
 
 describe("executor-quoter-router", () => {

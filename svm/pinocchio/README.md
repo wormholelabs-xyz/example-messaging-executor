@@ -9,6 +9,13 @@ Solana programs for the executor quoter system.
 
 These programs use the [Pinocchio](https://github.com/febo/pinocchio) framework, but quoter implementations are framework-agnostic. Any program adhering to the CPI interface defined by the router will work.
 
+## Devnet Deployments
+
+| Program | Address |
+|---------|---------|
+| executor-quoter | `957QU51h6VLbnbAmAPgtXz1kbFE1QhchDmNfgugW9xCc` |
+| executor-quoter-router | `5pkyS8pnbbMforEqAR91gkgPeBs5XKhWpiuuuLdw6hbk` |
+
 ## Directory Structure
 
 - `programs/executor-quoter/` - Example quoter implementation
