@@ -23,7 +23,7 @@ const PROGRAM_ID: Pubkey = Pubkey::new_from_array([
     0xad, 0x51, 0x9d, 0x3d, 0xcd, 0xf3, 0x86, 0x58,
 ]);
 
-/// Account discriminators (updated - no config)
+/// Account discriminators
 const QUOTE_BODY_DISCRIMINATOR: u8 = 1;
 const CHAIN_INFO_DISCRIMINATOR: u8 = 2;
 

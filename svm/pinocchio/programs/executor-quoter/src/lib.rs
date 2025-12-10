@@ -46,10 +46,10 @@ pub const PAYEE_ADDRESS: [u8; 32] = include!(concat!(env!("OUT_DIR"), "/payee_ad
 #[repr(u8)]
 pub enum Instruction {
     /// Update chain info for a destination chain
-    /// Accounts: [payer, updater, _config, chain_info, system_program]
+    /// Accounts: [payer, updater, chain_info, system_program]
     UpdateChainInfo = 0,
     /// Update quote for a destination chain
-    /// Accounts: [payer, updater, _config, quote_body, system_program]
+    /// Accounts: [payer, updater, quote_body, system_program]
     UpdateQuote = 1,
     /// Request a quote for cross-chain execution
     /// Accounts: [_config, chain_info, quote_body]

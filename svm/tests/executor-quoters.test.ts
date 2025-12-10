@@ -21,18 +21,19 @@ import { keccak256 } from "js-sha3";
 import * as fs from "fs";
 
 // Program IDs (deployed to devnet)
-const QUOTER_PROGRAM_ID = new PublicKey("BzwaK5fK5VHSZQX1VgjKSUSe8yJ8vvrEtLerwKb4ob3h");
-const ROUTER_PROGRAM_ID = new PublicKey("EFg1zgL4LeAS6c3FiYsZzJvALksxeaGsRtR26Fgr7B24");
+const QUOTER_PROGRAM_ID = new PublicKey("957QU51h6VLbnbAmAPgtXz1kbFE1QhchDmNfgugW9xCc");
+const ROUTER_PROGRAM_ID = new PublicKey("5pkyS8pnbbMforEqAR91gkgPeBs5XKhWpiuuuLdw6hbk");
 const EXECUTOR_PROGRAM_ID = new PublicKey("execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV");
 
-// Instruction discriminators
-const IX_QUOTER_INITIALIZE = 0;
-const IX_QUOTER_UPDATE_CHAIN_INFO = 1;
-const IX_QUOTER_UPDATE_QUOTE = 2;
-const IX_QUOTER_REQUEST_QUOTE = 3;
-const IX_ROUTER_INITIALIZE = 0;
-const IX_ROUTER_UPDATE_QUOTER_CONTRACT = 1;
-const IX_ROUTER_QUOTE_EXECUTION = 2;
+// Instruction discriminators for executor-quoter
+// Instructions 0-1 use 1-byte discriminator, 2-3 use 8-byte discriminator
+const IX_QUOTER_UPDATE_CHAIN_INFO = 0;
+const IX_QUOTER_UPDATE_QUOTE = 1;
+const IX_QUOTER_REQUEST_QUOTE = 2;  // Uses 8-byte discriminator
+
+// Instruction discriminators for executor-quoter-router
+const IX_ROUTER_UPDATE_QUOTER_CONTRACT = 0;
+const IX_ROUTER_QUOTE_EXECUTION = 1;
 
 // Chain IDs
 const CHAIN_ID_SOLANA = 1;
@@ -193,30 +194,15 @@ class QuoterIdentity {
 
 // Instruction builders
 
-function buildQuoterInitializeData(
-  quoterAddress: PublicKey,
-  updaterAddress: PublicKey,
-  srcTokenDecimals: number,
-  bump: number,
-  payeeAddress: Uint8Array
-): Buffer {
-  const data = Buffer.alloc(99);
-  let o = 0;
-  data.writeUInt8(IX_QUOTER_INITIALIZE, o++);
-  quoterAddress.toBuffer().copy(data, o); o += 32;
-  updaterAddress.toBuffer().copy(data, o); o += 32;
-  data.writeUInt8(srcTokenDecimals, o++);
-  data.writeUInt8(bump, o++);
-  Buffer.from(payeeAddress).copy(data, o);
-  return data;
-}
-
+/**
+ * Build UpdateChainInfo instruction data.
+ * Layout: discriminator (1) + chain_id (2) + enabled (1) + gas_price_decimals (1) + native_decimals (1) + padding (1)
+ */
 function buildUpdateChainInfoData(
   chainId: number,
   enabled: number,
   gasPriceDecimals: number,
   nativeDecimals: number,
-  bump: number
 ): Buffer {
   const data = Buffer.alloc(7);
   let o = 0;
@@ -225,13 +211,16 @@ function buildUpdateChainInfoData(
   data.writeUInt8(enabled, o++);
   data.writeUInt8(gasPriceDecimals, o++);
   data.writeUInt8(nativeDecimals, o++);
-  data.writeUInt8(bump, o);
+  data.writeUInt8(0, o); // padding
   return data;
 }
 
+/**
+ * Build UpdateQuote instruction data.
+ * Layout: discriminator (1) + chain_id (2) + padding (6) + dst_price (8) + src_price (8) + dst_gas_price (8) + base_fee (8)
+ */
 function buildUpdateQuoteData(
   chainId: number,
-  bump: number,
   dstPrice: bigint,
   srcPrice: bigint,
   dstGasPrice: bigint,
@@ -241,8 +230,7 @@ function buildUpdateQuoteData(
   let o = 0;
   data.writeUInt8(IX_QUOTER_UPDATE_QUOTE, o++);
   data.writeUInt16LE(chainId, o); o += 2;
-  data.writeUInt8(bump, o++);
-  o += 5; // padding
+  o += 6; // padding (6 bytes to align to 8-byte boundary for u64s)
   data.writeBigUInt64LE(dstPrice, o); o += 8;
   data.writeBigUInt64LE(srcPrice, o); o += 8;
   data.writeBigUInt64LE(dstGasPrice, o); o += 8;
@@ -250,24 +238,29 @@ function buildUpdateQuoteData(
   return data;
 }
 
-function buildRouterInitializeData(executorProgramId: PublicKey, ourChain: number, bump: number): Buffer {
-  const data = Buffer.alloc(37);
-  let o = 0;
-  data.writeUInt8(IX_ROUTER_INITIALIZE, o++);
-  executorProgramId.toBuffer().copy(data, o); o += 32;
-  data.writeUInt16LE(ourChain, o); o += 2;
-  data.writeUInt8(bump, o);
-  return data;
-}
-
+/**
+ * Build UpdateQuoterContract instruction data.
+ * Layout: discriminator (1) + governance_message (163)
+ *
+ * Governance message (163 bytes):
+ * - prefix "EG01" (4)
+ * - chain_id (2, BE)
+ * - quoter_address (20)
+ * - universal_contract_address (32)
+ * - universal_sender_address (32)
+ * - expiry_time (8, BE)
+ * - signature_r (32)
+ * - signature_s (32)
+ * - signature_v (1)
+ */
 async function buildUpdateQuoterContractData(
   quoter: QuoterIdentity,
   implementationProgramId: PublicKey,
   sender: PublicKey,
   chainId: number,
   expiryTime: bigint,
-  bump: number
 ): Promise<Buffer> {
+  // Build the message body (98 bytes - everything before signature)
   const body = Buffer.alloc(98);
   let o = 0;
   Buffer.from("EG01").copy(body, o); o += 4;
@@ -277,12 +270,13 @@ async function buildUpdateQuoterContractData(
   sender.toBuffer().copy(body, o); o += 32;
   body.writeBigUInt64BE(expiryTime, o);
 
+  // Sign the body
   const { r, s, v } = await quoter.sign(body);
 
-  const data = Buffer.alloc(165);
+  // Build full instruction data: discriminator + governance message
+  const data = Buffer.alloc(164);
   o = 0;
   data.writeUInt8(IX_ROUTER_UPDATE_QUOTER_CONTRACT, o++);
-  data.writeUInt8(bump, o++);
   body.copy(data, o); o += 98;
   Buffer.from(r).copy(data, o); o += 32;
   Buffer.from(s).copy(data, o); o += 32;
@@ -290,6 +284,12 @@ async function buildUpdateQuoterContractData(
   return data;
 }
 
+/**
+ * Build RequestQuote instruction data.
+ * Uses 8-byte discriminator for Anchor compatibility.
+ * Layout: discriminator (8) + dst_chain (2) + dst_addr (32) + refund_addr (32) +
+ *         request_bytes_len (4) + request_bytes + relay_instructions_len (4) + relay_instructions
+ */
 function buildRequestQuoteData(
   dstChain: number,
   dstAddr: Uint8Array,
@@ -297,9 +297,11 @@ function buildRequestQuoteData(
   requestBytes: Uint8Array,
   relayInstructions: Buffer
 ): Buffer {
-  const data = Buffer.alloc(1 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length);
+  const data = Buffer.alloc(8 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length);
   let o = 0;
+  // 8-byte discriminator: instruction ID in first byte, rest zeros
   data.writeUInt8(IX_QUOTER_REQUEST_QUOTE, o++);
+  o += 7; // padding for 8-byte discriminator
   data.writeUInt16LE(dstChain, o); o += 2;
   Buffer.from(dstAddr).copy(data, o); o += 32;
   Buffer.from(refundAddr).copy(data, o); o += 32;
@@ -310,6 +312,18 @@ function buildRequestQuoteData(
   return data;
 }
 
+/**
+ * Build QuoteExecution instruction data for the router.
+ * Layout: discriminator (1) + quoter_address (20) + quoter_cpi_data
+ *
+ * Quoter CPI data (passed to quoter):
+ * - discriminator (8) - must be [2, 0, 0, 0, 0, 0, 0, 0]
+ * - dst_chain (2)
+ * - dst_addr (32)
+ * - refund_addr (32)
+ * - request_bytes_len (4) + request_bytes
+ * - relay_instructions_len (4) + relay_instructions
+ */
 function buildQuoteExecutionData(
   quoterAddress: Uint8Array,
   dstChain: number,
@@ -318,14 +332,25 @@ function buildQuoteExecutionData(
   requestBytes: Uint8Array,
   relayInstructions: Uint8Array
 ): Buffer {
-  const data = Buffer.alloc(1 + 20 + 2 + 32 + 32 + 2 + 4 + requestBytes.length + 4 + relayInstructions.length);
+  // CPI data size: 8 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length
+  const cpiDataLen = 8 + 2 + 32 + 32 + 4 + requestBytes.length + 4 + relayInstructions.length;
+  const data = Buffer.alloc(1 + 20 + cpiDataLen);
   let o = 0;
+
+  // Router discriminator
   data.writeUInt8(IX_ROUTER_QUOTE_EXECUTION, o++);
+
+  // Quoter address for registration lookup
   Buffer.from(quoterAddress).copy(data, o); o += 20;
+
+  // Quoter CPI data - 8-byte discriminator [2, 0, 0, 0, 0, 0, 0, 0] for RequestQuote
+  data.writeUInt8(2, o++); // instruction ID
+  o += 7; // padding
+
+  // Rest of quoter request data
   data.writeUInt16LE(dstChain, o); o += 2;
   Buffer.from(dstAddr).copy(data, o); o += 32;
   Buffer.from(refundAddr).copy(data, o); o += 32;
-  o += 2; // padding
   data.writeUInt32LE(requestBytes.length, o); o += 4;
   Buffer.from(requestBytes).copy(data, o); o += requestBytes.length;
   data.writeUInt32LE(relayInstructions.length, o); o += 4;
@@ -381,16 +406,11 @@ async function simulateInstruction(
 let connection: Connection;
 let wallet: Keypair;
 let quoterConfigPda: PublicKey;
-let quoterConfigBump: number;
 let quoterChainInfoPda: PublicKey;
-let quoterChainInfoBump: number;
 let quoterQuoteBodyPda: PublicKey;
-let quoterQuoteBodyBump: number;
 let routerConfigPda: PublicKey;
-let routerConfigBump: number;
 let quoterIdentity: QuoterIdentity;
 let quoterRegistrationPda: PublicKey;
-let quoterRegistrationBump: number;
 
 // Calculate expected quote value
 const EXPECTED_QUOTE = calculateExpectedQuote(
@@ -409,41 +429,18 @@ describe("executor-quoter", () => {
     connection = new Connection("https://api.devnet.solana.com", "confirmed");
     wallet = loadWallet();
 
-    [quoterConfigPda, quoterConfigBump] = deriveQuoterConfigPda();
-    [quoterChainInfoPda, quoterChainInfoBump] = deriveQuoterChainInfoPda(CHAIN_ID_ETHEREUM);
-    [quoterQuoteBodyPda, quoterQuoteBodyBump] = deriveQuoterQuoteBodyPda(CHAIN_ID_ETHEREUM);
-  });
-
-  test("initializes quoter config", async () => {
-    const info = await connection.getAccountInfo(quoterConfigPda);
-    if (info) return; // already initialized
-
-    const payeeAddress = new Uint8Array(32);
-    wallet.publicKey.toBuffer().copy(Buffer.from(payeeAddress));
-
-    const ix = new TransactionInstruction({
-      programId: QUOTER_PROGRAM_ID,
-      keys: [
-        { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: quoterConfigPda, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: buildQuoterInitializeData(wallet.publicKey, wallet.publicKey, 9, quoterConfigBump, payeeAddress),
-    });
-
-    const tx = new Transaction().add(ix);
-    await sendAndConfirmTransaction(connection, tx, [wallet]);
-
-    expect(await connection.getAccountInfo(quoterConfigPda)).not.toBeNull();
+    [quoterConfigPda] = deriveQuoterConfigPda();
+    [quoterChainInfoPda] = deriveQuoterChainInfoPda(CHAIN_ID_ETHEREUM);
+    [quoterQuoteBodyPda] = deriveQuoterQuoteBodyPda(CHAIN_ID_ETHEREUM);
   });
 
   test("updates chain info for Ethereum", async () => {
+    // Accounts: [payer, updater, chain_info, system_program]
     const ix = new TransactionInstruction({
       programId: QUOTER_PROGRAM_ID,
       keys: [
         { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
         { pubkey: wallet.publicKey, isSigner: true, isWritable: false },
-        { pubkey: quoterConfigPda, isSigner: false, isWritable: false },
         { pubkey: quoterChainInfoPda, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -452,7 +449,6 @@ describe("executor-quoter", () => {
         1,
         TEST_GAS_PRICE_DECIMALS,
         TEST_NATIVE_DECIMALS,
-        quoterChainInfoBump
       ),
     });
 
@@ -463,18 +459,17 @@ describe("executor-quoter", () => {
   });
 
   test("updates quote for Ethereum", async () => {
+    // Accounts: [payer, updater, quote_body, system_program]
     const ix = new TransactionInstruction({
       programId: QUOTER_PROGRAM_ID,
       keys: [
         { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
         { pubkey: wallet.publicKey, isSigner: true, isWritable: false },
-        { pubkey: quoterConfigPda, isSigner: false, isWritable: false },
         { pubkey: quoterQuoteBodyPda, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data: buildUpdateQuoteData(
         CHAIN_ID_ETHEREUM,
-        quoterQuoteBodyBump,
         TEST_DST_PRICE,
         TEST_SRC_PRICE,
         TEST_DST_GAS_PRICE,
@@ -493,6 +488,7 @@ describe("executor-quoter", () => {
     const refundAddr = new Uint8Array(32);
     wallet.publicKey.toBuffer().copy(Buffer.from(refundAddr));
 
+    // Accounts: [_config, chain_info, quote_body]
     const ix = new TransactionInstruction({
       programId: QUOTER_PROGRAM_ID,
       keys: [
@@ -587,38 +583,19 @@ describe("executor-quoter-router", () => {
     connection = new Connection("https://api.devnet.solana.com", "confirmed");
     wallet = loadWallet();
 
-    [quoterConfigPda, quoterConfigBump] = deriveQuoterConfigPda();
-    [quoterChainInfoPda, quoterChainInfoBump] = deriveQuoterChainInfoPda(CHAIN_ID_ETHEREUM);
-    [quoterQuoteBodyPda, quoterQuoteBodyBump] = deriveQuoterQuoteBodyPda(CHAIN_ID_ETHEREUM);
-    [routerConfigPda, routerConfigBump] = deriveRouterConfigPda();
+    [quoterConfigPda] = deriveQuoterConfigPda();
+    [quoterChainInfoPda] = deriveQuoterChainInfoPda(CHAIN_ID_ETHEREUM);
+    [quoterQuoteBodyPda] = deriveQuoterQuoteBodyPda(CHAIN_ID_ETHEREUM);
+    [routerConfigPda] = deriveRouterConfigPda();
 
     quoterIdentity = new QuoterIdentity();
-    [quoterRegistrationPda, quoterRegistrationBump] = deriveQuoterRegistrationPda(quoterIdentity.ethAddress);
-  });
-
-  test("initializes router config", async () => {
-    const info = await connection.getAccountInfo(routerConfigPda);
-    if (info) return; // already initialized
-
-    const ix = new TransactionInstruction({
-      programId: ROUTER_PROGRAM_ID,
-      keys: [
-        { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: routerConfigPda, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: buildRouterInitializeData(EXECUTOR_PROGRAM_ID, CHAIN_ID_SOLANA, routerConfigBump),
-    });
-
-    const tx = new Transaction().add(ix);
-    await sendAndConfirmTransaction(connection, tx, [wallet]);
-
-    expect(await connection.getAccountInfo(routerConfigPda)).not.toBeNull();
+    [quoterRegistrationPda] = deriveQuoterRegistrationPda(quoterIdentity.ethAddress);
   });
 
   test("registers quoter via governance", async () => {
     const expiryTime = BigInt(Math.floor(Date.now() / 1000) + 3600);
 
+    // Accounts: [payer, sender, _config, quoter_registration, system_program]
     const ix = new TransactionInstruction({
       programId: ROUTER_PROGRAM_ID,
       keys: [
@@ -634,7 +611,6 @@ describe("executor-quoter-router", () => {
         wallet.publicKey,
         CHAIN_ID_SOLANA,
         expiryTime,
-        quoterRegistrationBump
       ),
     });
 
@@ -649,6 +625,7 @@ describe("executor-quoter-router", () => {
     const refundAddr = new Uint8Array(32);
     wallet.publicKey.toBuffer().copy(Buffer.from(refundAddr));
 
+    // Accounts: [quoter_registration, quoter_program, quoter_config, quoter_chain_info, quoter_quote_body]
     const ix = new TransactionInstruction({
       programId: ROUTER_PROGRAM_ID,
       keys: [

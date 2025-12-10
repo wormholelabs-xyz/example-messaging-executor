@@ -3,7 +3,7 @@ use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::
 
 use crate::error::ExecutorQuoterError;
 
-/// Account discriminators for type safety
+/// Account discriminators for type safety.
 pub const QUOTE_BODY_DISCRIMINATOR: u8 = 1;
 pub const CHAIN_INFO_DISCRIMINATOR: u8 = 2;
 
