@@ -9,15 +9,18 @@ The router manages quoter registrations and routes CPI calls to the appropriate 
 ## Instructions
 
 **UpdateQuoterContract (discriminator: 0)**
+
 - Registers or updates a quoter's implementation mapping
 - Accounts: `[payer, sender, config, quoter_registration, system_program]`
 
 **QuoteExecution (discriminator: 1)**
+
 - Gets a quote from a registered quoter via CPI
 - Accounts: `[quoter_registration, quoter_program, config, chain_info, quote_body]`
 - CPI to quoter's `RequestQuote` instruction (discriminator: `[2, 0, 0, 0, 0, 0, 0, 0]`)
 
 **RequestExecution (discriminator: 2)**
+
 - Executes cross-chain request through the router
 - Accounts: `[payer, config, quoter_registration, quoter_program, executor_program, payee, refund_addr, system_program, quoter_config, chain_info, quote_body, event_cpi]`
 - CPI to quoter's `RequestExecutionQuote` instruction (discriminator: `[3, 0, 0, 0, 0, 0, 0, 0]`)
@@ -27,11 +30,13 @@ The router manages quoter registrations and routes CPI calls to the appropriate 
 Quoter implementations must support the following CPI interface:
 
 ### RequestQuote
+
 - Discriminator: 8 bytes (`[2, 0, 0, 0, 0, 0, 0, 0]`)
 - Accounts: `[config, chain_info, quote_body]`
 - Returns: `u64` (big endian) payment amount via `set_return_data`
 
 ### RequestExecutionQuote
+
 - Discriminator: 8 bytes (`[3, 0, 0, 0, 0, 0, 0, 0]`)
 - Accounts: `[config, chain_info, quote_body, event_cpi]`
 - Returns: 72 bytes via `set_return_data`:

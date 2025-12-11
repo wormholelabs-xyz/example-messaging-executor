@@ -9,11 +9,13 @@ The quoter interface is defined by CPI calls from the `executor-quoter-router` p
 ### Required Instructions
 
 **RequestQuote (discriminator: 2)**
+
 - Returns a quote for cross-chain execution
 - Accounts: `[config, chain_info, quote_body]`
 - Returns: `u64` payment amount (8 bytes, big-endian)
 
 **RequestExecutionQuote (discriminator: 3)**
+
 - Returns full execution details including payment, payee, and quote body
 - Accounts: `[config, chain_info, quote_body, event_cpi]`
 - Returns: 72 bytes (`u64` payment + 32-byte payee address + 32-byte quote body)
@@ -23,6 +25,7 @@ Both instructions support up to 8-byte discriminators for Anchor compatibility (
 ### Instruction Data Layout
 
 Both instructions share the same input format (after discriminator):
+
 - `dst_chain`: u16 (LE)
 - `dst_addr`: [u8; 32]
 - `refund_addr`: [u8; 32]

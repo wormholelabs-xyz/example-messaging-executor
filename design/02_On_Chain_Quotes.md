@@ -7,7 +7,7 @@ Some would-be Executor integrators may need on-chain quotes as they do not neces
 ## Runtime Support
 
 - [x] [EVM](./evm/)
-- [ ] [SVM](./svm/)
+- [x] [SVM](./svm/)
 
 # **Background**
 
@@ -91,7 +91,6 @@ interface IExecutorQuoter {
 ```
 
 2. **ExecutorQuoterRouter** replaces **Executor** as the entry-point for integrators. It MUST be immutable and non-administered / fully permissionless. This provides three critical functionalities.
-
    1. `updateQuoterContract(bytes calldata gov)` allows a Quoter to set their `ExecutorQuoter` contract via signed governance (detailed below). This MUST
       1. Verify the chain ID matches the Executor’s `ourChain`.
       2. Verify the contract address is an EVM address.
@@ -135,11 +134,33 @@ interface IExecutorQuoterRouter {
 
 ### SVM
 
-The SVM implementation should follow the requirements above relevant to the SVM Executor implementation.
+On SVM, two programs are introduced.
 
-<aside>
-⚠️ TODO: The primary additional consideration is how to handle the accounts used for fetching the quote from an ExecutorQuoter in a standardized way.
-</aside>
+1. **ExecutorQuoter** is a Pinocchio-based program that implements the quoting logic. It exposes two CPI-callable instructions:
+   - `RequestQuote` (discriminator `[2, 0, 0, 0, 0, 0, 0, 0]`): Returns `(payee_address, required_payment)` via return data.
+   - `RequestExecutionQuote` (discriminator `[3, 0, 0, 0, 0, 0, 0, 0]`): Returns `(required_payment, payee_address, quote_body)` as 72 bytes via return data.
+
+   The quoter reads pricing data from on-chain PDAs (`ChainInfo`, `QuoteBody`) maintained by an authorized updater.
+
+2. **ExecutorQuoterRouter** is the entry-point for integrators. It provides three instructions:
+   1. `UpdateQuoterContract` registers or updates a quoter's implementation mapping. This MUST:
+      - Verify the chain ID matches `OUR_CHAIN`.
+      - Verify the sender matches `universal_sender_address` in the governance message.
+      - Verify the governance has not expired.
+      - Verify the secp256k1 signature recovers to the quoter address (20-byte EVM address).
+      - Create or update a `QuoterRegistration` PDA seeded by `["quoter_registration", quoter_address]`.
+
+   2. `QuoteExecution` gets a quote from a registered quoter via CPI. The quoter's return data is forwarded to the caller.
+
+   3. `RequestExecution` requests execution through the router. This MUST:
+      - CPI to the quoter's `RequestExecutionQuote` to get payment/payee/quote body.
+      - Verify payment amount is sufficient.
+      - Construct an `EQ02` signed quote on-chain.
+      - CPI to Executor's `request_for_execution`.
+
+   **Account Handling**: The router uses a fixed account layout for quoter CPIs. The quoter accounts (`config`, `chain_info`, `quote_body`) are passed by the client and forwarded to the quoter program. This allows different quoter implementations to use different account structures while maintaining a standardized router interface.
+
+   **Quoter Identity**: Quoters are identified by their 20-byte EVM address (derived from secp256k1 public key). The `QuoterRegistration` PDA maps this address to a Solana program ID that implements the quoting logic.
 
 ### Other
 

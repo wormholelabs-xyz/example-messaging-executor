@@ -188,7 +188,6 @@ This will generate:
 After building, you can view the API documentation using:
 
 1. **Swagger Editor** (Online)
-
    - Visit https://editor.swagger.io/
    - Copy and paste the contents of `tsp-output/schema/openapi.yaml`
 

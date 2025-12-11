@@ -1,10 +1,15 @@
 # Custom Dictionary Words
 Aptos
+borsh
+Borsh
 CCTP
 Devnet
 hashv
 idls
 keccak
+keypair
+keypairs
+KEYPAIR
 Linea
 Mezo
 permissionless
