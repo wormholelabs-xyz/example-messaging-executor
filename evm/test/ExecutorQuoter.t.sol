@@ -46,7 +46,7 @@ contract ExecutorQuoterTest is Test {
         update2.update = packUint64(quote2.baseFee, quote2.dstGasPrice, quote2.srcPrice, quote2.dstPrice);
         ExecutorQuoter.OnChainQuoteBody memory quote3;
         quote3.baseFee = 27971;
-        quote3.dstGasPrice = 1000078;
+        quote3.dstGasPrice = 100000000;
         quote3.srcPrice = 35751300000000;
         quote3.dstPrice = 35751300000000;
         ExecutorQuoter.Update memory update3;
@@ -90,6 +90,300 @@ contract ExecutorQuoterTest is Test {
     function test_requestExecutionQuote() public view {
         executorQuoter.requestExecutionQuote(
             DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            RelayInstructions.encodeGas(250000, 0)
+        );
+    }
+
+    // Error path tests
+
+    function test_chainInfoUpdate_invalidUpdater() public {
+        address notUpdater = address(0xdead);
+        vm.prank(notUpdater);
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.InvalidUpdater.selector, notUpdater, UPDATER));
+        executorQuoter.chainInfoUpdate(chainInfoUpdates);
+    }
+
+    function test_quoteUpdate_invalidUpdater() public {
+        address notUpdater = address(0xdead);
+        vm.prank(notUpdater);
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.InvalidUpdater.selector, notUpdater, UPDATER));
+        executorQuoter.quoteUpdate(updates);
+    }
+
+    function test_requestQuote_chainDisabled() public {
+        uint16 disabledChain = 65000;
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.ChainDisabled.selector, disabledChain));
+        executorQuoter.requestQuote(
+            disabledChain,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            RelayInstructions.encodeGas(250000, 0)
+        );
+    }
+
+    function test_requestQuote_unsupportedInstruction() public {
+        // Type 0xFF is not a valid instruction type
+        bytes memory badInstruction = hex"ff";
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.UnsupportedInstruction.selector, 0xff));
+        executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            badInstruction
+        );
+    }
+
+    function test_requestQuote_moreThanOneDropOff() public {
+        // Two Type 2 (drop-off) instructions
+        bytes memory twoDropOffs = abi.encodePacked(
+            RelayInstructions.encodeGasDropOffInstructions(1000, bytes32(uint256(uint160(address(this))))),
+            RelayInstructions.encodeGasDropOffInstructions(2000, bytes32(uint256(uint160(address(this)))))
+        );
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.MoreThanOneDropOff.selector));
+        executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            twoDropOffs
+        );
+    }
+
+    // Edge case tests for large values
+    //
+    // Note: The quote calculation uses uint128 * uint64 which fits in uint256 (2^192 < 2^256),
+    // so overflow is not possible with the current type constraints. These tests verify
+    // the contract handles extreme values correctly without reverting.
+    //
+    // Run with `forge test -vv` to see the actual quote values logged.
+
+    /// @notice Test that max uint128 gas limit is handled without overflow.
+    /// uint128 * uint64 = 2^192 max, which fits in uint256.
+    function test_requestQuote_maxGasLimit() public {
+        uint128 maxGas = type(uint128).max;
+        bytes memory relayInstructions = RelayInstructions.encodeGas(maxGas, 0);
+
+        uint256 quote = executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        // Log the actual values for inspection
+        emit log_named_uint("maxGasLimit input", maxGas);
+        emit log_named_uint("quote result", quote);
+        emit log_named_uint("quote in ETH (approx)", quote / 1e18);
+
+        assertEq(quote, 34028236692093846346337460743176823942600000000, "Quote should match expected value");
+    }
+
+    /// @notice Test that max uint128 msgValue is handled without overflow.
+    function test_requestQuote_maxMsgValue() public view {
+        uint128 maxMsgValue = type(uint128).max;
+        bytes memory relayInstructions = RelayInstructions.encodeGas(250000, maxMsgValue);
+
+        uint256 quote = executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        assertEq(quote, 340282366920938463463374635228868211455, "Quote should match expected value");
+    }
+
+    /// @notice Test with extreme price values - all max uint64.
+    /// When srcPrice == dstPrice, conversion ratio is ~1, so no overflow.
+    function test_requestQuote_extremePrices() public {
+        ExecutorQuoter.Update[] memory extremeUpdates = new ExecutorQuoter.Update[](1);
+        extremeUpdates[0].chainId = DST_CHAIN;
+        extremeUpdates[0].update = packUint64(
+            type(uint64).max, // baseFee
+            type(uint64).max, // dstGasPrice
+            type(uint64).max, // srcPrice
+            type(uint64).max // dstPrice
+        );
+        executorQuoter.quoteUpdate(extremeUpdates);
+
+        bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
+
+        uint256 quote = executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        emit log_named_uint("baseFee", type(uint64).max);
+        emit log_named_uint("dstGasPrice", type(uint64).max);
+        emit log_named_uint("srcPrice", type(uint64).max);
+        emit log_named_uint("dstPrice", type(uint64).max);
+        emit log_named_uint("gasLimit", 250000);
+        emit log_named_uint("quote result", quote);
+        emit log_named_uint("quote in ETH (approx)", quote / 1e18);
+
+        assertEq(quote, 1849286093389382549403750000, "Quote should match expected value for extreme prices");
+    }
+
+    /// @notice Test quote with max msgValue AND max dropoff to verify they sum correctly.
+    function test_requestQuote_maxMsgValueAndDropoff() public {
+        uint128 maxGas = type(uint128).max;
+        uint128 maxMsgValue = type(uint128).max;
+        uint128 maxDropoff = type(uint128).max;
+
+        // Combine gas instruction (with max gas and max msgValue) + dropoff instruction
+        bytes memory relayInstructions = abi.encodePacked(
+            RelayInstructions.encodeGas(maxGas, maxMsgValue),
+            RelayInstructions.encodeGasDropOffInstructions(maxDropoff, bytes32(uint256(uint160(address(this)))))
+        );
+
+        uint256 quote = executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        emit log_named_uint("maxGas input", maxGas);
+        emit log_named_uint("maxMsgValue input", maxMsgValue);
+        emit log_named_uint("maxDropoff input", maxDropoff);
+        emit log_named_uint("quote result", quote);
+        emit log_named_uint("quote in ETH (approx)", quote / 1e18);
+        emit log_named_uint("type(uint256).max", type(uint256).max);
+        emit log_named_uint("type(uint128).max * 3", uint256(type(uint128).max) * 3);
+
+        assertEq(
+            quote, 34028237372658580188214387669926038806136422910, "Quote should match expected value for max values"
+        );
+    }
+
+    /// @notice Test quote calculation with zero prices (division by zero protection).
+    function test_requestQuote_zeroPrices() public {
+        // Set up a quote with zero srcPrice (would cause division by zero)
+        ExecutorQuoter.Update[] memory zeroUpdates = new ExecutorQuoter.Update[](1);
+        zeroUpdates[0].chainId = DST_CHAIN;
+        zeroUpdates[0].update = packUint64(
+            27971, // baseFee
+            100000000, // dstGasPrice
+            0, // srcPrice = 0 (division by zero)
+            35751300000000 // dstPrice
+        );
+        executorQuoter.quoteUpdate(zeroUpdates);
+
+        bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 0);
+
+        // Should revert on division by zero
+        vm.expectRevert();
+        executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+    }
+
+    /// @notice Test with zero gas limit - should return just base fee.
+    function test_requestQuote_zeroGasLimit() public view {
+        bytes memory relayInstructions = RelayInstructions.encodeGas(0, 0);
+
+        uint256 quote = executorQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        // With zero gas, quote should be just the normalized base fee
+        // baseFee = 27971 (in 10^10 decimals), normalized to 18 decimals
+        // 27971 * 10^(18-10) = 27971 * 10^8 = 2797100000000
+        assertEq(quote, 2797100000000, "Quote should equal normalized base fee");
+    }
+
+    /// @notice Test normalize function with from > to (division path).
+    /// This exercises the branch at line 107 where decimals are reduced.
+    function test_requestQuote_normalizeFromGreaterThanTo() public {
+        // Create a new quoter with SRC_TOKEN_DECIMALS = 8 (less than DECIMAL_RESOLUTION = 18)
+        // This will hit the from > to branch in normalize() at lines 183 and 187
+        ExecutorQuoter lowDecimalQuoter = new ExecutorQuoter(UPDATER, UPDATER, 8, bytes32(uint256(uint160(UPDATER))));
+
+        // Set up chain info
+        ExecutorQuoter.Update[] memory chainInfo = new ExecutorQuoter.Update[](1);
+        chainInfo[0].chainId = DST_CHAIN;
+        chainInfo[0].update = CHAIN_INFO_UPDATE_PACKED;
+        lowDecimalQuoter.chainInfoUpdate(chainInfo);
+
+        // Set up quote with non-zero values
+        ExecutorQuoter.Update[] memory quoteUpdates = new ExecutorQuoter.Update[](1);
+        quoteUpdates[0].chainId = DST_CHAIN;
+        quoteUpdates[0].update = packUint64(27971, 100000000, 35751300000000, 35751300000000);
+        lowDecimalQuoter.quoteUpdate(quoteUpdates);
+
+        bytes memory relayInstructions = RelayInstructions.encodeGas(250000, 1e18);
+
+        uint256 quote = lowDecimalQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        assertEq(quote, 100002779, "Quote should match expected value for 8 decimal token");
+    }
+
+    /// @notice Test normalize function with from == to (identity path).
+    /// This exercises the branch at line 111 where no scaling is needed.
+    function test_requestQuote_normalizeFromEqualsTo() public {
+        // Create a quoter with SRC_TOKEN_DECIMALS = 10 (equals QUOTE_DECIMALS)
+        // This will hit the from == to branch at line 174: normalize(baseFee, 10, 10)
+        ExecutorQuoter equalDecimalQuoter = new ExecutorQuoter(UPDATER, UPDATER, 10, bytes32(uint256(uint160(UPDATER))));
+
+        // Set up chain info with gasPriceDecimals = 18, nativeDecimals = 18
+        ExecutorQuoter.Update[] memory chainInfo = new ExecutorQuoter.Update[](1);
+        chainInfo[0].chainId = DST_CHAIN;
+        chainInfo[0].update = CHAIN_INFO_UPDATE_PACKED;
+        equalDecimalQuoter.chainInfoUpdate(chainInfo);
+
+        // Set up quote
+        ExecutorQuoter.Update[] memory quoteUpdates = new ExecutorQuoter.Update[](1);
+        quoteUpdates[0].chainId = DST_CHAIN;
+        quoteUpdates[0].update = packUint64(27971, 100000000, 35751300000000, 35751300000000);
+        equalDecimalQuoter.quoteUpdate(quoteUpdates);
+
+        // Use zero gas and zero msgValue to isolate the baseFee normalization
+        bytes memory relayInstructions = RelayInstructions.encodeGas(0, 0);
+
+        uint256 quote = equalDecimalQuoter.requestQuote(
+            DST_CHAIN,
+            DST_ADDR,
+            UPDATER,
+            ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
+            relayInstructions
+        );
+
+        // With SRC_TOKEN_DECIMALS = 10 = QUOTE_DECIMALS, baseFee should pass through unchanged
+        // baseFee = 27971
+        assertEq(quote, 27971, "Quote should equal baseFee when decimals match");
+    }
+
+    /// @notice Test requestExecutionQuote reverts when chain is disabled.
+    function test_requestExecutionQuote_chainDisabled() public {
+        uint16 disabledChain = 65000;
+        vm.expectRevert(abi.encodeWithSelector(ExecutorQuoter.ChainDisabled.selector, disabledChain));
+        executorQuoter.requestExecutionQuote(
+            disabledChain,
             DST_ADDR,
             UPDATER,
             ExecutorMessages.makeVAAv1Request(10002, bytes32(uint256(uint160(address(this)))), 1),
