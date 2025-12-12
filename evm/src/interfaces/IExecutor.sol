@@ -22,6 +22,8 @@ interface IExecutor {
         bytes relayInstructions
     );
 
+    function ourChain() external returns (uint16);
+
     function requestExecution(
         uint16 dstChain,
         bytes32 dstAddr,
