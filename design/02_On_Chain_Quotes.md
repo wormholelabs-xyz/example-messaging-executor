@@ -65,17 +65,30 @@ On EVM, two new contracts will be introduced.
 
 1. **ExecutorQuoter** represents the on-chain quoting logic of a particular Quoter / Relay Provider. It may implement any logic desired by the Relay Provider as long as it adheres to this interface. It SHOULD be immutable.
 
-   ```solidity
-   interface IExecutorQuoter {
-       function requestQuote(
-           uint16 dstChain,
-           bytes32 dstAddr,
-           address refundAddr,
-           bytes calldata requestBytes,
-           bytes calldata relayInstructions
-       ) external view returns (bytes32 payeeAddress, uint256 requiredPayment);
-   }
-   ```
+```solidity
+interface IExecutorQuoter {
+    /// This method is used by on- or off-chain services which need to determine the cost of a relay
+    /// It only returns the required cost (msg.value)
+    /// It is explicitly marked view
+    function requestQuote(
+        uint16 dstChain,
+        bytes32 dstAddr,
+        address refundAddr,
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
+    ) external view returns (uint256 requiredPayment);
+    /// This method is used by an ExecutorQuoterRouter during the execution flow
+    /// It returns the required cost (msg.value) in addition to the payee and EQ02 quote body
+    /// It is explicitly NOT marked view in order to allow the quoter the flexibility to emit events or update state
+    function requestExecutionQuote(
+        uint16 dstChain,
+        bytes32 dstAddr,
+        address refundAddr,
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
+    ) external returns (uint256 requiredPayment, bytes32 payeeAddress, bytes32 quoteBody);
+}
+```
 
 2. **ExecutorQuoterRouter** replaces **Executor** as the entry-point for integrators. It MUST be immutable and non-administered / fully permissionless. This provides three critical functionalities.
 
@@ -86,39 +99,39 @@ On EVM, two new contracts will be introduced.
       4. Verify the governance has not expired.
       5. Verify the signature `ecrecover`s to the quoter address on the governance.
       6. Assign the specified contract address to that quoter address.
-      7. Emit a `QuoterContractUpdate` event.
+      7. Emit a `QuoterContractUpdate` event (on applicable runtimes, e.g. EVM).
    2. `quoteExecution` allows an integrator to quote the cost of an execution for a given quoter in place of a signed quote. This MUST call `requestQuote` from that Quoter’s registered contract.
    3. `requestExecution` allows an integrator to request execution via Executor providing a quoter address in place of a signed quote. This MUST
-      1. Call `requestQuote` from that Quoter’s registered contract.
+      1. Call `requestExecutionQuote` from that Quoter’s registered contract.
       2. Enforce the required payment.
       3. Refund excess payment.
       4. Request execution, forming a `EQ02` quote on-chain.
-      5. Emit an `OnChainQuote` event.
+      5. Emit an `OnChainQuote` event (on applicable runtimes, e.g. EVM).
 
-   ```solidity
-   interface IExecutorQuoterRouter {
-       event OnChainQuote(address implementation);
-       event QuoterContractUpdate(address indexed quoterAddress, address implementation);
+```solidity
+interface IExecutorQuoterRouter {
+    event OnChainQuote(address implementation);
+    event QuoterContractUpdate(address indexed quoterAddress, address implementation);
 
-       function quoteExecution(
-           uint16 dstChain,
-           bytes32 dstAddr,
-           address refundAddr,
-           address quoterAddr,
-           bytes calldata requestBytes,
-           bytes calldata relayInstructions
-       ) external view returns (uint256);
+    function quoteExecution(
+        uint16 dstChain,
+        bytes32 dstAddr,
+        address refundAddr,
+        address quoterAddr,
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
+    ) external view returns (uint256);
 
-       function requestExecution(
-           uint16 dstChain,
-           bytes32 dstAddr,
-           address refundAddr,
-           address quoterAddr,
-           bytes calldata requestBytes,
-           bytes calldata relayInstructions
-       ) external payable;
-   }
-   ```
+    function requestExecution(
+        uint16 dstChain,
+        bytes32 dstAddr,
+        address refundAddr,
+        address quoterAddr,
+        bytes calldata requestBytes,
+        bytes calldata relayInstructions
+    ) external payable;
+}
+```
 
 ### SVM
 
@@ -134,11 +147,9 @@ Other platforms are not in-scope at this time, but similar designs should be ach
 
 ## Protocol Integration
 
-Relay Providers will need to change their verification for Executor requests. If the prefix is `EQ02`, they MUST check the following event to ensure it is an `OnChainQuote` emitted by the canonical `ExecutorQuoterRouter` on that chain in place of verifying the signature.
+Relay Providers will need to change their verification for Executor requests. If the prefix is [`EQ02`](#quote---version-2-eq02), they MUST check the following event to ensure it is an `OnChainQuote` emitted by the canonical `ExecutorQuoterRouter` on that chain in place of verifying the signature.
 
-<aside>
-⚠️ TBD, if the 32 byte body from `EQ01` is added, no additional changes will be required.
-</aside>
+Since the 32 byte body from `EQ01` is added, no additional changes will be required apart from the above.
 
 ## **API / database schema**
 
@@ -158,7 +169,7 @@ uint64  expiryTime;       // The unix time, in seconds, after which this quote s
 [65]byte signature        // Quoter's signature of the previous bytes
 ```
 
-### Quote - Version 2
+### Quote - Version 2 (EQ02)
 
 This introduces a new Quote version to the [Executor spec](../README.md#api--database-schema). It has the same body as `EQ01` sans signature. This is useful for parsing and validating off-chain.
 
@@ -188,9 +199,7 @@ It is possible to keep the same or similar interface as Executor in the Executor
 
 ## ExecutorQuoter ABI
 
-<aside>
-🤔 Further investigation required to determine if the return should change. Document the results here.
-</aside>
+While it was not strictly necessary to return the quote body for on-chain execution purposes, it is useful for off-chain integrations to validate and display price information. In order to slightly reduce costs and allow the quoter contract to differentiate between the quote and execute paths, two different functions are used with different modifiers and return values.
 
 # **Security Considerations**
 
