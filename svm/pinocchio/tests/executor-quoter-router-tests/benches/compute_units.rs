@@ -175,7 +175,8 @@ fn create_quoter_registration_account(
     data[2..22].copy_from_slice(quoter_address);
     data[22..54].copy_from_slice(implementation_program_id.as_ref());
 
-    let mut account = AccountSharedData::new(lamports, QUOTER_REGISTRATION_SIZE, &ROUTER_PROGRAM_ID);
+    let mut account =
+        AccountSharedData::new(lamports, QUOTER_REGISTRATION_SIZE, &ROUTER_PROGRAM_ID);
     account.set_data_from_slice(&data);
     account
 }

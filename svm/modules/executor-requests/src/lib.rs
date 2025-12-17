@@ -129,13 +129,15 @@ impl RelayInstructionsBuilder {
 
     /// Add a GasInstruction to the relay instructions.
     pub fn with_gas(mut self, gas_limit: u128, msg_value: u128) -> Self {
-        self.data.extend(make_relay_instruction_gas(gas_limit, msg_value));
+        self.data
+            .extend(make_relay_instruction_gas(gas_limit, msg_value));
         self
     }
 
     /// Add a GasDropOffInstruction to the relay instructions.
     pub fn with_gas_drop_off(mut self, drop_off: u128, recipient: &[u8; 32]) -> Self {
-        self.data.extend(make_relay_instruction_gas_drop_off(drop_off, recipient));
+        self.data
+            .extend(make_relay_instruction_gas_drop_off(drop_off, recipient));
         self
     }
 

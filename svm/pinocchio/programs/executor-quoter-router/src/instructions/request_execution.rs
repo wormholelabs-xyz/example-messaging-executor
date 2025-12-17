@@ -199,13 +199,18 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
 
     pinocchio::cpi::invoke(
         &quoter_cpi_instruction,
-        &[quoter_config, quoter_chain_info, quoter_quote_body, event_cpi],
+        &[
+            quoter_config,
+            quoter_chain_info,
+            quoter_quote_body,
+            event_cpi,
+        ],
     )?;
 
     // Get return data from quoter: (required_payment, payee_address, quote_body)
     // Layout: 8 bytes payment + 32 bytes payee + 32 bytes quote_body = 72 bytes
-    let return_data = pinocchio::cpi::get_return_data()
-        .ok_or(ExecutorQuoterRouterError::InvalidReturnData)?;
+    let return_data =
+        pinocchio::cpi::get_return_data().ok_or(ExecutorQuoterRouterError::InvalidReturnData)?;
 
     if return_data.len() < 72 {
         return Err(ExecutorQuoterRouterError::InvalidReturnData.into());
@@ -270,10 +275,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         data: &executor_ix_data,
     };
 
-    pinocchio::cpi::invoke(
-        &executor_cpi_instruction,
-        &[payer, payee, system_program],
-    )?;
+    pinocchio::cpi::invoke(&executor_cpi_instruction, &[payer, payee, system_program])?;
 
     Ok(())
 }

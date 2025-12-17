@@ -251,11 +251,7 @@ fn setup_program_test_full() -> ProgramTest {
     let mut pt = ProgramTest::default();
 
     // Add router program
-    pt.add_program(
-        "executor_quoter_router",
-        ROUTER_PROGRAM_ID,
-        None,
-    );
+    pt.add_program("executor_quoter_router", ROUTER_PROGRAM_ID, None);
 
     // Add quoter program for CPI testing
     pt.add_program("executor_quoter", QUOTER_PROGRAM_ID, None);
@@ -278,7 +274,8 @@ async fn test_update_quoter_contract() {
 
     // Create a secp256k1 quoter identity
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
 
     // Create sender keypair (must match universal_sender_address)
     let sender = Keypair::new();
@@ -302,10 +299,10 @@ async fn test_update_quoter_contract() {
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),         // payer
-            AccountMeta::new_readonly(sender.pubkey(), true), // sender
-            AccountMeta::new_readonly(config_pubkey, false),   // config
-            AccountMeta::new(quoter_registration_pda, false), // quoter_registration
+            AccountMeta::new(payer.pubkey(), true),               // payer
+            AccountMeta::new_readonly(sender.pubkey(), true),     // sender
+            AccountMeta::new_readonly(config_pubkey, false),      // config
+            AccountMeta::new(quoter_registration_pda, false),     // quoter_registration
             AccountMeta::new_readonly(system_program::ID, false), // system_program
         ],
         data: ix_data,
@@ -320,11 +317,7 @@ async fn test_update_quoter_contract() {
     );
 
     let result = banks_client.process_transaction(tx).await;
-    assert!(
-        result.is_ok(),
-        "UpdateQuoterContract failed: {:?}",
-        result
-    );
+    assert!(result.is_ok(), "UpdateQuoterContract failed: {:?}", result);
 
     // Verify quoter registration was created
     let registration_account = banks_client
@@ -397,10 +390,7 @@ async fn test_update_quoter_contract_wrong_chain_fails() {
     );
 
     let result = banks_client.process_transaction(tx).await;
-    assert!(
-        result.is_err(),
-        "Should fail with wrong chain ID"
-    );
+    assert!(result.is_err(), "Should fail with wrong chain ID");
 }
 
 #[tokio::test]
@@ -505,10 +495,7 @@ async fn test_update_quoter_contract_wrong_sender_fails() {
     );
 
     let result = banks_client.process_transaction(tx).await;
-    assert!(
-        result.is_err(),
-        "Should fail with sender mismatch"
-    );
+    assert!(result.is_err(), "Should fail with sender mismatch");
 }
 
 #[tokio::test]
@@ -520,7 +507,8 @@ async fn test_update_quoter_contract_update_existing() {
 
     // Create a secp256k1 quoter identity
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -603,7 +591,11 @@ async fn test_update_quoter_contract_update_existing() {
     );
 
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "Update existing registration failed: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Update existing registration failed: {:?}",
+        result
+    );
 
     // Verify updated registration
     let reg_account = banks_client
@@ -679,7 +671,8 @@ async fn test_update_quoter_contract_quoter_mismatch() {
     // Try to register Alice's address but sign with Bob's key
     // We need to manually construct this since our helper uses the same quoter for address and signing
     let sender = Keypair::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter_alice.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter_alice.eth_address);
 
     let recent_blockhash = banks_client
         .get_new_latest_blockhash(&recent_blockhash)
@@ -729,7 +722,10 @@ async fn test_update_quoter_contract_quoter_mismatch() {
     );
 
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with quoter mismatch (Alice's address, Bob's signature)");
+    assert!(
+        result.is_err(),
+        "Should fail with quoter mismatch (Alice's address, Bob's signature)"
+    );
 }
 
 #[tokio::test]
@@ -805,7 +801,8 @@ async fn test_ecrecover_valid_signature() {
     // Create multiple quoter identities and verify each one works
     for i in 0..3 {
         let quoter = QuoterIdentity::new();
-        let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+        let (quoter_registration_pda, quoter_bump) =
+            derive_quoter_registration_pda(&quoter.eth_address);
         let sender = Keypair::new();
 
         let recent_blockhash = banks_client
@@ -873,7 +870,8 @@ async fn test_ecrecover_same_key_different_messages() {
 
     // Same quoter, different implementations
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     // First registration
@@ -974,7 +972,8 @@ async fn test_ecrecover_wrong_recovery_id() {
     let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1044,7 +1043,8 @@ async fn test_ecrecover_corrupted_r() {
     let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1109,7 +1109,8 @@ async fn test_ecrecover_corrupted_s() {
     let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1174,7 +1175,8 @@ async fn test_ecrecover_modified_message() {
     let config_pubkey = get_dummy_config_pubkey();
 
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1370,10 +1372,8 @@ fn derive_quoter_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
 
 /// Quoter updater address (hardcoded in quoter program) - 9r6q2iEg4MBevjC8reaLmQUDxueF3vabUoqDkZ2LoAYe
 const QUOTER_UPDATER_ADDRESS: Pubkey = Pubkey::new_from_array([
-    0x83, 0x71, 0x8b, 0x7e, 0xc8, 0x96, 0x17, 0xb7,
-    0x04, 0x06, 0x85, 0xe0, 0x1b, 0xdc, 0xca, 0x03,
-    0x21, 0x40, 0x22, 0x98, 0x0d, 0xaa, 0xe9, 0x13,
-    0x40, 0xe0, 0xc3, 0xf8, 0x40, 0xc0, 0x05, 0xef,
+    0x83, 0x71, 0x8b, 0x7e, 0xc8, 0x96, 0x17, 0xb7, 0x04, 0x06, 0x85, 0xe0, 0x1b, 0xdc, 0xca, 0x03,
+    0x21, 0x40, 0x22, 0x98, 0x0d, 0xaa, 0xe9, 0x13, 0x40, 0xe0, 0xc3, 0xf8, 0x40, 0xc0, 0x05, 0xef,
 ]);
 
 /// Helper to get a dummy config pubkey for the quoter program (not used by program)
@@ -1384,8 +1384,9 @@ fn get_quoter_dummy_config_pubkey() -> Pubkey {
 /// Get the authorized updater keypair for quoter program.
 /// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
 fn get_quoter_updater_keypair() -> Keypair {
-    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH")
-        .expect("QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file");
+    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH").expect(
+        "QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file",
+    );
     solana_sdk::signature::read_keypair_file(&keypair_path)
         .expect("Failed to read updater keypair from file")
 }
@@ -1507,7 +1508,8 @@ async fn test_quote_execution() {
 
     // Register quoter
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1547,8 +1549,10 @@ async fn test_quote_execution() {
     // For this test, we'll use the quoter's initialize instruction
 
     let quoter_config_pubkey = get_quoter_dummy_config_pubkey();
-    let (quoter_chain_info_pda, _quoter_chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
-    let (quoter_quote_body_pda, _quoter_quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
+    let (quoter_chain_info_pda, _quoter_chain_info_bump) =
+        derive_quoter_chain_info_pda(DST_CHAIN_ID);
+    let (quoter_quote_body_pda, _quoter_quote_body_bump) =
+        derive_quoter_quote_body_pda(DST_CHAIN_ID);
     let updater = get_quoter_updater_keypair();
 
     // Update chain info
@@ -1674,7 +1678,8 @@ async fn test_quote_execution_quoter_not_registered() {
 
     // Register quoter A
     let quoter_a = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter_a.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter_a.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1771,7 +1776,8 @@ async fn test_quote_execution_chain_disabled() {
 
     // Register quoter
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -1938,7 +1944,8 @@ async fn test_request_execution() {
 
     // Register quoter
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -2085,18 +2092,18 @@ async fn test_request_execution() {
     let request_ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
         accounts: vec![
-            AccountMeta::new(payer.pubkey(), true),      // payer
+            AccountMeta::new(payer.pubkey(), true),          // payer
             AccountMeta::new_readonly(config_pubkey, false), // config
             AccountMeta::new_readonly(quoter_registration_pda, false), // quoter_registration
             AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false), // quoter_program
             AccountMeta::new_readonly(EXECUTOR_PROGRAM_ID, false), // executor_program
-            AccountMeta::new(payee_pubkey, false),     // payee
-            AccountMeta::new(payer.pubkey(), false),     // refund_addr
+            AccountMeta::new(payee_pubkey, false),           // payee
+            AccountMeta::new(payer.pubkey(), false),         // refund_addr
             AccountMeta::new_readonly(system_program::ID, false), // system_program
             AccountMeta::new_readonly(quoter_config_pubkey, false), // quoter_config
             AccountMeta::new_readonly(quoter_chain_info_pda, false), // quoter_chain_info
             AccountMeta::new_readonly(quoter_quote_body_pda, false), // quoter_quote_body
-            AccountMeta::new_readonly(event_cpi, false), // event_cpi
+            AccountMeta::new_readonly(event_cpi, false),     // event_cpi
         ],
         data: request_ix_data,
     };
@@ -2133,7 +2140,8 @@ async fn test_request_execution_underpaid() {
 
     // Register quoter
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -2394,9 +2402,17 @@ async fn test_quote_execution_empty_data() {
         data: vec![2], // Only discriminator
     };
 
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with empty QuoteExecution data");
+    assert!(
+        result.is_err(),
+        "Should fail with empty QuoteExecution data"
+    );
 }
 
 #[tokio::test]
@@ -2433,9 +2449,17 @@ async fn test_quote_execution_partial_data() {
         data: ix_data,
     };
 
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with partial QuoteExecution data");
+    assert!(
+        result.is_err(),
+        "Should fail with partial QuoteExecution data"
+    );
 }
 
 // --- RequestExecution Boundary Tests ---
@@ -2480,9 +2504,17 @@ async fn test_request_execution_empty_data() {
         data: vec![3], // Only discriminator
     };
 
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with empty RequestExecution data");
+    assert!(
+        result.is_err(),
+        "Should fail with empty RequestExecution data"
+    );
 }
 
 #[tokio::test]
@@ -2494,7 +2526,8 @@ async fn test_request_execution_amount_zero() {
 
     // Register quoter
     let quoter = QuoterIdentity::new();
-    let (quoter_registration_pda, quoter_bump) = derive_quoter_registration_pda(&quoter.eth_address);
+    let (quoter_registration_pda, quoter_bump) =
+        derive_quoter_registration_pda(&quoter.eth_address);
     let sender = Keypair::new();
 
     let recent_blockhash = banks_client
@@ -2659,7 +2692,10 @@ async fn test_request_execution_amount_zero() {
 
     let result = banks_client.process_transaction(tx).await;
     // Should fail because quote requires payment but amount is 0
-    assert!(result.is_err(), "Should fail with zero amount when quote requires payment");
+    assert!(
+        result.is_err(),
+        "Should fail with zero amount when quote requires payment"
+    );
 }
 
 #[tokio::test]
@@ -2691,7 +2727,7 @@ async fn test_request_execution_max_request_bytes_len() {
     ix_data.extend_from_slice(&[0u8; 32]); // dst_addr
     ix_data.extend_from_slice(&[0u8; 32]); // refund_addr
     ix_data.extend_from_slice(&u32::MAX.to_le_bytes()); // request_bytes_len = MAX
-    // No actual request_bytes - this should fail bounds check
+                                                        // No actual request_bytes - this should fail bounds check
 
     let ix = Instruction {
         program_id: ROUTER_PROGRAM_ID,
@@ -2712,7 +2748,15 @@ async fn test_request_execution_max_request_bytes_len() {
         data: ix_data,
     };
 
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], recent_blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_err(), "Should fail with request_bytes_len overflow");
+    assert!(
+        result.is_err(),
+        "Should fail with request_bytes_len overflow"
+    );
 }

@@ -66,4 +66,3 @@ pub fn load_account<T: Pod + Copy + Discriminator>(
         .map_err(|_| ProgramError::InvalidAccountData)?;
     Ok(*account)
 }
-

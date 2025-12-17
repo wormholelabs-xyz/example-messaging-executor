@@ -45,18 +45,16 @@ const DST_CHAIN_ID: u16 = 2;
 /// Get the updater address from keypair file.
 /// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
 fn get_updater_address() -> Pubkey {
-    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH")
-        .expect("QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file");
+    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH").expect(
+        "QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file",
+    );
     let keypair = solana_sdk::signature::read_keypair_file(&keypair_path)
         .expect("Failed to read updater keypair from file");
     keypair.pubkey()
 }
 
 fn derive_chain_info_pda(chain_id: u16) -> (Pubkey, u8) {
-    Pubkey::find_program_address(
-        &[CHAIN_INFO_SEED, &chain_id.to_le_bytes()],
-        &PROGRAM_ID,
-    )
+    Pubkey::find_program_address(&[CHAIN_INFO_SEED, &chain_id.to_le_bytes()], &PROGRAM_ID)
 }
 
 fn derive_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
@@ -91,7 +89,7 @@ fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[4] = 1; // enabled
     data[5] = 15; // gas_price_decimals
     data[6] = 18; // native_decimals (ETH)
-    // data[7] = padding
+                  // data[7] = padding
 
     let mut account = AccountSharedData::new(lamports, CHAIN_INFO_SIZE, &PROGRAM_ID);
     account.set_data_from_slice(&data);
@@ -151,7 +149,7 @@ fn build_update_quote_data(chain_id: u16) -> Vec<u8> {
 /// Build RequestQuote instruction data
 fn build_request_quote_data(chain_id: u16, gas_limit: u128, msg_value: u128) -> Vec<u8> {
     let mut data = vec![IX_REQUEST_QUOTE, 0, 0, 0, 0, 0, 0, 0]; // 8-byte discriminator
-    // dst_chain (2 bytes)
+                                                                // dst_chain (2 bytes)
     data.extend_from_slice(&chain_id.to_le_bytes());
     // dst_addr (32 bytes)
     data.extend_from_slice(&[0xab; 32]);
@@ -172,7 +170,7 @@ fn build_request_quote_data(chain_id: u16, gas_limit: u128, msg_value: u128) -> 
 /// Build RequestExecutionQuote instruction data
 fn build_request_execution_quote_data(chain_id: u16, gas_limit: u128, msg_value: u128) -> Vec<u8> {
     let mut data = vec![IX_REQUEST_EXECUTION_QUOTE, 0, 0, 0, 0, 0, 0, 0]; // 8-byte discriminator
-    // dst_chain (2 bytes)
+                                                                          // dst_chain (2 bytes)
     data.extend_from_slice(&chain_id.to_le_bytes());
     // dst_addr (32 bytes)
     data.extend_from_slice(&[0xab; 32]);
@@ -220,7 +218,10 @@ fn main() {
         (payer, create_payer_account()),
         (updater, create_signer_account()),
         (config_pda, create_config_account()),
-        (chain_info_pda, AccountSharedData::new(0, 0, &system_program::ID)),
+        (
+            chain_info_pda,
+            AccountSharedData::new(0, 0, &system_program::ID),
+        ),
         system_program_account.clone(),
     ];
 
@@ -229,7 +230,10 @@ fn main() {
         (payer, create_payer_account()),
         (updater, create_signer_account()),
         (config_pda, create_config_account()),
-        (chain_info_pda, create_chain_info_account(DST_CHAIN_ID, chain_info_bump)),
+        (
+            chain_info_pda,
+            create_chain_info_account(DST_CHAIN_ID, chain_info_bump),
+        ),
         system_program_account.clone(),
     ];
 
@@ -249,7 +253,10 @@ fn main() {
         (payer, create_payer_account()),
         (updater, create_signer_account()),
         (config_pda, create_config_account()),
-        (quote_body_pda, AccountSharedData::new(0, 0, &system_program::ID)),
+        (
+            quote_body_pda,
+            AccountSharedData::new(0, 0, &system_program::ID),
+        ),
         system_program_account.clone(),
     ];
 
@@ -258,7 +265,10 @@ fn main() {
         (payer, create_payer_account()),
         (updater, create_signer_account()),
         (config_pda, create_config_account()),
-        (quote_body_pda, create_quote_body_account(DST_CHAIN_ID, quote_body_bump)),
+        (
+            quote_body_pda,
+            create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
+        ),
         system_program_account.clone(),
     ];
 
@@ -274,8 +284,14 @@ fn main() {
     );
     let request_quote_accounts = vec![
         (config_pda, create_config_account()),
-        (chain_info_pda, create_chain_info_account(DST_CHAIN_ID, chain_info_bump)),
-        (quote_body_pda, create_quote_body_account(DST_CHAIN_ID, quote_body_bump)),
+        (
+            chain_info_pda,
+            create_chain_info_account(DST_CHAIN_ID, chain_info_bump),
+        ),
+        (
+            quote_body_pda,
+            create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
+        ),
     ];
 
     // Benchmark: RequestQuote (500k gas, with value)
@@ -303,20 +319,54 @@ fn main() {
     );
     let request_exec_quote_accounts = vec![
         (config_pda, create_config_account()),
-        (chain_info_pda, create_chain_info_account(DST_CHAIN_ID, chain_info_bump)),
-        (quote_body_pda, create_quote_body_account(DST_CHAIN_ID, quote_body_bump)),
+        (
+            chain_info_pda,
+            create_chain_info_account(DST_CHAIN_ID, chain_info_bump),
+        ),
+        (
+            quote_body_pda,
+            create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
+        ),
         (event_cpi, AccountSharedData::new(0, 0, &system_program::ID)),
     ];
 
     // Run benchmarks
     MolluskComputeUnitBencher::new(mollusk)
-        .bench(("update_chain_info_create", &update_chain_info_ix, &update_chain_info_accounts))
-        .bench(("update_chain_info_update", &update_chain_info_ix, &update_chain_info_existing_accounts))
-        .bench(("update_quote_create", &update_quote_ix, &update_quote_accounts))
-        .bench(("update_quote_update", &update_quote_ix, &update_quote_existing_accounts))
-        .bench(("request_quote_250k_gas", &request_quote_ix, &request_quote_accounts))
-        .bench(("request_quote_500k_gas_1eth", &request_quote_large_ix, &request_quote_accounts))
-        .bench(("request_execution_quote", &request_exec_quote_ix, &request_exec_quote_accounts))
+        .bench((
+            "update_chain_info_create",
+            &update_chain_info_ix,
+            &update_chain_info_accounts,
+        ))
+        .bench((
+            "update_chain_info_update",
+            &update_chain_info_ix,
+            &update_chain_info_existing_accounts,
+        ))
+        .bench((
+            "update_quote_create",
+            &update_quote_ix,
+            &update_quote_accounts,
+        ))
+        .bench((
+            "update_quote_update",
+            &update_quote_ix,
+            &update_quote_existing_accounts,
+        ))
+        .bench((
+            "request_quote_250k_gas",
+            &request_quote_ix,
+            &request_quote_accounts,
+        ))
+        .bench((
+            "request_quote_500k_gas_1eth",
+            &request_quote_large_ix,
+            &request_quote_accounts,
+        ))
+        .bench((
+            "request_execution_quote",
+            &request_exec_quote_ix,
+            &request_exec_quote_accounts,
+        ))
         .must_pass(true)
         .out_dir("target/benches")
         .execute();

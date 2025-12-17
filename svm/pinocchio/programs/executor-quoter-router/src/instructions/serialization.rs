@@ -119,5 +119,4 @@ impl GovernanceMessage {
     pub fn signed_message<'a>(&self, original_data: &'a [u8]) -> &'a [u8] {
         &original_data[0..98]
     }
-
 }

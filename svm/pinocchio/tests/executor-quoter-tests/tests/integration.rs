@@ -17,10 +17,8 @@ use solana_sdk::{
 /// Program ID matching the deployed address from Anchor.toml
 /// 6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX
 const PROGRAM_ID: Pubkey = Pubkey::new_from_array([
-    0x58, 0xce, 0x85, 0x6b, 0x53, 0xca, 0x8b, 0x7d,
-    0xc9, 0xa3, 0x84, 0x42, 0x1c, 0x5c, 0xaf, 0x30,
-    0x63, 0xcf, 0x30, 0x96, 0x2b, 0x4c, 0xf6, 0x0d,
-    0xad, 0x51, 0x9d, 0x3d, 0xcd, 0xf3, 0x86, 0x58,
+    0x58, 0xce, 0x85, 0x6b, 0x53, 0xca, 0x8b, 0x7d, 0xc9, 0xa3, 0x84, 0x42, 0x1c, 0x5c, 0xaf, 0x30,
+    0x63, 0xcf, 0x30, 0x96, 0x2b, 0x4c, 0xf6, 0x0d, 0xad, 0x51, 0x9d, 0x3d, 0xcd, 0xf3, 0x86, 0x58,
 ]);
 
 /// Account discriminators
@@ -43,13 +41,13 @@ const IX_UPDATE_QUOTE: u8 = 1;
 const IX_REQUEST_QUOTE: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
 const IX_REQUEST_EXECUTION_QUOTE: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
-
 /// Get the authorized updater keypair.
 /// Reads from QUOTER_UPDATER_KEYPAIR_PATH env var (path to JSON keypair file).
 /// The program must be built with QUOTER_UPDATER_PUBKEY set to this keypair's pubkey.
 fn get_updater_keypair() -> Keypair {
-    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH")
-        .expect("QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file");
+    let keypair_path = std::env::var("QUOTER_UPDATER_KEYPAIR_PATH").expect(
+        "QUOTER_UPDATER_KEYPAIR_PATH env var must be set to path of updater keypair JSON file",
+    );
     solana_sdk::signature::read_keypair_file(&keypair_path)
         .expect("Failed to read updater keypair from file")
 }
@@ -306,8 +304,7 @@ async fn test_update_chain_info() {
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_chain_info_data(
-        chain_id,
-        true, // enabled
+        chain_id, true, // enabled
         9,    // gas_price_decimals (Gwei)
         18,   // native_decimals (ETH)
     );
@@ -327,11 +324,7 @@ async fn test_update_chain_info() {
     transaction.sign(&[&payer, &updater], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(
-        result.is_ok(),
-        "UpdateChainInfo failed: {:?}",
-        result.err()
-    );
+    assert!(result.is_ok(), "UpdateChainInfo failed: {:?}", result.err());
 
     // Verify chain_info account
     let chain_info_account = banks_client
@@ -381,7 +374,6 @@ async fn test_update_quote() {
     );
 
     // Add pre-existing config account
-
 
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
@@ -448,7 +440,6 @@ async fn test_request_quote() {
     );
 
     // Add pre-existing accounts
-
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -540,7 +531,6 @@ async fn test_request_execution_quote() {
     );
 
     // Add pre-existing accounts
-
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -704,8 +694,6 @@ async fn test_chain_disabled() {
         },
     );
 
-
-
     // Create chain_info with enabled = false
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -829,7 +817,8 @@ async fn test_full_flow() {
         .expect("get blockhash");
     // Add compute budget instruction to allow more CUs
     let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
-    let mut tx = Transaction::new_with_payer(&[compute_budget_ix, update_chain_ix], Some(&payer.pubkey()));
+    let mut tx =
+        Transaction::new_with_payer(&[compute_budget_ix, update_chain_ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &updater], recent_blockhash);
     banks_client
         .process_transaction(tx)
@@ -838,8 +827,13 @@ async fn test_full_flow() {
     println!("Step 2: UpdateChainInfo - PASSED");
 
     // Step 3: UpdateQuote
-    let update_quote_data =
-        build_update_quote_data(chain_id, 2000_0000000000, 200_0000000000, 50_000000000, 1000000);
+    let update_quote_data = build_update_quote_data(
+        chain_id,
+        2000_0000000000,
+        200_0000000000,
+        50_000000000,
+        1000000,
+    );
     let update_quote_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &update_quote_data,
@@ -934,8 +928,6 @@ async fn test_invalid_updater_quote() {
         },
     );
 
-
-
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_quote_data(
@@ -988,8 +980,6 @@ async fn test_chain_disabled_execution_quote() {
             rent_epoch: 0,
         },
     );
-
-
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1085,15 +1075,7 @@ async fn test_unsupported_instruction() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1149,7 +1131,10 @@ async fn test_unsupported_instruction() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with UnsupportedInstruction");
+    assert!(
+        result.is_err(),
+        "Should have failed with UnsupportedInstruction"
+    );
 
     println!("UnsupportedInstruction test passed!");
 }
@@ -1177,15 +1162,7 @@ async fn test_more_than_one_dropoff() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1241,7 +1218,10 @@ async fn test_more_than_one_dropoff() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with MoreThanOneDropOff");
+    assert!(
+        result.is_err(),
+        "Should have failed with MoreThanOneDropOff"
+    );
 
     println!("MoreThanOneDropOff test passed!");
 }
@@ -1269,15 +1249,7 @@ async fn test_invalid_relay_instructions() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1333,7 +1305,10 @@ async fn test_invalid_relay_instructions() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with InvalidRelayInstructions");
+    assert!(
+        result.is_err(),
+        "Should have failed with InvalidRelayInstructions"
+    );
 
     println!("InvalidRelayInstructions test passed!");
 }
@@ -1359,8 +1334,6 @@ async fn test_not_enough_accounts() {
         },
     );
 
-
-
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 0);
@@ -1373,18 +1346,16 @@ async fn test_not_enough_accounts() {
     );
 
     // Only provide config account, missing chain_info and quote_body
-    let instruction = Instruction::new_with_bytes(
-        PROGRAM_ID,
-        &instruction_data,
-        vec![
-        ],
-    );
+    let instruction = Instruction::new_with_bytes(PROGRAM_ID, &instruction_data, vec![]);
 
     let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with NotEnoughAccountKeys");
+    assert!(
+        result.is_err(),
+        "Should have failed with NotEnoughAccountKeys"
+    );
 
     println!("NotEnoughAccountKeys test passed!");
 }
@@ -1416,15 +1387,7 @@ async fn test_zero_gas_limit() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1481,7 +1444,11 @@ async fn test_zero_gas_limit() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Zero gas limit should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Zero gas limit should succeed: {:?}",
+        result.err()
+    );
 
     println!("Zero gas limit test passed!");
 }
@@ -1509,15 +1476,7 @@ async fn test_zero_src_price() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1574,7 +1533,10 @@ async fn test_zero_src_price() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_err(), "Should have failed with MathOverflow (division by zero)");
+    assert!(
+        result.is_err(),
+        "Should have failed with MathOverflow (division by zero)"
+    );
 
     println!("Zero src_price test passed!");
 }
@@ -1602,15 +1564,7 @@ async fn test_multiple_gas_instructions() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1669,7 +1623,11 @@ async fn test_multiple_gas_instructions() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Multiple gas instructions should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Multiple gas instructions should succeed: {:?}",
+        result.err()
+    );
 
     println!("Multiple gas instructions test passed!");
 }
@@ -1697,15 +1655,7 @@ async fn test_gas_plus_dropoff() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1768,7 +1718,11 @@ async fn test_gas_plus_dropoff() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Gas + DropOff should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Gas + DropOff should succeed: {:?}",
+        result.err()
+    );
 
     println!("Gas + DropOff test passed!");
 }
@@ -1796,15 +1750,7 @@ async fn test_empty_relay_instructions() {
         },
     );
 
-
-
-    let chain_info_data = create_chain_info_account_data(
-        chain_info_bump,
-        chain_id,
-        true,
-        9,
-        18,
-    );
+    let chain_info_data = create_chain_info_account_data(chain_info_bump, chain_id, true, 9, 18);
     pt.add_account(
         chain_info_pda,
         Account {
@@ -1861,7 +1807,11 @@ async fn test_empty_relay_instructions() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Empty relay instructions should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Empty relay instructions should succeed: {:?}",
+        result.err()
+    );
 
     println!("Empty relay instructions test passed!");
 }
@@ -1888,8 +1838,6 @@ async fn test_arithmetic_overflow() {
             rent_epoch: 0,
         },
     );
-
-
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -1988,8 +1936,6 @@ async fn test_decimals_18_to_9() {
         },
     );
 
-
-
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
         chain_id,
@@ -2052,7 +1998,11 @@ async fn test_decimals_18_to_9() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Decimals 18->9 should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Decimals 18->9 should succeed: {:?}",
+        result.err()
+    );
 
     println!("Decimals 18->9 test passed!");
 }
@@ -2081,8 +2031,6 @@ async fn test_decimals_6_to_9() {
         },
     );
 
-
-
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
         chain_id,
@@ -2104,9 +2052,9 @@ async fn test_decimals_6_to_9() {
     let quote_body_data = create_quote_body_account_data(
         quote_body_bump,
         chain_id,
-        1_0000000000, // dst_price: $1 at 10^10
+        1_0000000000,   // dst_price: $1 at 10^10
         200_0000000000, // src_price: $200 at 10^10
-        1_000000,    // dst_gas_price: 1 at 6 decimals
+        1_000000,       // dst_gas_price: 1 at 6 decimals
         1000000,
     );
     pt.add_account(
@@ -2145,7 +2093,11 @@ async fn test_decimals_6_to_9() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Decimals 6->9 should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Decimals 6->9 should succeed: {:?}",
+        result.err()
+    );
 
     println!("Decimals 6->9 test passed!");
 }
@@ -2173,8 +2125,6 @@ async fn test_decimals_9_to_9() {
             rent_epoch: 0,
         },
     );
-
-
 
     let chain_info_data = create_chain_info_account_data(
         chain_info_bump,
@@ -2238,7 +2188,11 @@ async fn test_decimals_9_to_9() {
     transaction.sign(&[&payer], recent_blockhash);
 
     let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "Decimals 9->9 should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Decimals 9->9 should succeed: {:?}",
+        result.err()
+    );
 
     println!("Decimals 9->9 test passed!");
 }
@@ -2279,8 +2233,6 @@ async fn test_update_overwrites_quote() {
         },
     );
 
-
-
     let (mut banks_client, _, recent_blockhash) = pt.start().await;
 
     // First update
@@ -2305,10 +2257,16 @@ async fn test_update_overwrites_quote() {
 
     let mut tx1 = Transaction::new_with_payer(&[instruction1], Some(&payer.pubkey()));
     tx1.sign(&[&payer, &updater], recent_blockhash);
-    banks_client.process_transaction(tx1).await.expect("First update failed");
+    banks_client
+        .process_transaction(tx1)
+        .await
+        .expect("First update failed");
 
     // Second update with different values
-    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
     let instruction_data2 = build_update_quote_data(
         chain_id,
         2000_0000000000, // different dst_price
@@ -2330,7 +2288,10 @@ async fn test_update_overwrites_quote() {
 
     let mut tx2 = Transaction::new_with_payer(&[instruction2], Some(&payer.pubkey()));
     tx2.sign(&[&payer, &updater], recent_blockhash);
-    banks_client.process_transaction(tx2).await.expect("Second update failed");
+    banks_client
+        .process_transaction(tx2)
+        .await
+        .expect("Second update failed");
 
     // Verify the new values
     let quote_body_account = banks_client
@@ -2341,7 +2302,10 @@ async fn test_update_overwrites_quote() {
 
     // Check dst_price at offset 8 (after discriminator/padding/chain_id/bump/reserved)
     let dst_price = u64::from_le_bytes(quote_body_account.data[8..16].try_into().unwrap());
-    assert_eq!(dst_price, 2000_0000000000, "dst_price should be updated to new value");
+    assert_eq!(
+        dst_price, 2000_0000000000,
+        "dst_price should be updated to new value"
+    );
 
     println!("Update overwrites quote test passed!");
 }
@@ -2378,8 +2342,6 @@ async fn test_chain_toggle() {
             rent_epoch: 0,
         },
     );
-
-
 
     // Start with chain enabled
     let chain_info_data = create_chain_info_account_data(
@@ -2436,7 +2398,10 @@ async fn test_chain_toggle() {
 
     let mut tx = Transaction::new_with_payer(&[disable_ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &updater], recent_blockhash);
-    banks_client.process_transaction(tx).await.expect("Disable chain failed");
+    banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Disable chain failed");
 
     // Verify chain is disabled
     let chain_info_account = banks_client
@@ -2448,7 +2413,10 @@ async fn test_chain_toggle() {
     assert_eq!(chain_info_account.data[4], 0, "Chain should be disabled");
 
     // Try to request quote - should fail
-    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
     let relay_instructions = build_relay_instructions_gas(200000, 0);
     let quote_data = build_request_quote_data(
         chain_id,
@@ -2472,7 +2440,10 @@ async fn test_chain_toggle() {
     assert!(result.is_err(), "Quote should fail when chain disabled");
 
     // Re-enable the chain
-    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
     let enable_data = build_update_chain_info_data(chain_id, true, 9, 18);
     let enable_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
@@ -2486,7 +2457,10 @@ async fn test_chain_toggle() {
     );
     let mut tx = Transaction::new_with_payer(&[enable_ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &updater], recent_blockhash);
-    banks_client.process_transaction(tx).await.expect("Re-enable chain failed");
+    banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Re-enable chain failed");
 
     // Verify chain is enabled again
     let chain_info_account = banks_client
@@ -2498,9 +2472,16 @@ async fn test_chain_toggle() {
     assert_eq!(chain_info_account.data[4], 1, "Chain should be re-enabled");
 
     // Quote should work now
-    let recent_blockhash = banks_client.get_latest_blockhash().await.expect("get blockhash");
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
     // Force account cache refresh - see solana-program-test behavior with BPF programs
-    let _acc = banks_client.get_account(chain_info_pda).await.expect("get").expect("exists");
+    let _acc = banks_client
+        .get_account(chain_info_pda)
+        .await
+        .expect("get")
+        .expect("exists");
     let quote_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &quote_data,
@@ -2513,7 +2494,11 @@ async fn test_chain_toggle() {
     let mut tx = Transaction::new_with_payer(&[quote_ix], Some(&payer.pubkey()));
     tx.sign(&[&payer], recent_blockhash);
     let result = banks_client.process_transaction(tx).await;
-    assert!(result.is_ok(), "Quote should succeed when chain re-enabled: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Quote should succeed when chain re-enabled: {:?}",
+        result.err()
+    );
 
     println!("Chain toggle test passed!");
 }

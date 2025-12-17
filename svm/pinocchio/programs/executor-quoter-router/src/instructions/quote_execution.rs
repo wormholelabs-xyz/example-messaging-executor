@@ -146,11 +146,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         data: cpi_data,
     };
 
-    pinocchio::cpi::invoke(&cpi_instruction, &[quoter_config, quoter_chain_info, quoter_quote_body])?;
+    pinocchio::cpi::invoke(
+        &cpi_instruction,
+        &[quoter_config, quoter_chain_info, quoter_quote_body],
+    )?;
 
     // Get return data from quoter and forward it
-    let return_data = pinocchio::cpi::get_return_data()
-        .ok_or(ExecutorQuoterRouterError::InvalidReturnData)?;
+    let return_data =
+        pinocchio::cpi::get_return_data().ok_or(ExecutorQuoterRouterError::InvalidReturnData)?;
     set_return_data(return_data.as_slice());
 
     Ok(())

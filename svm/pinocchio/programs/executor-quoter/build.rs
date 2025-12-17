@@ -8,7 +8,8 @@ fn main() {
 
     // Parse QUOTER_UPDATER_PUBKEY env var (base58 pubkey string)
     // Falls back to a default test pubkey if not set
-    let updater_pubkey = env::var("QUOTER_UPDATER_PUBKEY").expect("Updater pubkey must be set at build time");
+    let updater_pubkey =
+        env::var("QUOTER_UPDATER_PUBKEY").expect("Updater pubkey must be set at build time");
 
     // Parse QUOTER_PAYEE_PUBKEY env var (base58 pubkey string)
     // Falls back to same as updater if not set
@@ -17,10 +18,18 @@ fn main() {
     // Decode base58 to bytes
     let updater_bytes = bs58::decode(&updater_pubkey)
         .into_vec()
-        .unwrap_or_else(|e| panic!("QUOTER_UPDATER_PUBKEY '{}' is not valid base58: {}", updater_pubkey, e));
-    let payee_bytes = bs58::decode(&payee_pubkey)
-        .into_vec()
-        .unwrap_or_else(|e| panic!("QUOTER_PAYEE_PUBKEY '{}' is not valid base58: {}", payee_pubkey, e));
+        .unwrap_or_else(|e| {
+            panic!(
+                "QUOTER_UPDATER_PUBKEY '{}' is not valid base58: {}",
+                updater_pubkey, e
+            )
+        });
+    let payee_bytes = bs58::decode(&payee_pubkey).into_vec().unwrap_or_else(|e| {
+        panic!(
+            "QUOTER_PAYEE_PUBKEY '{}' is not valid base58: {}",
+            payee_pubkey, e
+        )
+    });
 
     assert_eq!(
         updater_bytes.len(),

@@ -9,7 +9,8 @@ use alloc::vec::Vec;
 
 /// Anchor discriminator for executor::request_for_execution
 /// Generated from: sha256("global:request_for_execution")[0..8]
-const EXECUTOR_REQUEST_FOR_EXECUTION_DISCRIMINATOR: [u8; 8] = [0x6d, 0x6b, 0x57, 0x25, 0x97, 0xc0, 0x77, 0x73];
+const EXECUTOR_REQUEST_FOR_EXECUTION_DISCRIMINATOR: [u8; 8] =
+    [0x6d, 0x6b, 0x57, 0x25, 0x97, 0xc0, 0x77, 0x73];
 
 /// Builds instruction data for Anchor executor::request_for_execution CPI.
 ///

@@ -193,8 +193,8 @@ fn estimate_quote_u256(
     let gas_cost = U256::from_u128(gas_limit)
         .checked_mul(U256::from_u64(dst_gas_price))
         .ok_or_else(overflow_err)?;
-    let n_gas_limit_cost =
-        normalize(gas_cost, dst_gas_price_decimals, EVM_DECIMAL_RESOLUTION).ok_or_else(overflow_err)?;
+    let n_gas_limit_cost = normalize(gas_cost, dst_gas_price_decimals, EVM_DECIMAL_RESOLUTION)
+        .ok_or_else(overflow_err)?;
     let src_chain_value_for_gas_limit =
         mul_decimals(n_gas_limit_cost, scaled_conversion, EVM_DECIMAL_RESOLUTION)
             .ok_or_else(overflow_err)?;
@@ -207,7 +207,8 @@ fn estimate_quote_u256(
     )
     .ok_or_else(overflow_err)?;
     let src_chain_value_for_msg_value =
-        mul_decimals(n_msg_value, scaled_conversion, EVM_DECIMAL_RESOLUTION).ok_or_else(overflow_err)?;
+        mul_decimals(n_msg_value, scaled_conversion, EVM_DECIMAL_RESOLUTION)
+            .ok_or_else(overflow_err)?;
 
     // 5. Sum all components (all in EVM_DECIMAL_RESOLUTION scale)
     src_chain_value_for_base_fee
@@ -221,7 +222,12 @@ fn estimate_quote_u256(
 mod tests {
     use super::*;
 
-    fn make_quote_body(base_fee: u64, src_price: u64, dst_price: u64, dst_gas_price: u64) -> QuoteBody {
+    fn make_quote_body(
+        base_fee: u64,
+        src_price: u64,
+        dst_price: u64,
+        dst_gas_price: u64,
+    ) -> QuoteBody {
         QuoteBody {
             discriminator: 0,
             bump: 0,
