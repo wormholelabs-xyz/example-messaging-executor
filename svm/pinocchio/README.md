@@ -11,10 +11,14 @@ These programs use the [Pinocchio](https://github.com/febo/pinocchio) framework,
 
 ## Devnet Deployments
 
+<!-- cspell:disable -->
+
 | Program                | Address                                       |
 | ---------------------- | --------------------------------------------- |
 | executor-quoter        | `qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz` |
 | executor-quoter-router | `qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV` |
+
+<!-- cspell:enable -->
 
 ## Directory Structure
 
