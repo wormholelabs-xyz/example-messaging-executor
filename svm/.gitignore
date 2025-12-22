@@ -4,4 +4,11 @@ target
 **/*.rs.bk
 node_modules
 test-ledger
+test-keys
 .yarn
+
+# Keypair files (sensitive)
+*-keypair.json
+*_keypair.json
+keypair.json
+keypairs/

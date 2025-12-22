@@ -1,3 +1,11 @@
 evm/cache/
 evm/lib/
 evm/out/
+evm/broadcast/
+svm/anchor/target/
+svm/node_modules/
+svm/modules/*/target/
+svm/pinocchio/target/
+svm/pinocchio/programs/*/target/
+svm/pinocchio/tests/*/target/
+svm/target/

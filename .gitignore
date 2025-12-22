@@ -2,3 +2,5 @@ node_modules/
 lcov.info
 .env
 .env.*
+.devcontainer
+.claude
