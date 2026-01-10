@@ -10,6 +10,7 @@ Provide an execution framework for [Wormhole](https://github.com/wormhole-founda
 - [x] [SVM](./svm/)
 - [x] [Sui Move](./sui/)
 - [x] [Aptos Move](./aptos/)
+- [x] [Stacks](./stacks/) *(experimental)*
 
 ## Protocol Support
 
