@@ -1,0 +1,19 @@
+{
+  "name": "xrpl-executor-examples",
+  "version": "1.0.0",
+  "description": "XRPL Executor examples",
+  "type": "module",
+  "scripts": {
+    "payment": "npx tsx sendPaymentWithMemo.ts"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk-connect": "^4.9.1",
+    "viem": "^2.45.0",
+    "xrpl": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
