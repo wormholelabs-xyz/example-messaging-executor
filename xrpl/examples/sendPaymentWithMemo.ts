@@ -5,6 +5,7 @@ import {
   deserializeRequestForExecution,
   type RequestForExecution,
   RequestPrefix,
+  REQUEST_FOR_EXECUTION_VERSION,
 } from "./requestForExecutionLayout";
 
 const XRPL_TESTNET_WSS = "wss://s.altnet.rippletest.net:51233";
@@ -14,7 +15,6 @@ interface SendPaymentOptions {
   destination: string;
   amountXrp: string;
   memoData: Uint8Array;
-  memoType?: string;
   destinationTag?: number;
 }
 
@@ -25,13 +25,9 @@ async function sendPaymentWithMemo(
   client: Client,
   options: SendPaymentOptions,
 ): Promise<string> {
-  const { wallet, destination, amountXrp, memoData, memoType, destinationTag } =
-    options;
+  const { wallet, destination, amountXrp, memoData, destinationTag } = options;
 
   // XRPL memos require hex-encoded strings without 0x prefix
-  const memoTypeHex = Buffer.from(memoType ?? "application/octet-stream")
-    .toString("hex")
-    .toUpperCase();
   const memoDataHex = toHex(memoData).slice(2).toUpperCase(); // Remove 0x prefix
 
   const payment: Payment = {
@@ -42,7 +38,6 @@ async function sendPaymentWithMemo(
     Memos: [
       {
         Memo: {
-          MemoType: memoTypeHex,
           MemoData: memoDataHex,
         },
       },
@@ -102,7 +97,7 @@ function createSampleExecutorRequest(): Uint8Array {
     "0x0000000000000000000000002222222222222222222222222222222222222222" as `0x${string}`;
 
   const request: RequestForExecution = {
-    quoterAddress: dummyQuoterAddress,
+    version: REQUEST_FOR_EXECUTION_VERSION,
     dstChain: 1, // Solana
     dstAddr: dummyDstAddr,
     refundAddr: dummyRefundAddr,
@@ -176,7 +171,6 @@ async function main() {
       destination: destinationAddress,
       amountXrp: "1", // Send 1 XRP
       memoData: memoPayload,
-      memoType: "application/x-executor-request", // from SPEC
     });
 
     console.log("\n=== Transaction Complete ===");
@@ -215,7 +209,7 @@ async function main() {
     );
 
     console.log("Successfully deserialized RequestForExecution from memo:");
-    console.log("  quoterAddress:", deserializedRequest.quoterAddress);
+    console.log("  version:", deserializedRequest.version);
     console.log("  dstChain:", deserializedRequest.dstChain);
     console.log("  dstAddr:", deserializedRequest.dstAddr);
     console.log("  refundAddr:", deserializedRequest.refundAddr);

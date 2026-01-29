@@ -53,13 +53,10 @@ export function serializeRequest(instruction: RequestLayout): `0x${string}` {
   return toHex(serialize(requestLayout, instruction));
 }
 
+export const REQUEST_FOR_EXECUTION_VERSION = 0;
+
 export const requestForExecutionLayout = [
-  {
-    name: "quoterAddress",
-    binary: "bytes",
-    size: 20,
-    custom: hexConversion,
-  },
+  { name: "version", binary: "uint", size: 1 },
   { name: "dstChain", binary: "uint", size: 2 },
   {
     name: "dstAddr",

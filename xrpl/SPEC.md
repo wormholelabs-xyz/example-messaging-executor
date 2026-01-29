@@ -16,18 +16,19 @@ To request execution, send an XRP payment with a memo containing the serialized 
 
 ### Payment Structure
 
-| Field             | Value                                                         |
-| ----------------- | ------------------------------------------------------------- |
-| TransactionType   | `Payment`                                                     |
-| Destination       | Executor Address                                              |
-| Amount            | Payment amount (covers relay fees)                            |
-| Memos[0].MemoType | Hex-encoded string (e.g., `"application/x-executor-request"`) |
-| Memos[0].MemoData | Hex-encoded `RequestForExecution` payload (no `0x` prefix)    |
+| Field             | Value                                                      |
+| ----------------- | ---------------------------------------------------------- |
+| TransactionType   | `Payment`                                                  |
+| Destination       | Executor Address                                           |
+| Amount            | Payment amount (covers relay fees)                         |
+| Memos[0].MemoData | Hex-encoded `RequestForExecution` payload (no `0x` prefix) |
 
 ## RequestForExecution Layout
 
+The payload is versioned with a 1-byte prefix to allow for future changes. The current version is `0`.
+
 ```
-[20]byte  quoterAddress      // EVM address of the quoter
+uint8     version = 0        // Version prefix (current: 0)
 uint16    dstChain           // Wormhole Chain ID of destination
 [32]byte  dstAddr            // Universal address of destination contract
 [20]byte  refundAddr         // EVM address for refunds
@@ -92,7 +93,7 @@ uint128   dropOff            // Amount to drop off
    - NTT request bytes with the message details
    - Relay instructions specifying gas requirements
 3. **Send Payment**: Submit an XRPL payment to the Executor Address with the serialized payload as memo
-4. **Monitor**: The relay service monitors the Executor Address, parses incoming memos, and executes the relay on the destination chain
+4. **Monitor**: The relay service monitors the Executor Address, status the request, parses incoming memos, and executes the relay on the destination chain
 
 ## Wormhole Chain IDs
 
@@ -101,6 +102,9 @@ uint128   dropOff            // Amount to drop off
 | Solana   | 1   |
 | Ethereum | 2   |
 | XRPL     | 66  |
+| ...      | ..  |
+
+[Official Reference for all Chains](https://wormhole.com/docs/products/reference/chain-ids/)
 
 ## Implementation Reference
 
