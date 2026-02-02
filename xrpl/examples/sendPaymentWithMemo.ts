@@ -5,7 +5,7 @@ import {
   deserializeRequestForExecution,
   type RequestForExecution,
   RequestPrefix,
-  REQUEST_FOR_EXECUTION_VERSION,
+  REQUEST_FOR_EXECUTION_VERSION_0,
 } from "./requestForExecutionLayout";
 
 const XRPL_TESTNET_WSS = "wss://s.altnet.rippletest.net:51233";
@@ -97,11 +97,12 @@ function createSampleExecutorRequest(): Uint8Array {
     "0x0000000000000000000000002222222222222222222222222222222222222222" as `0x${string}`;
 
   const request: RequestForExecution = {
-    version: REQUEST_FOR_EXECUTION_VERSION,
-    dstChain: 1, // Solana
-    dstAddr: dummyDstAddr,
-    refundAddr: dummyRefundAddr,
-    signedQuote: {
+    payload: {
+      version: 0,
+      dstChain: 1, // Solana
+      dstAddr: dummyDstAddr,
+      refundAddr: dummyRefundAddr,
+      signedQuote: {
       quote: {
         prefix: "EQ01",
         quoterAddress: dummyQuoterAddressBytes,
@@ -116,24 +117,25 @@ function createSampleExecutorRequest(): Uint8Array {
       },
       signature: dummySignature,
     },
-    requestBytes: {
-      request: {
-        prefix: RequestPrefix.ERN1,
-        srcChain: 1,
-        srcManager: dummySrcManager,
-        messageId: dummyMessageId,
-      },
-    },
-    relayInstructions: {
-      requests: [
-        {
-          request: {
-            type: "GasInstruction",
-            gasLimit: 200000n,
-            msgValue: 0n,
-          },
+      requestBytes: {
+        request: {
+          prefix: RequestPrefix.ERN1,
+          srcChain: 1,
+          srcManager: dummySrcManager,
+          messageId: dummyMessageId,
         },
-      ],
+      },
+      relayInstructions: {
+        requests: [
+          {
+            request: {
+              type: "GasInstruction",
+              gasLimit: 200000n,
+              msgValue: 0n,
+            },
+          },
+        ],
+      },
     },
   };
 
@@ -209,37 +211,37 @@ async function main() {
     );
 
     console.log("Successfully deserialized RequestForExecution from memo:");
-    console.log("  version:", deserializedRequest.version);
-    console.log("  dstChain:", deserializedRequest.dstChain);
-    console.log("  dstAddr:", deserializedRequest.dstAddr);
-    console.log("  refundAddr:", deserializedRequest.refundAddr);
+    console.log("  version:", deserializedRequest.payload.version); // Should be 0
+    console.log("  dstChain:", deserializedRequest.payload.dstChain);
+    console.log("  dstAddr:", deserializedRequest.payload.dstAddr);
+    console.log("  refundAddr:", deserializedRequest.payload.refundAddr);
     console.log(
       "  signedQuote.quote.prefix:",
-      deserializedRequest.signedQuote.quote.prefix,
+      deserializedRequest.payload.signedQuote.quote.prefix,
     );
     console.log(
       "  signedQuote.quote.srcChain:",
-      deserializedRequest.signedQuote.quote.srcChain,
+      deserializedRequest.payload.signedQuote.quote.srcChain,
     );
     console.log(
       "  signedQuote.quote.dstChain:",
-      deserializedRequest.signedQuote.quote.dstChain,
+      deserializedRequest.payload.signedQuote.quote.dstChain,
     );
     console.log(
       "  signedQuote.quote.baseFee:",
-      deserializedRequest.signedQuote.quote.baseFee,
+      deserializedRequest.payload.signedQuote.quote.baseFee,
     );
     console.log(
       "  requestBytes.request.prefix:",
-      deserializedRequest.requestBytes.request.prefix,
+      deserializedRequest.payload.requestBytes.request.prefix,
     );
     console.log(
       "  requestBytes.request.srcChain:",
-      deserializedRequest.requestBytes.request.srcChain,
+      deserializedRequest.payload.requestBytes.request.srcChain,
     );
 
     const relayRequest =
-      deserializedRequest.relayInstructions.requests[0].request;
+      deserializedRequest.payload.relayInstructions.requests[0].request;
     console.log(
       "  relayInstructions.requests[0].request.type:",
       relayRequest.type,

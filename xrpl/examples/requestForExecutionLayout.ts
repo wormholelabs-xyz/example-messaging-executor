@@ -53,10 +53,9 @@ export function serializeRequest(instruction: RequestLayout): `0x${string}` {
   return toHex(serialize(requestLayout, instruction));
 }
 
-export const REQUEST_FOR_EXECUTION_VERSION = 0;
+export const REQUEST_FOR_EXECUTION_VERSION_0 = 0;
 
-export const requestForExecutionLayout = [
-  { name: "version", binary: "uint", size: 1 },
+const requestForExecutionV0Layout = [
   { name: "dstChain", binary: "uint", size: 2 },
   {
     name: "dstAddr",
@@ -87,6 +86,16 @@ export const requestForExecutionLayout = [
     binary: "bytes",
     lengthSize: 2,
     layout: relayInstructionsLayout,
+  },
+] as const satisfies Layout;
+
+export const requestForExecutionLayout = [
+  {
+    name: "payload",
+    binary: "switch",
+    idSize: 1,
+    idTag: "version",
+    layouts: [[[REQUEST_FOR_EXECUTION_VERSION_0, 0], requestForExecutionV0Layout]],
   },
 ] as const satisfies Layout;
 
