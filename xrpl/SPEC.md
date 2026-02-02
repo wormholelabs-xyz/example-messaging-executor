@@ -31,7 +31,7 @@ The payload is versioned with a 1-byte prefix to allow for future changes. The c
 uint8     version = 0        // Version prefix (current: 0)
 uint16    dstChain           // Wormhole Chain ID of destination
 [32]byte  dstAddr            // Universal address of destination contract
-[20]byte  refundAddr         // EVM address for refunds
+[20]byte  refundAddr         // XRPL address for refunds
 [2]byte   signedQuoteLen     // Length prefix for signedQuote
 [var]byte signedQuote        // Signed quote payload (see below)
 [2]byte   requestBytesLen    // Length prefix for requestBytes
@@ -44,7 +44,7 @@ uint16    dstChain           // Wormhole Chain ID of destination
 
 ```
 [4]byte   prefix = "EQ01"    // Quote version prefix (0x45513031)
-[20]byte  quoterAddress      // Quoter's EVM address
+[20]byte  quoterAddress      // Quoter's address
 [32]byte  payeeAddress       // Universal address of payee on source chain
 uint16    srcChain           // Wormhole Chain ID of source (66 for XRPL)
 uint16    dstChain           // Wormhole Chain ID of destination
