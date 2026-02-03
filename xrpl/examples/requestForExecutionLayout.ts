@@ -95,7 +95,9 @@ export const requestForExecutionLayout = [
     binary: "switch",
     idSize: 1,
     idTag: "version",
-    layouts: [[[REQUEST_FOR_EXECUTION_VERSION_0, 0], requestForExecutionV0Layout]],
+    layouts: [
+      [[REQUEST_FOR_EXECUTION_VERSION_0, 0], requestForExecutionV0Layout],
+    ],
   },
 ] as const satisfies Layout;
 

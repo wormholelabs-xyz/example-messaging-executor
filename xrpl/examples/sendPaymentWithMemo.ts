@@ -103,20 +103,20 @@ function createSampleExecutorRequest(): Uint8Array {
       dstAddr: dummyDstAddr,
       refundAddr: dummyRefundAddr,
       signedQuote: {
-      quote: {
-        prefix: "EQ01",
-        quoterAddress: dummyQuoterAddressBytes,
-        payeeAddress: dummyPayeeAddress,
-        srcChain: 66, // XRPL
-        dstChain: 1, // Solana
-        expiryTime: new Date(Date.now() + 3600 * 1000),
-        baseFee: 1000000n,
-        dstGasPrice: 20000000000n,
-        srcPrice: 100000000n,
-        dstPrice: 200000000n,
+        quote: {
+          prefix: "EQ01",
+          quoterAddress: dummyQuoterAddressBytes,
+          payeeAddress: dummyPayeeAddress,
+          srcChain: 66, // XRPL
+          dstChain: 1, // Solana
+          expiryTime: new Date(Date.now() + 3600 * 1000),
+          baseFee: 1000000n,
+          dstGasPrice: 20000000000n,
+          srcPrice: 100000000n,
+          dstPrice: 200000000n,
+        },
+        signature: dummySignature,
       },
-      signature: dummySignature,
-    },
       requestBytes: {
         request: {
           prefix: RequestPrefix.ERN1,
