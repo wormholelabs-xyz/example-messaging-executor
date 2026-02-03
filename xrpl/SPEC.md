@@ -56,6 +56,8 @@ uint64    dstPrice           // USD price of destination chain native currency (
 [65]byte  signature          // Quoter's ECDSA signature
 ```
 
+See [signedQuote.ts](https://github.com/wormhole-foundation/wormhole-sdk-ts/blob/main/core/definitions/src/protocols/executor/signedQuote.ts)
+
 ## NTT Request Layout (ERN1)
 
 ```
@@ -84,6 +86,8 @@ uint8     type = 2           // Instruction type
 uint128   dropOff            // Amount to drop off
 [32]byte  recipient          // Universal address of drop-off recipient
 ```
+
+See [relayInstruction.ts](https://github.com/wormhole-foundation/wormhole-sdk-ts/blob/main/core/definitions/src/protocols/executor/relayInstruction.ts)
 
 ## Example Flow
 
