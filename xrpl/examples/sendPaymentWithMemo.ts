@@ -5,7 +5,6 @@ import {
   deserializeRequestForExecution,
   type RequestForExecution,
   RequestPrefix,
-  REQUEST_FOR_EXECUTION_VERSION_0,
 } from "./requestForExecutionLayout";
 
 const XRPL_TESTNET_WSS = "wss://s.altnet.rippletest.net:51233";
@@ -28,6 +27,9 @@ async function sendPaymentWithMemo(
   const { wallet, destination, amountXrp, memoData, destinationTag } = options;
 
   // XRPL memos require hex-encoded strings without 0x prefix
+  const memoFormatHex = Buffer.from("application/x-executor-request")
+    .toString("hex")
+    .toUpperCase();
   const memoDataHex = toHex(memoData).slice(2).toUpperCase(); // Remove 0x prefix
 
   const payment: Payment = {
@@ -38,6 +40,7 @@ async function sendPaymentWithMemo(
     Memos: [
       {
         Memo: {
+          MemoFormat: memoFormatHex,
           MemoData: memoDataHex,
         },
       },
@@ -85,8 +88,6 @@ function createSampleExecutorRequest(): Uint8Array {
   const dummySignature = new Uint8Array(65).fill(0xcd);
 
   // Our local layout uses hex strings via hexConversion
-  const dummyQuoterAddress =
-    "0x1234567890123456789012345678901234567890" as `0x${string}`;
   const dummyDstAddr =
     "0x000000000000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" as `0x${string}`;
   const dummyRefundAddr =
