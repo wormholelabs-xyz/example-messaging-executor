@@ -16,12 +16,15 @@ To request execution, send an XRP payment with a memo containing the serialized 
 
 ### Payment Structure
 
-| Field             | Value                                                      |
-| ----------------- | ---------------------------------------------------------- |
-| TransactionType   | `Payment`                                                  |
-| Destination       | Executor Address                                           |
-| Amount            | Payment amount (covers relay fees)                         |
-| Memos[0].MemoData | Hex-encoded `RequestForExecution` payload (no `0x` prefix) |
+| Field               | Value                                                         |
+| ------------------- | ------------------------------------------------------------- |
+| TransactionType     | `Payment`                                                     |
+| Destination         | Executor Address                                              |
+| Amount              | Payment amount (covers relay fees)                            |
+| Memos[0].MemoFormat | Hex-encoded `application/x-executor-request` (no `0x` prefix) |
+| Memos[0].MemoData   | Hex-encoded `RequestForExecution` payload (no `0x` prefix)    |
+
+**Important:** The `MemoFormat` field MUST be set to the hex-encoded string `application/x-executor-request` to identify this as an executor request. This allows the relay service to filter and process executor requests efficiently.
 
 ## RequestForExecution Layout
 
