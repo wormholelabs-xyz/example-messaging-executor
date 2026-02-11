@@ -312,6 +312,15 @@ bytes4  prefix = "ERC2" // 4-byte prefix for this struct
 uint8   autoDiscover    // Currently, must be one.
 ```
 
+##### Base Bridge Request
+
+[Base Bridge](https://github.com/base/bridge)
+
+```solidity
+bytes4  prefix = "ERB1" // 4-byte prefix for this struct
+uint8   autoDiscover    // Currently, must be one.
+```
+
 #### Relay Instructions
 
 ##### Gas Instruction

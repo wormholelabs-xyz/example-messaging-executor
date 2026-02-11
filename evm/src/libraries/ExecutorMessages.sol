@@ -6,6 +6,7 @@ library ExecutorMessages {
     bytes4 private constant REQ_NTT_V1 = "ERN1";
     bytes4 private constant REQ_CCTP_V1 = "ERC1";
     bytes4 private constant REQ_CCTP_V2 = "ERC2";
+    bytes4 private constant REQ_BASE_V1 = "ERB1";
 
     /// @notice Payload length will not fit in a uint32.
     /// @dev Selector: 492f620d.
@@ -51,5 +52,13 @@ library ExecutorMessages {
     /// @return bytes The encoded request.
     function makeCCTPv2Request() internal pure returns (bytes memory) {
         return abi.encodePacked(REQ_CCTP_V2, uint8(1));
+    }
+
+    /// @notice Encodes a version 1 Base Bridge request payload.
+    ///         This request currently assumes the Executor will auto detect the event off chain.
+    ///         That may change in the future, in which case this interface would change.
+    /// @return bytes The encoded request.
+    function makeBaseBridgeV1Request() internal pure returns (bytes memory) {
+        return abi.encodePacked(REQ_BASE_V1, uint8(1));
     }
 }
