@@ -1,0 +1,20 @@
+[package]
+name = "executor-quoter-router"
+version = "0.1.0"
+description = "Executor Quoter Router - routes execution requests to registered quoter implementations"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "executor_quoter_router"
+
+[features]
+default = []
+no-entrypoint = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+pinocchio = "0.9.2"
+pinocchio-system = "0.4"
+bytemuck = { version = "1.14", features = ["derive"] }

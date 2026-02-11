@@ -4,12 +4,12 @@ on:
   pull_request:
 
 jobs:
-  test:
+  anchor-test:
     name: Anchor Test
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: svm
+        working-directory: svm/anchor
     steps:
       - uses: actions/checkout@v4
       - name: Get solana version
@@ -29,8 +29,47 @@ jobs:
           node-version: "22.16.0"
           anchor-version: "${{steps.anchor.outputs.version}}"
           solana-cli-version: "${{steps.solana.outputs.version}}"
-          working-directory: "svm"
+          working-directory: "svm/anchor"
 
       - run: cargo fmt --check --all
       - run: cargo clippy
       - run: cargo test
+
+  pinocchio-test:
+    name: Pinocchio Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: svm/pinocchio
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2025-04-14
+          components: rustfmt, clippy
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v1.18.17/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Generate test keypair
+        run: |
+          mkdir -p ../test-keys
+          solana-keygen new --no-bip39-passphrase -o ../test-keys/quoter-updater.json
+          echo "QUOTER_UPDATER_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-updater.json)" >> $GITHUB_ENV
+          echo "QUOTER_UPDATER_KEYPAIR_PATH=${{ github.workspace }}/svm/test-keys/quoter-updater.json" >> $GITHUB_ENV
+      - name: Build pinocchio programs
+        run: |
+          cargo build-sbf --manifest-path programs/executor-quoter/Cargo.toml
+          cargo build-sbf --manifest-path programs/executor-quoter-router/Cargo.toml
+      - name: Build anchor executor program
+        working-directory: svm/anchor
+        run: |
+          cargo build-sbf --manifest-path programs/executor/Cargo.toml
+          cp target/deploy/executor.so ../pinocchio/target/deploy/
+      - run: cargo fmt --check --all
+      - run: cargo clippy --all-targets
+      - name: Run tests
+        env:
+          SBF_OUT_DIR: ${{ github.workspace }}/svm/pinocchio/target/deploy
+        run: cargo test -p executor-quoter -p executor-quoter-tests -p executor-quoter-router-tests
