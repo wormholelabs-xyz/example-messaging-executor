@@ -85,31 +85,31 @@ pub fn make_cctp_v2_request() -> Vec<u8> {
 pub const RELAY_IX_GAS: u8 = 1;
 pub const RELAY_IX_GAS_DROP_OFF: u8 = 2;
 
-/// Encodes a GasInstruction relay instruction.
+/// Encodes a GasInstruction relay instruction as a fixed-size array.
 ///
 /// Layout (33 bytes):
 /// - type: u8 = 1
 /// - gas_limit: u128 be (16 bytes)
 /// - msg_value: u128 be (16 bytes)
-pub fn make_relay_instruction_gas(gas_limit: u128, msg_value: u128) -> Vec<u8> {
-    let mut out = Vec::with_capacity(33);
-    out.push(RELAY_IX_GAS);
-    out.extend_from_slice(&gas_limit.to_be_bytes());
-    out.extend_from_slice(&msg_value.to_be_bytes());
+pub fn make_relay_instruction_gas(gas_limit: u128, msg_value: u128) -> [u8; 33] {
+    let mut out = [0u8; 33];
+    out[0] = RELAY_IX_GAS;
+    out[1..17].copy_from_slice(&gas_limit.to_be_bytes());
+    out[17..33].copy_from_slice(&msg_value.to_be_bytes());
     out
 }
 
-/// Encodes a GasDropOffInstruction relay instruction.
+/// Encodes a GasDropOffInstruction relay instruction as a fixed-size array.
 ///
 /// Layout (49 bytes):
 /// - type: u8 = 2
 /// - drop_off: u128 be (16 bytes)
 /// - recipient: [u8; 32] (universal address)
-pub fn make_relay_instruction_gas_drop_off(drop_off: u128, recipient: &[u8; 32]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(49);
-    out.push(RELAY_IX_GAS_DROP_OFF);
-    out.extend_from_slice(&drop_off.to_be_bytes());
-    out.extend_from_slice(recipient);
+pub fn make_relay_instruction_gas_drop_off(drop_off: u128, recipient: &[u8; 32]) -> [u8; 49] {
+    let mut out = [0u8; 49];
+    out[0] = RELAY_IX_GAS_DROP_OFF;
+    out[1..17].copy_from_slice(&drop_off.to_be_bytes());
+    out[17..49].copy_from_slice(recipient);
     out
 }
 
@@ -130,14 +130,14 @@ impl RelayInstructionsBuilder {
     /// Add a GasInstruction to the relay instructions.
     pub fn with_gas(mut self, gas_limit: u128, msg_value: u128) -> Self {
         self.data
-            .extend(make_relay_instruction_gas(gas_limit, msg_value));
+            .extend_from_slice(&make_relay_instruction_gas(gas_limit, msg_value));
         self
     }
 
     /// Add a GasDropOffInstruction to the relay instructions.
     pub fn with_gas_drop_off(mut self, drop_off: u128, recipient: &[u8; 32]) -> Self {
         self.data
-            .extend(make_relay_instruction_gas_drop_off(drop_off, recipient));
+            .extend_from_slice(&make_relay_instruction_gas_drop_off(drop_off, recipient));
         self
     }
 
@@ -411,9 +411,9 @@ mod tests {
 
     #[test]
     fn test_parse_relay_instructions_multiple_gas() {
-        let mut data = make_relay_instruction_gas(100_000, 50_000);
-        data.extend(make_relay_instruction_gas(200_000, 75_000));
-        data.extend(make_relay_instruction_gas(50_000, 25_000));
+        let mut data = make_relay_instruction_gas(100_000, 50_000).to_vec();
+        data.extend_from_slice(&make_relay_instruction_gas(200_000, 75_000));
+        data.extend_from_slice(&make_relay_instruction_gas(50_000, 25_000));
         let result = parse_relay_instructions(&data);
         // gas_limit = 100k + 200k + 50k = 350k
         // msg_value = 50k + 75k + 25k = 150k
@@ -450,24 +450,24 @@ mod tests {
     #[test]
     fn test_parse_relay_instructions_multiple_dropoff() {
         let recipient = [0xAB; 32];
-        let mut data = make_relay_instruction_gas_drop_off(100_000, &recipient);
-        data.extend(make_relay_instruction_gas_drop_off(200_000, &recipient));
+        let mut data = make_relay_instruction_gas_drop_off(100_000, &recipient).to_vec();
+        data.extend_from_slice(&make_relay_instruction_gas_drop_off(200_000, &recipient));
         let result = parse_relay_instructions(&data);
         assert_eq!(result, Err(RelayParseError::MultipleDropoff));
     }
 
     #[test]
     fn test_parse_relay_instructions_overflow_gas_limit() {
-        let mut data = make_relay_instruction_gas(u128::MAX, 0);
-        data.extend(make_relay_instruction_gas(1, 0)); // This should overflow
+        let mut data = make_relay_instruction_gas(u128::MAX, 0).to_vec();
+        data.extend_from_slice(&make_relay_instruction_gas(1, 0)); // This should overflow
         let result = parse_relay_instructions(&data);
         assert_eq!(result, Err(RelayParseError::Overflow));
     }
 
     #[test]
     fn test_parse_relay_instructions_overflow_msg_value() {
-        let mut data = make_relay_instruction_gas(0, u128::MAX);
-        data.extend(make_relay_instruction_gas(0, 1)); // This should overflow
+        let mut data = make_relay_instruction_gas(0, u128::MAX).to_vec();
+        data.extend_from_slice(&make_relay_instruction_gas(0, 1)); // This should overflow
         let result = parse_relay_instructions(&data);
         assert_eq!(result, Err(RelayParseError::Overflow));
     }
