@@ -2300,14 +2300,105 @@ async fn test_update_overwrites_quote() {
         .expect("Failed to get account")
         .expect("QuoteBody account not found");
 
-    // Check dst_price at offset 8 (after discriminator/padding/chain_id/bump/reserved)
+    // Verify all four pricing fields were updated
     let dst_price = u64::from_le_bytes(quote_body_account.data[8..16].try_into().unwrap());
+    let src_price = u64::from_le_bytes(quote_body_account.data[16..24].try_into().unwrap());
+    let dst_gas_price = u64::from_le_bytes(quote_body_account.data[24..32].try_into().unwrap());
+    let base_fee = u64::from_le_bytes(quote_body_account.data[32..40].try_into().unwrap());
+
+    assert_eq!(dst_price, 2000_0000000000, "dst_price not updated");
+    assert_eq!(src_price, 200_0000000000, "src_price not updated");
+    assert_eq!(dst_gas_price, 50_000000000, "dst_gas_price not updated");
+    assert_eq!(base_fee, 1000000, "base_fee not updated");
+
+    // Verify immutable fields were NOT changed
     assert_eq!(
-        dst_price, 2000_0000000000,
-        "dst_price should be updated to new value"
+        quote_body_account.data[0], QUOTE_BODY_DISCRIMINATOR,
+        "discriminator should be unchanged"
+    );
+    assert_eq!(
+        quote_body_account.data[1], quote_bump,
+        "bump should be unchanged"
+    );
+    let stored_chain_id =
+        u16::from_le_bytes(quote_body_account.data[2..4].try_into().unwrap());
+    assert_eq!(stored_chain_id, chain_id, "chain_id should be unchanged");
+}
+
+/// Verifies that UpdateQuote accepts price=0 values (EVM parity: ExecutorQuoter.sol
+/// performs no price validation in quoteUpdate).
+#[tokio::test]
+async fn test_update_quote_zero_price() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = get_updater_keypair();
+    let chain_id: u16 = 2;
+    let (quote_body_pda, _quote_bump) = derive_quote_body_pda(chain_id);
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 10_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
     );
 
-    println!("Update overwrites quote test passed!");
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Create with all-zero prices
+    let instruction_data = build_update_quote_data(chain_id, 0, 0, 0, 0);
+
+    let instruction = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &instruction_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new(quote_body_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
+    transaction.sign(&[&payer, &updater], recent_blockhash);
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert!(
+        result.is_ok(),
+        "UpdateQuote with zero prices should succeed (EVM parity): {:?}",
+        result.err()
+    );
+
+    // Verify zeros are stored
+    let account = banks_client
+        .get_account(quote_body_pda)
+        .await
+        .expect("get account")
+        .expect("account exists");
+
+    let dst_price = u64::from_le_bytes(account.data[8..16].try_into().unwrap());
+    let src_price = u64::from_le_bytes(account.data[16..24].try_into().unwrap());
+    let dst_gas_price = u64::from_le_bytes(account.data[24..32].try_into().unwrap());
+    let base_fee = u64::from_le_bytes(account.data[32..40].try_into().unwrap());
+
+    assert_eq!(dst_price, 0);
+    assert_eq!(src_price, 0);
+    assert_eq!(dst_gas_price, 0);
+    assert_eq!(base_fee, 0);
 }
 
 #[tokio::test]
