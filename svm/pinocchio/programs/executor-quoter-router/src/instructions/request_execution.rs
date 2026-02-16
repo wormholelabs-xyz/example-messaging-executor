@@ -7,12 +7,14 @@
 //! 4. CPI to Executor's request_for_execution
 //!
 //! Input layout (zero-copy optimized):
-//! - bytes 0-7: amount (u64 le, payment amount)
+//! - bytes 0-7: amount (u64 LE, payment amount)
 //! - bytes 8-27: quoter_address (20 bytes, for registration lookup)
 //! - bytes 28+: quoter CPI data (passed directly, includes 8-byte discriminator)
 //!
 //! The client must set bytes 28-35 to the quoter's RequestExecutionQuote discriminator
 //! (Anchor-compatible: byte 0 = 3, bytes 1-7 = padding zeros).
+
+use core::mem;
 
 use pinocchio::{
     account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult,
@@ -26,17 +28,24 @@ use crate::{
     EXECUTOR_PROGRAM_ID, OUR_CHAIN,
 };
 
-/// Offset where quoter CPI data starts (after amount + quoter_address).
-const QUOTER_CPI_OFFSET: usize = 28;
+/// EVM-style quoter address (first 20 bytes of a universal address).
+type QuoterAddress = [u8; 20];
 
 /// Expected discriminator for quoter RequestExecutionQuote instruction (8 bytes, Anchor-compatible).
 /// Byte 0 = instruction ID (3), bytes 1-7 = padding (zeros).
 const EXPECTED_QUOTER_DISCRIMINATOR: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
 /// Minimum instruction data size:
-/// amount (8) + quoter_address (20) + discriminator (8) + dst_chain (2) + dst_addr (32) +
-/// refund_addr (32) + request_bytes_len (4) + relay_instructions_len (4) = 110
-const MIN_DATA_LEN: usize = 110;
+/// amount + quoter_address + discriminator + dst_chain + dst_addr + refund_addr +
+/// request_bytes_len + relay_instructions_len
+const MIN_DATA_LEN: usize = mem::size_of::<u64>() // amount
+    + mem::size_of::<QuoterAddress>()
+    + EXPECTED_QUOTER_DISCRIMINATOR.len()
+    + mem::size_of::<u16>() // dst_chain
+    + 32 // dst_addr
+    + 32 // refund_addr
+    + mem::size_of::<u32>() // request_bytes_len
+    + mem::size_of::<u32>(); // relay_instructions_len
 
 /// RequestExecution instruction.
 ///
@@ -73,78 +82,48 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse amount (bytes 0-7)
-    let amount = u64::from_le_bytes(
-        data[0..8]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    );
+    // Extract amount and quoter_address; remaining slice is CPI data passed directly to quoter.
+    // unwrap: safe because MIN_DATA_LEN >= size_of::<u64>() + size_of::<QuoterAddress>().
+    let (amount_bytes, rest): (&[u8; 8], _) = data.split_first_chunk().unwrap();
+    let amount = u64::from_le_bytes(*amount_bytes);
 
-    // Parse quoter_address (bytes 8-27)
-    let quoter_address: [u8; 20] = data[8..28]
-        .try_into()
-        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+    let (quoter_address, cpi_data): (&QuoterAddress, _) = rest.split_first_chunk().unwrap();
 
-    // CPI data starts at byte 28
-    let cpi_data = &data[QUOTER_CPI_OFFSET..];
+    // Validate CPI data structure using split_first_chunk for each fixed-size field.
+    // unwrap calls are safe: MIN_DATA_LEN guarantees sufficient bytes for all fixed fields.
+    let (discriminator, rest): (&[u8; 8], _) = cpi_data.split_first_chunk().unwrap();
 
-    // Validate CPI data structure and extract fields we need for executor CPI
-    // CPI layout: discriminator (8) + dst_chain (2) + dst_addr (32) + refund_addr (32) +
-    // request_bytes_len (4) + request_bytes + relay_instructions_len (4) + relay_instructions
-    if cpi_data.len() < 82 {
+    if *discriminator != EXPECTED_QUOTER_DISCRIMINATOR {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Validate discriminator matches expected RequestExecutionQuote instruction (8-byte Anchor-compatible)
-    if cpi_data[0..8] != EXPECTED_QUOTER_DISCRIMINATOR {
+    let (dst_chain_bytes, rest): (&[u8; 2], _) = rest.split_first_chunk().unwrap();
+    let dst_chain = u16::from_le_bytes(*dst_chain_bytes);
+
+    let (dst_addr, rest): (&[u8; 32], _) = rest.split_first_chunk().unwrap();
+    let (refund_addr_bytes, rest): (&[u8; 32], _) = rest.split_first_chunk().unwrap();
+
+    let (req_len_bytes, rest): (&[u8; 4], _) = rest.split_first_chunk().unwrap();
+    let request_bytes_len = u32::from_le_bytes(*req_len_bytes) as usize;
+
+    // Validate variable-length request_bytes
+    if rest.len() < request_bytes_len {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
+    let (request_bytes, rest) = rest.split_at(request_bytes_len);
 
-    // Extract fields from CPI data (after 8-byte discriminator)
-    let dst_chain = u16::from_le_bytes(
-        cpi_data[8..10]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    );
+    // Validate relay_instructions_len and relay_instructions
+    let (relay_len_bytes, rest): (&[u8; 4], _) = rest
+        .split_first_chunk()
+        .ok_or(ProgramError::from(
+            ExecutorQuoterRouterError::InvalidInstructionData,
+        ))?;
+    let relay_instructions_len = u32::from_le_bytes(*relay_len_bytes) as usize;
 
-    let dst_addr: [u8; 32] = cpi_data[10..42]
-        .try_into()
-        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
-
-    let refund_addr_bytes: [u8; 32] = cpi_data[42..74]
-        .try_into()
-        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
-
-    let request_bytes_len = u32::from_le_bytes(
-        cpi_data[74..78]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    ) as usize;
-
-    let request_bytes_start = 78;
-    let request_bytes_end = request_bytes_start + request_bytes_len;
-
-    if cpi_data.len() < request_bytes_end + 4 {
+    if rest.len() < relay_instructions_len {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
-
-    let request_bytes = &cpi_data[request_bytes_start..request_bytes_end];
-
-    let relay_len_offset = request_bytes_end;
-    let relay_instructions_len = u32::from_le_bytes(
-        cpi_data[relay_len_offset..relay_len_offset + 4]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    ) as usize;
-
-    let relay_instructions_start = relay_len_offset + 4;
-    let relay_instructions_end = relay_instructions_start + relay_instructions_len;
-
-    if cpi_data.len() < relay_instructions_end {
-        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
-    }
-
-    let relay_instructions = &cpi_data[relay_instructions_start..relay_instructions_end];
+    let relay_instructions = &rest[..relay_instructions_len];
 
     // Parse accounts
     let [payer, _config, quoter_registration_account, quoter_program, _executor_program, payee, _refund_account, system_program, quoter_config, quoter_chain_info, quoter_quote_body, event_cpi] =
@@ -161,7 +140,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     // Load and verify quoter registration
     let registration = load_account::<QuoterRegistration>(quoter_registration_account, program_id)?;
 
-    if registration.quoter_address != quoter_address {
+    if registration.quoter_address != *quoter_address {
         return Err(ExecutorQuoterRouterError::QuoterNotRegistered.into());
     }
 
@@ -233,7 +212,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
 
     // Step 3: Construct EQ02 signed quote
     let signed_quote = make_signed_quote_eq02(
-        &quoter_address,
+        quoter_address,
         &payee_address,
         OUR_CHAIN,
         dst_chain,
@@ -246,8 +225,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     let executor_ix_data = make_executor_request_for_execution_ix(
         amount,
         dst_chain,
-        &dst_addr,
-        &refund_addr_bytes,
+        dst_addr,
+        refund_addr_bytes,
         &signed_quote,
         request_bytes,
         relay_instructions,
