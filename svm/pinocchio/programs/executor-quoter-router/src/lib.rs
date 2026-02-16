@@ -43,7 +43,7 @@ pub enum Instruction {
     UpdateQuoterContract = 0,
 
     /// Get a quote from a registered quoter (read-only CPI)
-    /// Accounts: [_config, quoter_registration, quoter_program, ...quoter_accounts]
+    /// Accounts: [quoter_registration, quoter_program, quoter_config, quoter_chain_info, quoter_quote_body]
     QuoteExecution = 1,
 
     /// Request execution through the router
