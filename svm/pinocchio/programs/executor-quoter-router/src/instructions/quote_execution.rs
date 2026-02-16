@@ -9,6 +9,8 @@
 //! The client must set bytes 20-27 to the quoter's RequestQuote discriminator
 //! (Anchor-compatible: byte 0 = 2, bytes 1-7 = padding zeros).
 
+use core::mem;
+
 use pinocchio::{
     account_info::AccountInfo, cpi::set_return_data, program_error::ProgramError, pubkey::Pubkey,
     ProgramResult,
@@ -19,17 +21,23 @@ use crate::{
     state::{load_account, QuoterRegistration},
 };
 
-/// Offset where quoter CPI data starts (after quoter_address).
-const QUOTER_CPI_OFFSET: usize = 20;
+/// EVM-style quoter address (first 20 bytes of a universal address).
+type QuoterAddress = [u8; 20];
 
 /// Expected discriminator for quoter RequestQuote instruction (8 bytes, Anchor-compatible).
 /// Byte 0 = instruction ID (2), bytes 1-7 = padding (zeros).
 const EXPECTED_QUOTER_DISCRIMINATOR: [u8; 8] = [2, 0, 0, 0, 0, 0, 0, 0];
 
 /// Minimum instruction data size:
-/// quoter_address (20) + discriminator (8) + dst_chain (2) + dst_addr (32) +
-/// refund_addr (32) + request_bytes_len (4) + relay_instructions_len (4) = 102
-const MIN_DATA_LEN: usize = 102;
+/// quoter_address + discriminator + dst_chain + dst_addr + refund_addr +
+/// request_bytes_len + relay_instructions_len
+const MIN_DATA_LEN: usize = mem::size_of::<QuoterAddress>()
+    + EXPECTED_QUOTER_DISCRIMINATOR.len()
+    + mem::size_of::<u16>() // dst_chain
+    + 32 // dst_addr
+    + 32 // refund_addr
+    + mem::size_of::<u32>() // request_bytes_len
+    + mem::size_of::<u32>(); // relay_instructions_len
 
 /// QuoteExecution instruction.
 ///
@@ -60,10 +68,9 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Parse quoter_address (bytes 0-19)
-    let quoter_address: [u8; 20] = data[0..20]
-        .try_into()
-        .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?;
+    // Extract quoter_address; remaining slice is CPI data passed directly to quoter.
+    // unwrap: safe because MIN_DATA_LEN >= size_of::<QuoterAddress>().
+    let (quoter_address, cpi_data): (&QuoterAddress, _) = data.split_first_chunk().unwrap();
 
     // Parse accounts
     let [quoter_registration_account, quoter_program, quoter_config, quoter_chain_info, quoter_quote_body] =
@@ -75,7 +82,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     // Load and verify quoter registration
     let registration = load_account::<QuoterRegistration>(quoter_registration_account, program_id)?;
 
-    if registration.quoter_address != quoter_address {
+    if registration.quoter_address != *quoter_address {
         return Err(ExecutorQuoterRouterError::QuoterNotRegistered.into());
     }
 
@@ -83,43 +90,35 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         return Err(ExecutorQuoterRouterError::QuoterNotRegistered.into());
     }
 
-    // Validate CPI data bounds before passing
-    // CPI data layout: discriminator (8) + dst_chain (2) + dst_addr (32) + refund_addr (32) +
-    // request_bytes_len (4) + request_bytes + relay_instructions_len (4) + relay_instructions
-    let cpi_data = &data[QUOTER_CPI_OFFSET..];
+    // Validate CPI data structure using split_first_chunk for each fixed-size field.
+    // unwrap calls are safe: MIN_DATA_LEN guarantees sufficient bytes for all fixed fields.
+    let (discriminator, rest): (&[u8; 8], _) = cpi_data.split_first_chunk().unwrap();
 
-    // Minimum CPI data: discriminator (8) + dst_chain (2) + dst_addr (32) + refund_addr (32) +
-    // request_bytes_len (4) + relay_instructions_len (4) = 82 bytes
-    if cpi_data.len() < 82 {
+    if *discriminator != EXPECTED_QUOTER_DISCRIMINATOR {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 
-    // Validate discriminator matches expected RequestQuote instruction (8-byte Anchor-compatible)
-    if cpi_data[0..8] != EXPECTED_QUOTER_DISCRIMINATOR {
+    let (_, rest): (&[u8; 2], _) = rest.split_first_chunk().unwrap(); // dst_chain
+    let (_, rest): (&[u8; 32], _) = rest.split_first_chunk().unwrap(); // dst_addr
+    let (_, rest): (&[u8; 32], _) = rest.split_first_chunk().unwrap(); // refund_addr
+    let (req_len_bytes, rest): (&[u8; 4], _) = rest.split_first_chunk().unwrap();
+    let request_bytes_len = u32::from_le_bytes(*req_len_bytes) as usize;
+
+    // Validate variable-length request_bytes
+    if rest.len() < request_bytes_len {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
+    let rest = &rest[request_bytes_len..];
 
-    // Validate request_bytes bounds (offset 74 = 8 discriminator + 2 dst_chain + 32 dst_addr + 32 refund_addr)
-    let request_bytes_len = u32::from_le_bytes(
-        cpi_data[74..78]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    ) as usize;
+    // Validate relay_instructions_len and relay_instructions
+    let (relay_len_bytes, rest): (&[u8; 4], _) = rest
+        .split_first_chunk()
+        .ok_or(ProgramError::from(
+            ExecutorQuoterRouterError::InvalidInstructionData,
+        ))?;
+    let relay_instructions_len = u32::from_le_bytes(*relay_len_bytes) as usize;
 
-    let relay_len_offset = 78 + request_bytes_len;
-    if cpi_data.len() < relay_len_offset + 4 {
-        return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
-    }
-
-    // Validate relay_instructions bounds
-    let relay_instructions_len = u32::from_le_bytes(
-        cpi_data[relay_len_offset..relay_len_offset + 4]
-            .try_into()
-            .map_err(|_| ExecutorQuoterRouterError::InvalidInstructionData)?,
-    ) as usize;
-
-    let expected_len = relay_len_offset + 4 + relay_instructions_len;
-    if cpi_data.len() < expected_len {
+    if rest.len() < relay_instructions_len {
         return Err(ExecutorQuoterRouterError::InvalidInstructionData.into());
     }
 

@@ -8,7 +8,8 @@ use mollusk_svm::program::keyed_account_for_system_program;
 use mollusk_svm::Mollusk;
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
-    account::AccountSharedData,
+    account::{AccountSharedData, WritableAccount},
+    bpf_loader_upgradeable,
     instruction::{AccountMeta, Instruction},
     keccak,
     pubkey::Pubkey,
@@ -30,24 +31,48 @@ const QUOTER_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
 
 // Account discriminators
 const QUOTER_REGISTRATION_DISCRIMINATOR: u8 = 1;
+const QUOTE_BODY_DISCRIMINATOR: u8 = 1;
+const CHAIN_INFO_DISCRIMINATOR: u8 = 2;
 
 // PDA seeds
 const QUOTER_REGISTRATION_SEED: &[u8] = b"quoter_registration";
+const QUOTER_CHAIN_INFO_SEED: &[u8] = b"chain_info";
+const QUOTER_QUOTE_SEED: &[u8] = b"quote";
 
 // Account sizes
 const QUOTER_REGISTRATION_SIZE: usize = 54; // 1 + 1 + 20 + 32
+const CHAIN_INFO_SIZE: usize = 8; // 1 + 1 + 2 + 1 + 1 + 1 + 1
+const QUOTE_BODY_SIZE: usize = 40; // 1 + 1 + 2 + 4 + 8 + 8 + 8 + 8
 
 // Instruction discriminators
 const IX_UPDATE_QUOTER_CONTRACT: u8 = 0;
+const IX_QUOTE_EXECUTION: u8 = 1;
 
 // Wormhole chain ID for Solana
 const SOLANA_CHAIN_ID: u16 = 1;
+
+// Test destination chain
+const DST_CHAIN_ID: u16 = 2;
 
 /// Helper to derive quoter registration PDA
 fn derive_quoter_registration_pda(quoter_address: &[u8; 20]) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[QUOTER_REGISTRATION_SEED, &quoter_address[..]],
         &ROUTER_PROGRAM_ID,
+    )
+}
+
+fn derive_quoter_chain_info_pda(chain_id: u16) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[QUOTER_CHAIN_INFO_SEED, &chain_id.to_le_bytes()],
+        &QUOTER_PROGRAM_ID,
+    )
+}
+
+fn derive_quoter_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[QUOTER_QUOTE_SEED, &chain_id.to_le_bytes()],
+        &QUOTER_PROGRAM_ID,
     )
 }
 
@@ -145,6 +170,37 @@ fn build_signed_update_quoter_contract_data(
     data
 }
 
+/// Build QuoteExecution instruction data (after 1-byte router discriminator).
+/// Layout: quoter_address (20) + CPI data (discriminator + quote fields)
+fn build_quote_execution_data(
+    quoter_address: &[u8; 20],
+    chain_id: u16,
+    gas_limit: u128,
+    msg_value: u128,
+) -> Vec<u8> {
+    let mut data = Vec::new();
+    data.push(IX_QUOTE_EXECUTION);
+    // quoter_address (20 bytes)
+    data.extend_from_slice(quoter_address);
+    // CPI data: quoter RequestQuote discriminator (8 bytes)
+    data.extend_from_slice(&[2, 0, 0, 0, 0, 0, 0, 0]);
+    // dst_chain (2 bytes)
+    data.extend_from_slice(&chain_id.to_le_bytes());
+    // dst_addr (32 bytes)
+    data.extend_from_slice(&[0xab; 32]);
+    // refund_addr (32 bytes)
+    data.extend_from_slice(&[0xcd; 32]);
+    // request_bytes_len (4 bytes) = 0
+    data.extend_from_slice(&0u32.to_le_bytes());
+    // relay_instructions_len (4 bytes) = 33
+    data.extend_from_slice(&33u32.to_le_bytes());
+    // relay_instructions: type 1 (Gas)
+    data.push(1);
+    data.extend_from_slice(&gas_limit.to_be_bytes());
+    data.extend_from_slice(&msg_value.to_be_bytes());
+    data
+}
+
 /// Create a funded payer account
 fn create_payer_account() -> AccountSharedData {
     AccountSharedData::new(1_000_000_000, 0, &system_program::ID)
@@ -181,9 +237,55 @@ fn create_quoter_registration_account(
     account
 }
 
+/// Create an initialized ChainInfo account for the quoter program
+fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
+    let rent = Rent::default();
+    let lamports = rent.minimum_balance(CHAIN_INFO_SIZE);
+    let mut data = vec![0u8; CHAIN_INFO_SIZE];
+
+    data[0] = CHAIN_INFO_DISCRIMINATOR;
+    data[1] = bump;
+    data[2..4].copy_from_slice(&chain_id.to_le_bytes());
+    data[4] = 1;  // enabled
+    data[5] = 15; // gas_price_decimals
+    data[6] = 18; // native_decimals (ETH)
+
+    let mut account = AccountSharedData::new(lamports, CHAIN_INFO_SIZE, &QUOTER_PROGRAM_ID);
+    account.set_data_from_slice(&data);
+    account
+}
+
+/// Create an initialized QuoteBody account for the quoter program
+fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
+    let rent = Rent::default();
+    let lamports = rent.minimum_balance(QUOTE_BODY_SIZE);
+    let mut data = vec![0u8; QUOTE_BODY_SIZE];
+
+    data[0] = QUOTE_BODY_DISCRIMINATOR;
+    data[1] = bump;
+    data[2..4].copy_from_slice(&chain_id.to_le_bytes());
+    // _padding [4..8]
+    data[8..16].copy_from_slice(&160_000_000u64.to_le_bytes());  // dst_price
+    data[16..24].copy_from_slice(&2_650_000_000u64.to_le_bytes()); // src_price
+    data[24..32].copy_from_slice(&399_146u64.to_le_bytes());     // dst_gas_price
+    data[32..40].copy_from_slice(&100u64.to_le_bytes());         // base_fee
+
+    let mut account = AccountSharedData::new(lamports, QUOTE_BODY_SIZE, &QUOTER_PROGRAM_ID);
+    account.set_data_from_slice(&data);
+    account
+}
+
+/// Create an executable program account for CPI
+fn create_program_account() -> AccountSharedData {
+    let mut account = AccountSharedData::new(1, 0, &bpf_loader_upgradeable::id());
+    account.set_executable(true);
+    account
+}
+
 fn main() {
-    // Initialize Mollusk with the program
-    let mollusk = Mollusk::new(&ROUTER_PROGRAM_ID, "executor_quoter_router");
+    // Initialize Mollusk with router program + quoter for CPI
+    let mut mollusk = Mollusk::new(&ROUTER_PROGRAM_ID, "executor_quoter_router");
+    mollusk.add_program(&QUOTER_PROGRAM_ID, "executor_quoter");
 
     // Get the system program keyed account for CPI
     let system_program_account = keyed_account_for_system_program();
@@ -201,7 +303,9 @@ fn main() {
     // Far future expiry time
     let expiry_time = u64::MAX;
 
-    // Build UpdateQuoterContract instruction (create new registration)
+    // =========================================================================
+    // Benchmark: UpdateQuoterContract (create new)
+    // =========================================================================
     let update_quoter_contract_create_ix = Instruction::new_with_bytes(
         ROUTER_PROGRAM_ID,
         &build_signed_update_quoter_contract_data(
@@ -231,7 +335,7 @@ fn main() {
         system_program_account.clone(),
     ];
 
-    // Build UpdateQuoterContract instruction (update existing registration)
+    // Benchmark: UpdateQuoterContract (update existing)
     let update_quoter_contract_update_accounts = vec![
         (payer, create_payer_account()),
         (sender, create_signer_account()),
@@ -247,6 +351,46 @@ fn main() {
         system_program_account,
     ];
 
+    // =========================================================================
+    // Benchmark: QuoteExecution (CPI to quoter)
+    // =========================================================================
+    let quoter_config = Pubkey::new_unique();
+    let (quoter_chain_info_pda, chain_info_bump) = derive_quoter_chain_info_pda(DST_CHAIN_ID);
+    let (quoter_quote_body_pda, quote_body_bump) = derive_quoter_quote_body_pda(DST_CHAIN_ID);
+
+    let quote_execution_ix = Instruction::new_with_bytes(
+        ROUTER_PROGRAM_ID,
+        &build_quote_execution_data(&quoter.eth_address, DST_CHAIN_ID, 250_000, 0),
+        vec![
+            AccountMeta::new_readonly(quoter_registration_pda, false),
+            AccountMeta::new_readonly(QUOTER_PROGRAM_ID, false),
+            AccountMeta::new_readonly(quoter_config, false),
+            AccountMeta::new_readonly(quoter_chain_info_pda, false),
+            AccountMeta::new_readonly(quoter_quote_body_pda, false),
+        ],
+    );
+
+    let quote_execution_accounts = vec![
+        (
+            quoter_registration_pda,
+            create_quoter_registration_account(
+                quoter_registration_bump,
+                &quoter.eth_address,
+                &QUOTER_PROGRAM_ID,
+            ),
+        ),
+        (QUOTER_PROGRAM_ID, create_program_account()),
+        (quoter_config, create_config_account()),
+        (
+            quoter_chain_info_pda,
+            create_chain_info_account(DST_CHAIN_ID, chain_info_bump),
+        ),
+        (
+            quoter_quote_body_pda,
+            create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
+        ),
+    ];
+
     // Run benchmarks
     MolluskComputeUnitBencher::new(mollusk)
         .bench((
@@ -258,6 +402,11 @@ fn main() {
             "update_quoter_contract_update",
             &update_quoter_contract_create_ix,
             &update_quoter_contract_update_accounts,
+        ))
+        .bench((
+            "quote_execution_250k_gas",
+            &quote_execution_ix,
+            &quote_execution_accounts,
         ))
         .must_pass(true)
         .out_dir("target/benches")
