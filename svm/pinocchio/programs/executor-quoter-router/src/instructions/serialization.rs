@@ -67,6 +67,9 @@ pub struct GovernanceMessage {
 impl GovernanceMessage {
     pub const LEN: usize = 163;
 
+    /// Length of the pre-signature portion (bytes 0-97) used for ecrecover.
+    pub const SIGNED_LEN: usize = 98;
+
     /// Parse a governance message from bytes.
     pub fn parse(data: &[u8]) -> Result<Self, ProgramError> {
         if data.len() < Self::LEN {
@@ -115,8 +118,4 @@ impl GovernanceMessage {
         })
     }
 
-    /// Get the message bytes that were signed (bytes 0-98).
-    pub fn signed_message<'a>(&self, original_data: &'a [u8]) -> &'a [u8] {
-        &original_data[0..98]
-    }
 }

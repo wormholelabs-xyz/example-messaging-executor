@@ -173,7 +173,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     // The signed message is bytes 0-98 of the governance message (before signature)
     // This mirrors EVM: bytes32 hash = keccak256(gov[0:98]);
     {
-        let signed_message = gov_msg.signed_message(gov_data);
+        let signed_message = &gov_data[..GovernanceMessage::SIGNED_LEN];
         let recovered_address = ecrecover(
             signed_message,
             &gov_msg.signature_r,
