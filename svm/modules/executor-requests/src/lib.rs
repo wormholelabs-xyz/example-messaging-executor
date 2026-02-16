@@ -213,10 +213,10 @@ pub fn parse_relay_instructions(data: &[u8]) -> Result<(u128, u128), RelayParseE
                     .checked_add(ix_msg_value)
                     .ok_or(RelayParseError::Overflow)?;
             }
+            RELAY_IX_GAS_DROP_OFF if has_drop_off => {
+                return Err(RelayParseError::MultipleDropoff);
+            }
             RELAY_IX_GAS_DROP_OFF => {
-                if has_drop_off {
-                    return Err(RelayParseError::MultipleDropoff);
-                }
                 has_drop_off = true;
 
                 // DropOff instruction: 16 bytes msg_value + 32 bytes recipient
