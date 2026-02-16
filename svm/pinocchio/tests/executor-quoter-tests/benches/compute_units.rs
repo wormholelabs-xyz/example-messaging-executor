@@ -203,13 +203,13 @@ fn main() {
     let (quote_body_pda, quote_body_bump) = derive_quote_body_pda(DST_CHAIN_ID);
 
     // Benchmark: UpdateChainInfo (create new)
+    // Admin instructions use 4 accounts: [payer, updater, chain_info, system_program]
     let update_chain_info_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &build_update_chain_info_data(DST_CHAIN_ID),
         vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(updater, true),
-            AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new(chain_info_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -217,7 +217,6 @@ fn main() {
     let update_chain_info_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (config_pda, create_config_account()),
         (
             chain_info_pda,
             AccountSharedData::new(0, 0, &system_program::ID),
@@ -229,7 +228,6 @@ fn main() {
     let update_chain_info_existing_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (config_pda, create_config_account()),
         (
             chain_info_pda,
             create_chain_info_account(DST_CHAIN_ID, chain_info_bump),
@@ -238,13 +236,13 @@ fn main() {
     ];
 
     // Benchmark: UpdateQuote (create new)
+    // Admin instructions use 4 accounts: [payer, updater, quote_body, system_program]
     let update_quote_ix = Instruction::new_with_bytes(
         PROGRAM_ID,
         &build_update_quote_data(DST_CHAIN_ID),
         vec![
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(updater, true),
-            AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new(quote_body_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
@@ -252,7 +250,6 @@ fn main() {
     let update_quote_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (config_pda, create_config_account()),
         (
             quote_body_pda,
             AccountSharedData::new(0, 0, &system_program::ID),
@@ -264,7 +261,6 @@ fn main() {
     let update_quote_existing_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (config_pda, create_config_account()),
         (
             quote_body_pda,
             create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
