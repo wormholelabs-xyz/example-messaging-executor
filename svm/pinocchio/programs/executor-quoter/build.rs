@@ -2,17 +2,30 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+// Build-time configuration for executor-quoter.
+//
+// Required env vars:
+//   QUOTER_UPDATER_PUBKEY  - Base58-encoded Solana pubkey (32 bytes) authorized
+//                            to call UpdateChainInfo and UpdateQuote. Build fails
+//                            if unset.
+//   QUOTER_PAYEE_PUBKEY    - Base58-encoded Solana pubkey (32 bytes) used as the
+//                            universal payee address for execution fees. Defaults
+//                            to QUOTER_UPDATER_PUBKEY if unset.
+//
+// Example (test builds):
+//   export QUOTER_UPDATER_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-updater.json)
+//   export QUOTER_PAYEE_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-payee.json)
+//   cargo build-sbf --manifest-path programs/executor-quoter/Cargo.toml
+
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_path = Path::new(&out_dir);
 
-    // Parse QUOTER_UPDATER_PUBKEY env var (base58 pubkey string)
-    // Falls back to a default test pubkey if not set
+    // Required -- panics if unset.
     let updater_pubkey =
         env::var("QUOTER_UPDATER_PUBKEY").expect("Updater pubkey must be set at build time");
 
-    // Parse QUOTER_PAYEE_PUBKEY env var (base58 pubkey string)
-    // Falls back to same as updater if not set
+    // Optional -- defaults to updater pubkey.
     let payee_pubkey = env::var("QUOTER_PAYEE_PUBKEY").unwrap_or_else(|_| updater_pubkey.clone());
 
     // Decode base58 to bytes

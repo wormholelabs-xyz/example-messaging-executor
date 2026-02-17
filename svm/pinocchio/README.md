@@ -47,13 +47,18 @@ The Pinocchio programs must be built using `cargo build-sbf` before running test
 
 ### Build Programs
 
-The `executor-quoter` program requires the `QUOTER_UPDATER_PUBKEY` environment variable to be set at build time. This is the public key authorized to update quotes.
+The `executor-quoter` program requires build-time environment variables that are baked into the binary:
+
+- `QUOTER_UPDATER_PUBKEY` (required) - Base58 Solana pubkey authorized to call `UpdateChainInfo` and `UpdateQuote`.
+- `QUOTER_PAYEE_PUBKEY` (optional) - Base58 Solana pubkey used as the universal payee address for execution fees. Defaults to `QUOTER_UPDATER_PUBKEY` if unset.
 
 ```bash
 cd svm/pinocchio
 
-# Get the updater pubkey from your keypair
+# Set build-time pubkeys from keypair files
 export QUOTER_UPDATER_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-updater.json)
+# Optional: set a separate payee (defaults to updater if omitted)
+# export QUOTER_PAYEE_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-payee.json)
 
 # Build executor-quoter
 cargo build-sbf --manifest-path programs/executor-quoter/Cargo.toml
@@ -78,8 +83,8 @@ cp target/deploy/executor.so ../pinocchio/target/deploy/
 
 Tests require several environment variables to be set:
 
-- `QUOTER_UPDATER_PUBKEY` - Public key of the authorized updater
-- `QUOTER_UPDATER_KEYPAIR_PATH` - Path to the updater keypair file
+- `QUOTER_UPDATER_PUBKEY` - Base58 pubkey of the authorized updater (must match the value used at build time)
+- `QUOTER_UPDATER_KEYPAIR_PATH` - Path to the updater keypair JSON file (used to sign test transactions)
 - `SBF_OUT_DIR` - Directory containing the compiled `.so` files
 
 ```bash
