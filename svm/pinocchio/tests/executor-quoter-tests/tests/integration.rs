@@ -500,10 +500,38 @@ async fn test_request_quote() {
     let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
     transaction.sign(&[&payer], recent_blockhash);
 
-    let result = banks_client.process_transaction(transaction).await;
-    assert!(result.is_ok(), "RequestQuote failed: {:?}", result.err());
+    let result = banks_client
+        .simulate_transaction(transaction)
+        .await
+        .expect("simulate failed");
+    assert!(
+        result.result.as_ref().unwrap().is_ok(),
+        "RequestQuote failed: {:?}",
+        result.result
+    );
 
-    println!("RequestQuote test passed!");
+    // Extract return data from simulation
+    let details = result.simulation_details.expect("no simulation details");
+    let return_data = details.return_data.expect("no return data");
+    assert_eq!(return_data.data.len(), 8, "return data should be 8 bytes (u64 BE)");
+
+    let required_payment = u64::from_be_bytes(return_data.data.try_into().unwrap());
+
+    // Expected quote computation (independent verification):
+    // Inputs: base_fee=1_000_000, src_price=200e10, dst_price=2000e10,
+    //   dst_gas_price=50e9, gas_price_decimals=9, native_decimals=18,
+    //   gas_limit=200_000, msg_value=0
+    // base_fee_18 = 1_000_000 * 10^8 = 1e14
+    // price_ratio_18 = (2000e10 * 10^8 * 10^18) / (200e10 * 10^8) = 1e19
+    // gas_cost = 200_000 * 50e9 = 1e16
+    // gas_cost_18 = 1e16 * 10^9 = 1e25
+    // gas_value_src = 1e25 * 1e19 / 1e18 = 1e26
+    // total_18 = 1e14 + 1e26
+    // result_lamports = total_18 / 1e9 = 100_000_000_000_100_000
+    assert_eq!(
+        required_payment, 100_000_000_000_100_000,
+        "quote should match expected computation"
+    );
 }
 
 #[tokio::test]
