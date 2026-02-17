@@ -2622,5 +2622,215 @@ async fn test_chain_toggle() {
     println!("Chain toggle test passed!");
 }
 
+/// Verifies that UpdateChainInfo correctly overwrites mutable fields on an existing
+/// account while preserving immutable fields (discriminator, bump, chain_id).
+#[tokio::test]
+async fn test_update_chain_info_overwrites() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = get_updater_keypair();
+    let chain_id: u16 = 2;
+    let (chain_info_pda, _chain_info_bump) = derive_chain_info_pda(chain_id);
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 10_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // First: create ChainInfo with initial values
+    let create_data = build_update_chain_info_data(
+        chain_id,
+        true, // enabled
+        9,    // gas_price_decimals (Gwei)
+        18,   // native_decimals (ETH)
+    );
+    let create_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &create_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new(chain_info_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[create_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Create ChainInfo failed");
+
+    // Verify initial values
+    let account = banks_client
+        .get_account(chain_info_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("ChainInfo account not found");
+
+    assert_eq!(account.data[0], CHAIN_INFO_DISCRIMINATOR);
+    let initial_bump = account.data[1];
+    let stored_chain_id = u16::from_le_bytes(account.data[2..4].try_into().unwrap());
+    assert_eq!(stored_chain_id, chain_id);
+    assert_eq!(account.data[4], 1, "enabled should be true");
+    assert_eq!(account.data[5], 9, "gas_price_decimals should be 9");
+    assert_eq!(account.data[6], 18, "native_decimals should be 18");
+
+    // Second: update with different mutable field values
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
+    let update_data = build_update_chain_info_data(
+        chain_id,
+        false, // disabled
+        12,    // different gas_price_decimals
+        8,     // different native_decimals
+    );
+    let update_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &update_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new(chain_info_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[update_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Update ChainInfo failed");
+
+    // Verify mutable fields were updated
+    let account = banks_client
+        .get_account(chain_info_pda)
+        .await
+        .expect("Failed to get account")
+        .expect("ChainInfo account not found");
+
+    assert_eq!(account.data[4], 0, "enabled should be false after update");
+    assert_eq!(
+        account.data[5], 12,
+        "gas_price_decimals should be 12 after update"
+    );
+    assert_eq!(
+        account.data[6], 8,
+        "native_decimals should be 8 after update"
+    );
+
+    // Verify immutable fields were NOT changed
+    assert_eq!(
+        account.data[0], CHAIN_INFO_DISCRIMINATOR,
+        "discriminator should be unchanged"
+    );
+    assert_eq!(
+        account.data[1], initial_bump,
+        "bump should be unchanged"
+    );
+    let stored_chain_id = u16::from_le_bytes(account.data[2..4].try_into().unwrap());
+    assert_eq!(stored_chain_id, chain_id, "chain_id should be unchanged");
+}
+
+/// Verifies that UpdateChainInfo rejects updates when the instruction chain_id
+/// does not match the stored chain_id (ChainIdMismatch error).
+#[tokio::test]
+async fn test_update_chain_info_chain_id_mismatch() {
+    let mut pt = create_program_test();
+
+    let payer = Keypair::new();
+    let updater = get_updater_keypair();
+    let chain_id: u16 = 2;
+    let wrong_chain_id: u16 = 3;
+    let (chain_info_pda, _chain_info_bump) = derive_chain_info_pda(chain_id);
+
+    pt.add_account(
+        payer.pubkey(),
+        Account {
+            lamports: 10_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    pt.add_account(
+        updater.pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+
+    // Create ChainInfo for chain_id=2
+    let create_data = build_update_chain_info_data(chain_id, true, 9, 18);
+    let create_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &create_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new(chain_info_pda, false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[create_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Create ChainInfo failed");
+
+    // Attempt update with wrong chain_id targeting the same PDA
+    let recent_blockhash = banks_client
+        .get_latest_blockhash()
+        .await
+        .expect("get blockhash");
+    let mismatch_data = build_update_chain_info_data(wrong_chain_id, false, 12, 8);
+    let mismatch_ix = Instruction::new_with_bytes(
+        PROGRAM_ID,
+        &mismatch_data,
+        vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(updater.pubkey(), true),
+            AccountMeta::new(chain_info_pda, false), // PDA for chain_id=2
+            AccountMeta::new_readonly(system_program::id(), false),
+        ],
+    );
+    let mut tx = Transaction::new_with_payer(&[mismatch_ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &updater], recent_blockhash);
+    let result = banks_client.process_transaction(tx).await;
+    assert!(
+        result.is_err(),
+        "Should have failed with ChainIdMismatch"
+    );
+}
+
 // Note: test_account_data_layout removed - Config account no longer exists
 // Values are now hardcoded in the program
