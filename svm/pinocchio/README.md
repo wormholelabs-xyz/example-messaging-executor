@@ -63,7 +63,10 @@ export QUOTER_UPDATER_PUBKEY=$(solana-keygen pubkey ../test-keys/quoter-updater.
 # Build executor-quoter
 cargo build-sbf --manifest-path programs/executor-quoter/Cargo.toml
 
-# Build executor-quoter-router
+# Build executor-quoter-router (uses Solana defaults if env vars unset)
+# Optional: override for non-Solana deployments (e.g. Fogo)
+# export ROUTER_CHAIN_ID=10002
+# export ROUTER_EXECUTOR_PROGRAM_ID=<base58 executor pubkey>
 cargo build-sbf --manifest-path programs/executor-quoter-router/Cargo.toml
 ```
 

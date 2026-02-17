@@ -22,18 +22,19 @@ pub static ID: Pubkey = [
 ];
 
 // =============================================================================
-// Hardcoded Configuration
-// TODO: Replace with env variables at build time
+// Build-time Configuration
+// Set via environment variables: ROUTER_CHAIN_ID, ROUTER_EXECUTOR_PROGRAM_ID
+// Defaults to Solana devnet values if unset.
 // =============================================================================
 
-/// Solana Wormhole chain ID
-pub const OUR_CHAIN: u16 = 1;
+/// Wormhole chain ID for the deployment chain.
+/// Set at build time via ROUTER_CHAIN_ID env var (u16). Default: 1 (Solana).
+pub const OUR_CHAIN: u16 = include!(concat!(env!("OUT_DIR"), "/our_chain.rs"));
 
-/// Executor program ID: execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV
-pub const EXECUTOR_PROGRAM_ID: Pubkey = [
-    0x09, 0xb9, 0x69, 0x71, 0x58, 0x3b, 0x59, 0x03, 0xe0, 0x28, 0x1d, 0xa9, 0x65, 0x48, 0xd5, 0xd2,
-    0x3c, 0x65, 0x1f, 0x7a, 0x9c, 0xcd, 0xe3, 0xea, 0xd5, 0x2b, 0x42, 0xf6, 0xb7, 0xda, 0xc2, 0xd2,
-];
+/// Executor program ID.
+/// Set at build time via ROUTER_EXECUTOR_PROGRAM_ID env var (base58 pubkey).
+/// Default: execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV.
+pub const EXECUTOR_PROGRAM_ID: Pubkey = include!(concat!(env!("OUT_DIR"), "/executor_program_id.rs"));
 
 /// Instruction discriminators
 #[repr(u8)]
