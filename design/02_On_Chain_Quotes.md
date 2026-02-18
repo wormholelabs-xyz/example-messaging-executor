@@ -137,13 +137,16 @@ interface IExecutorQuoterRouter {
 On SVM, two programs are introduced.
 
 1. **ExecutorQuoter** is a Pinocchio-based program that implements the quoting logic. It exposes two CPI-callable instructions:
+
    - `RequestQuote` (discriminator `[2, 0, 0, 0, 0, 0, 0, 0]`): Returns `(payee_address, required_payment)` via return data.
    - `RequestExecutionQuote` (discriminator `[3, 0, 0, 0, 0, 0, 0, 0]`): Returns `(required_payment, payee_address, quote_body)` as 72 bytes via return data.
 
    The quoter reads pricing data from on-chain PDAs (`ChainInfo`, `QuoteBody`) maintained by an authorized updater.
 
 2. **ExecutorQuoterRouter** is the entry-point for integrators. It provides three instructions:
+
    1. `UpdateQuoterContract` registers or updates a quoter's implementation mapping. This MUST:
+
       - Verify the chain ID matches `OUR_CHAIN`.
       - Verify the sender matches `universal_sender_address` in the governance message.
       - Verify the governance has not expired.

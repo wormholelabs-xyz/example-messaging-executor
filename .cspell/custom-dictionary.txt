@@ -17,7 +17,9 @@ permissionless
 permissionlessly
 permissionlessness
 pubkey
+pubkeys
 Pubkey
+Fogo
 Redoc
 Ruleset
 Rulesets
