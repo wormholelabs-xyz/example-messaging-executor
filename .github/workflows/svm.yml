@@ -52,6 +52,7 @@ jobs:
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v1.18.17/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          mkdir -p ~/.cache/solana
       - name: Generate test keypair
         run: |
           mkdir -p ../test-keys
