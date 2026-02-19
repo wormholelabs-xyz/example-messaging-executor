@@ -1,6 +1,6 @@
 {
   "version": "0.2",
-  "ignorePaths": [],
+  "ignorePaths": ["node_modules/", "svm/node_modules/", "evm/lib/"],
   "dictionaryDefinitions": [
     {
       "name": "custom-dictionary",

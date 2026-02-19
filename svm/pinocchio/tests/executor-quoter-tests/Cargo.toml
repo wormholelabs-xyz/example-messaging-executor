@@ -1,0 +1,22 @@
+[package]
+name = "executor-quoter-tests"
+version = "0.1.0"
+description = "Integration tests and benchmarks for executor-quoter"
+edition = "2021"
+
+[lib]
+name = "executor_quoter_tests"
+
+[features]
+default = []
+
+[dev-dependencies]
+solana-program-test = "1.18"
+solana-sdk = "1.18"
+mollusk-svm = "0.0.9-solana-1.18"
+mollusk-svm-bencher = "0.0.9-solana-1.18"
+executor-requests = { path = "../../../modules/executor-requests" }
+
+[[bench]]
+name = "compute_units"
+harness = false

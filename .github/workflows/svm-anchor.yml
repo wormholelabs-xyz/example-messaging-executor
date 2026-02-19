@@ -1,15 +1,15 @@
-name: svm
+name: svm-anchor
 
 on:
   pull_request:
 
 jobs:
-  test:
+  anchor-test:
     name: Anchor Test
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: svm
+        working-directory: svm/anchor
     steps:
       - uses: actions/checkout@v4
       - name: Get solana version
@@ -29,7 +29,7 @@ jobs:
           node-version: "22.16.0"
           anchor-version: "${{steps.anchor.outputs.version}}"
           solana-cli-version: "${{steps.solana.outputs.version}}"
-          working-directory: "svm"
+          working-directory: "svm/anchor"
 
       - run: cargo fmt --check --all
       - run: cargo clippy

@@ -1,17 +1,25 @@
 # Custom Dictionary Words
 Aptos
+secp
+borsh
+Borsh
 CCTP
 Devnet
 hashv
 idls
 keccak
+keypair
+keypairs
+KEYPAIR
 Linea
 Mezo
 permissionless
 permissionlessly
 permissionlessness
 pubkey
+pubkeys
 Pubkey
+Fogo
 Redoc
 Ruleset
 Rulesets
@@ -20,4 +28,7 @@ Solana
 struct
 structs
 Unichain
+wormholelabs
+wormhole-labs
 XRPL
+codama

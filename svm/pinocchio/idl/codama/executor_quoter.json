@@ -1,0 +1,842 @@
+{
+  "kind": "rootNode",
+  "standard": "codama",
+  "version": "1.5.1",
+  "program": {
+    "kind": "programNode",
+    "name": "executorQuoter",
+    "publicKey": "wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd",
+    "version": "0.1.0",
+    "origin": "shank",
+    "docs": [],
+    "accounts": [
+      {
+        "kind": "accountNode",
+        "name": "quoteBody",
+        "size": 40,
+        "docs": [],
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "bump",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "chainId",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u16",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "padding",
+              "docs": [],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 4,
+                "type": {
+                  "kind": "bytesTypeNode"
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "dstPrice",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u64",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "srcPrice",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u64",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "dstGasPrice",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u64",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "baseFee",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u64",
+                "endian": "le"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "accountNode",
+        "name": "chainInfo",
+        "size": 8,
+        "docs": [],
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "bump",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "chainId",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u16",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "enabled",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "gasPriceDecimals",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "nativeDecimals",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "padding",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "instructions": [
+      {
+        "kind": "instructionNode",
+        "name": "updateChainInfo",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": ["Pays for account creation"],
+            "defaultValue": {
+              "kind": "payerValueNode"
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "updater",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "chainInfo",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["ChainInfo PDA ['chain_info', chain_id]"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["System Program"],
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "splSystem"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            },
+            "defaultValue": {
+              "kind": "numberValueNode",
+              "number": 0
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "chainId",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "enabled",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "gasPriceDecimals",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "nativeDecimals",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "padding",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "fieldDiscriminatorNode",
+            "name": "discriminator",
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "updateQuote",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": ["Pays for account creation"],
+            "defaultValue": {
+              "kind": "payerValueNode"
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "updater",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoteBody",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["QuoteBody PDA ['quote', chain_id]"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["System Program"],
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "splSystem"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            },
+            "defaultValue": {
+              "kind": "numberValueNode",
+              "number": 1
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "chainId",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "padding",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 6,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstPrice",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u64",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "srcPrice",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u64",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstGasPrice",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u64",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "baseFee",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u64",
+              "endian": "le"
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "fieldDiscriminatorNode",
+            "name": "discriminator",
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "requestQuote",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "config",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["Program config (reserved for CPI compatibility)"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "chainInfo",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["ChainInfo PDA for destination chain"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoteBody",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["QuoteBody PDA for destination chain"]
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstChain",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstAddr",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 32,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "refundAddr",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 32,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "requestBytes",
+            "docs": [],
+            "type": {
+              "kind": "sizePrefixTypeNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "prefix": {
+                "kind": "numberTypeNode",
+                "format": "u32",
+                "endian": "le"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "relayInstructions",
+            "docs": [],
+            "type": {
+              "kind": "sizePrefixTypeNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "prefix": {
+                "kind": "numberTypeNode",
+                "format": "u32",
+                "endian": "le"
+              }
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "0200000000000000",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "requestExecutionQuote",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "config",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["Program config (reserved for CPI compatibility)"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "chainInfo",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["ChainInfo PDA for destination chain"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoteBody",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["QuoteBody PDA for destination chain"]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "eventCpi",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": ["Event CPI account (reserved for CPI compatibility)"]
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstChain",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "dstAddr",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 32,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "refundAddr",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 32,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "requestBytes",
+            "docs": [],
+            "type": {
+              "kind": "sizePrefixTypeNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "prefix": {
+                "kind": "numberTypeNode",
+                "format": "u32",
+                "endian": "le"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "relayInstructions",
+            "docs": [],
+            "type": {
+              "kind": "sizePrefixTypeNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "prefix": {
+                "kind": "numberTypeNode",
+                "format": "u32",
+                "endian": "le"
+              }
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "constantDiscriminatorNode",
+            "offset": 0,
+            "constant": {
+              "kind": "constantValueNode",
+              "type": {
+                "kind": "bytesTypeNode"
+              },
+              "value": {
+                "kind": "bytesValueNode",
+                "data": "0300000000000000",
+                "encoding": "base16"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "definedTypes": [],
+    "pdas": [
+      {
+        "kind": "pdaNode",
+        "name": "quoteBodyPda",
+        "docs": [],
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": {
+              "kind": "stringTypeNode",
+              "encoding": "utf8"
+            },
+            "value": {
+              "kind": "stringValueNode",
+              "string": "quote"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "chainId",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "pdaNode",
+        "name": "chainInfoPda",
+        "docs": [],
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": {
+              "kind": "stringTypeNode",
+              "encoding": "utf8"
+            },
+            "value": {
+              "kind": "stringValueNode",
+              "string": "chain_info"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "chainId",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u16",
+              "endian": "le"
+            }
+          }
+        ]
+      }
+    ],
+    "errors": [
+      {
+        "kind": "errorNode",
+        "name": "invalidUpdater",
+        "code": 4096,
+        "message": "Invalid updater authority",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "chainDisabled",
+        "code": 4097,
+        "message": "Chain is disabled",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "unsupportedInstruction",
+        "code": 4098,
+        "message": "Unsupported instruction",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "moreThanOneDropOff",
+        "code": 4099,
+        "message": "More than one drop-off",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "mathOverflow",
+        "code": 4100,
+        "message": "Math overflow",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidRelayInstructions",
+        "code": 4101,
+        "message": "Invalid relay instructions",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidPda",
+        "code": 4102,
+        "message": "Invalid PDA",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "alreadyInitialized",
+        "code": 4103,
+        "message": "Already initialized",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "notInitialized",
+        "code": 4104,
+        "message": "Not initialized",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidOwner",
+        "code": 4105,
+        "message": "Invalid owner",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidInstructionData",
+        "code": 4106,
+        "message": "Invalid instruction data",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidDiscriminator",
+        "code": 4107,
+        "message": "Invalid discriminator",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "chainIdMismatch",
+        "code": 4108,
+        "message": "Chain ID mismatch",
+        "docs": []
+      }
+    ]
+  },
+  "additionalPrograms": []
+}

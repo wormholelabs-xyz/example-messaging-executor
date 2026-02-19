@@ -779,6 +779,7 @@ name = "executor"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "executor-requests",
 ]
 
 [[package]]

@@ -1,0 +1,32 @@
+{
+  "name": "@wormhole-labs/svm-example-executor-quoter-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Executor Quoter and Executor Quoter Router Solana programs",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/src/generated/index.js",
+  "types": "dist/src/generated/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/generated/index.d.ts",
+      "import": "./dist/src/generated/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "@solana/kit": "^6.1.0"
+  },
+  "dependencies": {
+    "@solana/program-client-core": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
