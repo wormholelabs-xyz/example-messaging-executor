@@ -140,8 +140,8 @@ export function getQuoteExecutionInstruction<
   TAccountQuoterConfig extends string,
   TAccountQuoterChainInfo extends string,
   TAccountQuoterQuoteBody extends string,
-  TProgramAddress extends Address =
-    typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
+  TProgramAddress extends
+    Address = typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
 >(
   input: QuoteExecutionInput<
     TAccountQuoterRegistration,
