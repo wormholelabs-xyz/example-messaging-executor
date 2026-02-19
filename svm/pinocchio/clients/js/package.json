@@ -1,6 +1,6 @@
 {
   "name": "@wormhole-labs/svm-example-executor-quoter-sdk",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "TypeScript SDK for the Executor Quoter and Executor Quoter Router Solana programs",
   "license": "Apache-2.0",
   "type": "module",
