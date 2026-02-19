@@ -1,0 +1,62 @@
+name: Publish SDK
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for OIDC authentication with npm
+      contents: read
+    defaults:
+      run:
+        working-directory: svm/pinocchio
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          # Node 24 ships with npm 11.x which includes OIDC support (requires 11.5.1+)
+
+      - name: Install Codama dependencies
+        run: bun install
+
+      - name: Generate IDLs and SDK
+        run: bun run generate
+
+      - name: Install SDK dependencies
+        working-directory: svm/pinocchio/clients/js
+        run: npm ci
+
+      - name: Build
+        working-directory: svm/pinocchio/clients/js
+        run: npm run build --if-present
+
+      - name: Publish
+        working-directory: svm/pinocchio/clients/js
+        run: |
+          version="$GITHUB_REF_NAME"
+
+          # Sync version to package.json
+          npm version "$version" --no-git-tag-version
+
+          if [[ $version == *"beta"* ]]; then
+            tag=beta
+          elif [[ $version == *"alpha"* ]]; then
+            tag=alpha
+          else
+            tag=latest
+          fi
+
+          npm publish --access public --tag $tag
+        # OIDC authentication is used automatically by npm CLI 11.5.1+
+        # No NPM_TOKEN secret needed - authentication happens via OpenID Connect
+        # See: https://docs.npmjs.com/trusted-publishers/

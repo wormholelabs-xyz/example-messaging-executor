@@ -1,0 +1,610 @@
+{
+  "kind": "rootNode",
+  "standard": "codama",
+  "version": "1.5.1",
+  "program": {
+    "kind": "programNode",
+    "name": "executorQuoterRouter",
+    "publicKey": "21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz",
+    "version": "0.1.0",
+    "origin": "shank",
+    "docs": [],
+    "accounts": [
+      {
+        "kind": "accountNode",
+        "name": "quoterRegistration",
+        "size": 54,
+        "docs": [],
+        "data": {
+          "kind": "structTypeNode",
+          "fields": [
+            {
+              "kind": "structFieldTypeNode",
+              "name": "discriminator",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "bump",
+              "docs": [],
+              "type": {
+                "kind": "numberTypeNode",
+                "format": "u8",
+                "endian": "le"
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "quoterAddress",
+              "docs": [],
+              "type": {
+                "kind": "fixedSizeTypeNode",
+                "size": 20,
+                "type": {
+                  "kind": "bytesTypeNode"
+                }
+              }
+            },
+            {
+              "kind": "structFieldTypeNode",
+              "name": "implementationProgramId",
+              "docs": [],
+              "type": {
+                "kind": "publicKeyTypeNode"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "instructions": [
+      {
+        "kind": "instructionNode",
+        "name": "updateQuoterContract",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": [
+              "Pays for account creation"
+            ],
+            "defaultValue": {
+              "kind": "payerValueNode"
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "sender",
+            "isWritable": false,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": [
+              "Must match universal_sender_address in governance message"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "config",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Program config (reserved for integrator use)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterRegistration",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "QuoterRegistration PDA ['quoter_registration', quoter_address]"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "System Program"
+            ],
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "splSystem"
+            }
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            },
+            "defaultValue": {
+              "kind": "numberValueNode",
+              "number": 0
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "governanceMessage",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 163,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "fieldDiscriminatorNode",
+            "name": "discriminator",
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "quoteExecution",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterRegistration",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "QuoterRegistration PDA for the quoter"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter implementation program"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter config account (passed to quoter CPI)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterChainInfo",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter chain info account (passed to quoter CPI)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterQuoteBody",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter quote body account (passed to quoter CPI)"
+            ]
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            },
+            "defaultValue": {
+              "kind": "numberValueNode",
+              "number": 1
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "quoterAddress",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 20,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "cpiData",
+            "docs": [],
+            "type": {
+              "kind": "bytesTypeNode"
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "fieldDiscriminatorNode",
+            "name": "discriminator",
+            "offset": 0
+          }
+        ]
+      },
+      {
+        "kind": "instructionNode",
+        "name": "requestExecution",
+        "docs": [],
+        "optionalAccountStrategy": "programId",
+        "accounts": [
+          {
+            "kind": "instructionAccountNode",
+            "name": "payer",
+            "isWritable": true,
+            "isSigner": true,
+            "isOptional": false,
+            "docs": [
+              "Pays for execution"
+            ],
+            "defaultValue": {
+              "kind": "payerValueNode"
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "config",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Program config (reserved for integrator use)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterRegistration",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "QuoterRegistration PDA for the quoter"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter implementation program"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "executorProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Executor program to CPI into"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "payee",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Receives execution payment"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "refundAddr",
+            "isWritable": true,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Receives excess payment refund"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "systemProgram",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "System Program"
+            ],
+            "defaultValue": {
+              "kind": "publicKeyValueNode",
+              "publicKey": "11111111111111111111111111111111",
+              "identifier": "splSystem"
+            }
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterConfig",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter config account (passed to quoter CPI)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterChainInfo",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter chain info account (passed to quoter CPI)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "quoterQuoteBody",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Quoter quote body account (passed to quoter CPI)"
+            ]
+          },
+          {
+            "kind": "instructionAccountNode",
+            "name": "eventCpi",
+            "isWritable": false,
+            "isSigner": false,
+            "isOptional": false,
+            "docs": [
+              "Event CPI account (passed to quoter CPI)"
+            ]
+          }
+        ],
+        "arguments": [
+          {
+            "kind": "instructionArgumentNode",
+            "name": "discriminator",
+            "defaultValueStrategy": "omitted",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u8",
+              "endian": "le"
+            },
+            "defaultValue": {
+              "kind": "numberValueNode",
+              "number": 2
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "amount",
+            "docs": [],
+            "type": {
+              "kind": "numberTypeNode",
+              "format": "u64",
+              "endian": "le"
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "quoterAddress",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 20,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          },
+          {
+            "kind": "instructionArgumentNode",
+            "name": "cpiData",
+            "docs": [],
+            "type": {
+              "kind": "bytesTypeNode"
+            }
+          }
+        ],
+        "discriminators": [
+          {
+            "kind": "fieldDiscriminatorNode",
+            "name": "discriminator",
+            "offset": 0
+          }
+        ]
+      }
+    ],
+    "definedTypes": [],
+    "pdas": [
+      {
+        "kind": "pdaNode",
+        "name": "quoterRegistrationPda",
+        "docs": [],
+        "seeds": [
+          {
+            "kind": "constantPdaSeedNode",
+            "type": {
+              "kind": "stringTypeNode",
+              "encoding": "utf8"
+            },
+            "value": {
+              "kind": "stringValueNode",
+              "string": "quoter_registration"
+            }
+          },
+          {
+            "kind": "variablePdaSeedNode",
+            "name": "quoterAddress",
+            "docs": [],
+            "type": {
+              "kind": "fixedSizeTypeNode",
+              "size": 20,
+              "type": {
+                "kind": "bytesTypeNode"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "errors": [
+      {
+        "kind": "errorNode",
+        "name": "invalidOwner",
+        "code": 0,
+        "message": "Invalid owner",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidDiscriminator",
+        "code": 1,
+        "message": "Invalid discriminator",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidGovernancePrefix",
+        "code": 2,
+        "message": "Invalid governance prefix",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "chainIdMismatch",
+        "code": 3,
+        "message": "Chain ID mismatch",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidSender",
+        "code": 4,
+        "message": "Invalid sender",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "governanceExpired",
+        "code": 5,
+        "message": "Governance message expired",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidSignature",
+        "code": 6,
+        "message": "Invalid signature",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "notAnEvmAddress",
+        "code": 7,
+        "message": "Not an EVM address",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "quoterNotRegistered",
+        "code": 8,
+        "message": "Quoter not registered",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "underpaid",
+        "code": 9,
+        "message": "Underpaid",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "refundFailed",
+        "code": 10,
+        "message": "Refund failed",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidInstructionData",
+        "code": 11,
+        "message": "Invalid instruction data",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "cpiFailed",
+        "code": 12,
+        "message": "CPI failed",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidReturnData",
+        "code": 13,
+        "message": "Invalid return data",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "mathOverflow",
+        "code": 14,
+        "message": "Math overflow",
+        "docs": []
+      },
+      {
+        "kind": "errorNode",
+        "name": "invalidAccountData",
+        "code": 15,
+        "message": "Invalid account data",
+        "docs": []
+      }
+    ]
+  },
+  "additionalPrograms": []
+}
