@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use shank::ShankAccount;
 
 use crate::error::ExecutorQuoterError;
 
@@ -19,6 +20,7 @@ pub trait Discriminator {
 /// On-chain quote body for a specific destination chain.
 /// Mirrors the EVM OnChainQuoteBody struct.
 /// PDA seeds: ["quote", chain_id (u16 le bytes)]
+#[derive(ShankAccount)]
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
 pub struct QuoteBody {
@@ -69,6 +71,7 @@ impl QuoteBody {
 /// Field order is optimized for efficient updates: mutable fields (chain_id,
 /// enabled, gas_price_decimals, native_decimals) are contiguous at bytes 2-6,
 /// matching the instruction data layout for direct copy_from_slice.
+#[derive(ShankAccount)]
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
 pub struct ChainInfo {

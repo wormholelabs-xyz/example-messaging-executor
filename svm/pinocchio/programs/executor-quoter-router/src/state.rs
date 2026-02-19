@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use pinocchio::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use shank::ShankAccount;
 
 use crate::error::ExecutorQuoterRouterError;
 
@@ -21,6 +22,7 @@ pub trait Discriminator {
 /// PDA seeds: ["quoter_registration", quoter_address (20 bytes)]
 ///
 /// This mirrors the EVM `mapping(address => IExecutorQuoter) quoterContract`.
+#[derive(ShankAccount)]
 #[repr(C)]
 #[derive(Pod, Zeroable, Clone, Copy, Debug, PartialEq)]
 pub struct QuoterRegistration {

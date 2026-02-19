@@ -1,7 +1,9 @@
 use pinocchio::program_error::ProgramError;
+use shank::ShankType;
 
 /// Custom error codes for ExecutorQuoter program.
 /// Error codes start at 0x1000 to avoid collision with built-in errors.
+#[derive(ShankType)]
 #[repr(u32)]
 pub enum ExecutorQuoterError {
     /// Caller is not the authorized updater

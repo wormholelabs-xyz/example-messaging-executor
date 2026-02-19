@@ -1,0 +1,304 @@
+{
+  "version": "0.1.0",
+  "name": "executor_quoter",
+  "instructions": [
+    {
+      "name": "UpdateChainInfo",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Pays for account creation"
+          ]
+        },
+        {
+          "name": "updater",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Authorized updater (must match UPDATER_ADDRESS)"
+          ]
+        },
+        {
+          "name": "chainInfo",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "ChainInfo PDA ['chain_info', chain_id]"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System Program"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "UpdateQuote",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Pays for account creation"
+          ]
+        },
+        {
+          "name": "updater",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Authorized updater (must match UPDATER_ADDRESS)"
+          ]
+        },
+        {
+          "name": "quoteBody",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "QuoteBody PDA ['quote', chain_id]"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System Program"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "RequestQuote",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Program config (reserved for CPI compatibility)"
+          ]
+        },
+        {
+          "name": "chainInfo",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "ChainInfo PDA for destination chain"
+          ]
+        },
+        {
+          "name": "quoteBody",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "QuoteBody PDA for destination chain"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      },
+      "_discriminatorNote": "CPI instruction: uses 8-byte discriminator [2, 0, 0, 0, 0, 0, 0, 0] for Anchor compatibility. The u8 discriminant above is the Shank default; actual on-chain format pads to 8 bytes."
+    },
+    {
+      "name": "RequestExecutionQuote",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Program config (reserved for CPI compatibility)"
+          ]
+        },
+        {
+          "name": "chainInfo",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "ChainInfo PDA for destination chain"
+          ]
+        },
+        {
+          "name": "quoteBody",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "QuoteBody PDA for destination chain"
+          ]
+        },
+        {
+          "name": "eventCpi",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Event CPI account (reserved for CPI compatibility)"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      },
+      "_discriminatorNote": "CPI instruction: uses 8-byte discriminator [3, 0, 0, 0, 0, 0, 0, 0] for Anchor compatibility. The u8 discriminant above is the Shank default; actual on-chain format pads to 8 bytes."
+    }
+  ],
+  "accounts": [
+    {
+      "name": "QuoteBody",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "chainId",
+            "type": "u16"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "dstPrice",
+            "type": "u64"
+          },
+          {
+            "name": "srcPrice",
+            "type": "u64"
+          },
+          {
+            "name": "dstGasPrice",
+            "type": "u64"
+          },
+          {
+            "name": "baseFee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChainInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "chainId",
+            "type": "u16"
+          },
+          {
+            "name": "enabled",
+            "type": "u8"
+          },
+          {
+            "name": "gasPriceDecimals",
+            "type": "u8"
+          },
+          {
+            "name": "nativeDecimals",
+            "type": "u8"
+          },
+          {
+            "name": "padding",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "ExecutorQuoterError",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "InvalidUpdater"
+          },
+          {
+            "name": "ChainDisabled"
+          },
+          {
+            "name": "UnsupportedInstruction"
+          },
+          {
+            "name": "MoreThanOneDropOff"
+          },
+          {
+            "name": "MathOverflow"
+          },
+          {
+            "name": "InvalidRelayInstructions"
+          },
+          {
+            "name": "InvalidPda"
+          },
+          {
+            "name": "AlreadyInitialized"
+          },
+          {
+            "name": "NotInitialized"
+          },
+          {
+            "name": "InvalidOwner"
+          },
+          {
+            "name": "InvalidInstructionData"
+          },
+          {
+            "name": "InvalidDiscriminator"
+          },
+          {
+            "name": "ChainIdMismatch"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd"
+  }
+}

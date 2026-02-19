@@ -1,0 +1,305 @@
+{
+  "version": "0.1.0",
+  "name": "executor_quoter_router",
+  "instructions": [
+    {
+      "name": "UpdateQuoterContract",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Pays for account creation"
+          ]
+        },
+        {
+          "name": "sender",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Must match universal_sender_address in governance message"
+          ]
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Program config (reserved for integrator use)"
+          ]
+        },
+        {
+          "name": "quoterRegistration",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "QuoterRegistration PDA ['quoter_registration', quoter_address]"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System Program"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "QuoteExecution",
+      "accounts": [
+        {
+          "name": "quoterRegistration",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "QuoterRegistration PDA for the quoter"
+          ]
+        },
+        {
+          "name": "quoterProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter implementation program"
+          ]
+        },
+        {
+          "name": "quoterConfig",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter config account (passed to quoter CPI)"
+          ]
+        },
+        {
+          "name": "quoterChainInfo",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter chain info account (passed to quoter CPI)"
+          ]
+        },
+        {
+          "name": "quoterQuoteBody",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter quote body account (passed to quoter CPI)"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "RequestExecution",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Pays for execution"
+          ]
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Program config (reserved for integrator use)"
+          ]
+        },
+        {
+          "name": "quoterRegistration",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "QuoterRegistration PDA for the quoter"
+          ]
+        },
+        {
+          "name": "quoterProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter implementation program"
+          ]
+        },
+        {
+          "name": "executorProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Executor program to CPI into"
+          ]
+        },
+        {
+          "name": "payee",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Receives execution payment"
+          ]
+        },
+        {
+          "name": "refundAddr",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Receives excess payment refund"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System Program"
+          ]
+        },
+        {
+          "name": "quoterConfig",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter config account (passed to quoter CPI)"
+          ]
+        },
+        {
+          "name": "quoterChainInfo",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter chain info account (passed to quoter CPI)"
+          ]
+        },
+        {
+          "name": "quoterQuoteBody",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Quoter quote body account (passed to quoter CPI)"
+          ]
+        },
+        {
+          "name": "eventCpi",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Event CPI account (passed to quoter CPI)"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "QuoterRegistration",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "quoterAddress",
+            "type": {
+              "array": [
+                "u8",
+                20
+              ]
+            }
+          },
+          {
+            "name": "implementationProgramId",
+            "type": "publicKey"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "ExecutorQuoterRouterError",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "InvalidOwner"
+          },
+          {
+            "name": "InvalidDiscriminator"
+          },
+          {
+            "name": "InvalidGovernancePrefix"
+          },
+          {
+            "name": "ChainIdMismatch"
+          },
+          {
+            "name": "InvalidSender"
+          },
+          {
+            "name": "GovernanceExpired"
+          },
+          {
+            "name": "InvalidSignature"
+          },
+          {
+            "name": "NotAnEvmAddress"
+          },
+          {
+            "name": "QuoterNotRegistered"
+          },
+          {
+            "name": "Underpaid"
+          },
+          {
+            "name": "RefundFailed"
+          },
+          {
+            "name": "InvalidInstructionData"
+          },
+          {
+            "name": "CpiFailed"
+          },
+          {
+            "name": "InvalidReturnData"
+          },
+          {
+            "name": "MathOverflow"
+          },
+          {
+            "name": "InvalidAccountData"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz"
+  }
+}

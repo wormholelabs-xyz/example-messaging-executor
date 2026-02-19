@@ -1,6 +1,8 @@
 use pinocchio::program_error::ProgramError;
+use shank::ShankType;
 
 /// Custom errors for the ExecutorQuoterRouter program.
+#[derive(ShankType)]
 #[repr(u32)]
 pub enum ExecutorQuoterRouterError {
     /// Invalid account owner

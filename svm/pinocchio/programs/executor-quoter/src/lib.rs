@@ -4,6 +4,7 @@ use pinocchio::{
     account_info::AccountInfo, default_allocator, nostd_panic_handler, program_entrypoint,
     program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
+use shank::ShankInstruction;
 
 // Use program_entrypoint to declare the entrypoint
 // The MAX_TX_ACCOUNTS default handles any account count
@@ -41,19 +42,31 @@ pub const UPDATER_ADDRESS: Pubkey = include!(concat!(env!("OUT_DIR"), "/updater_
 pub const PAYEE_ADDRESS: [u8; 32] = include!(concat!(env!("OUT_DIR"), "/payee_address.rs"));
 
 /// Instruction discriminators
+#[derive(ShankInstruction)]
 #[repr(u8)]
 pub enum Instruction {
     /// Update chain info for a destination chain
-    /// Accounts: [payer, updater, chain_info, system_program]
+    #[account(0, writable, signer, name = "payer", desc = "Pays for account creation")]
+    #[account(1, signer, name = "updater", desc = "Authorized updater (must match UPDATER_ADDRESS)")]
+    #[account(2, writable, name = "chain_info", desc = "ChainInfo PDA ['chain_info', chain_id]")]
+    #[account(3, name = "system_program", desc = "System Program")]
     UpdateChainInfo = 0,
     /// Update quote for a destination chain
-    /// Accounts: [payer, updater, quote_body, system_program]
+    #[account(0, writable, signer, name = "payer", desc = "Pays for account creation")]
+    #[account(1, signer, name = "updater", desc = "Authorized updater (must match UPDATER_ADDRESS)")]
+    #[account(2, writable, name = "quote_body", desc = "QuoteBody PDA ['quote', chain_id]")]
+    #[account(3, name = "system_program", desc = "System Program")]
     UpdateQuote = 1,
-    /// Request a quote for cross-chain execution
-    /// Accounts: [_config, chain_info, quote_body]
+    /// Request a quote for cross-chain execution (8-byte discriminator, CPI)
+    #[account(0, name = "config", desc = "Program config (reserved for CPI compatibility)")]
+    #[account(1, name = "chain_info", desc = "ChainInfo PDA for destination chain")]
+    #[account(2, name = "quote_body", desc = "QuoteBody PDA for destination chain")]
     RequestQuote = 2,
-    /// Request execution quote with full details
-    /// Accounts: [_config, chain_info, quote_body, event_cpi]
+    /// Request execution quote with full details (8-byte discriminator, CPI)
+    #[account(0, name = "config", desc = "Program config (reserved for CPI compatibility)")]
+    #[account(1, name = "chain_info", desc = "ChainInfo PDA for destination chain")]
+    #[account(2, name = "quote_body", desc = "QuoteBody PDA for destination chain")]
+    #[account(3, name = "event_cpi", desc = "Event CPI account (reserved for CPI compatibility)")]
     RequestExecutionQuote = 3,
 }
 

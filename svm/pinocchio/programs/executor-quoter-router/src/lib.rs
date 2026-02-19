@@ -4,6 +4,7 @@ use pinocchio::{
     account_info::AccountInfo, default_allocator, nostd_panic_handler, program_entrypoint,
     program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
+use shank::ShankInstruction;
 
 program_entrypoint!(process_instruction);
 default_allocator!();
@@ -37,18 +38,38 @@ pub const OUR_CHAIN: u16 = include!(concat!(env!("OUT_DIR"), "/our_chain.rs"));
 pub const EXECUTOR_PROGRAM_ID: Pubkey = include!(concat!(env!("OUT_DIR"), "/executor_program_id.rs"));
 
 /// Instruction discriminators
+#[derive(ShankInstruction)]
 #[repr(u8)]
 pub enum Instruction {
     /// Register or update a quoter's implementation mapping
-    /// Accounts: [payer, sender, _config, quoter_registration, system_program]
+    #[account(0, writable, signer, name = "payer", desc = "Pays for account creation")]
+    #[account(1, signer, name = "sender", desc = "Must match universal_sender_address in governance message")]
+    #[account(2, name = "config", desc = "Program config (reserved for integrator use)")]
+    #[account(3, writable, name = "quoter_registration", desc = "QuoterRegistration PDA ['quoter_registration', quoter_address]")]
+    #[account(4, name = "system_program", desc = "System Program")]
     UpdateQuoterContract = 0,
 
     /// Get a quote from a registered quoter (read-only CPI)
-    /// Accounts: [quoter_registration, quoter_program, quoter_config, quoter_chain_info, quoter_quote_body]
+    #[account(0, name = "quoter_registration", desc = "QuoterRegistration PDA for the quoter")]
+    #[account(1, name = "quoter_program", desc = "Quoter implementation program")]
+    #[account(2, name = "quoter_config", desc = "Quoter config account (passed to quoter CPI)")]
+    #[account(3, name = "quoter_chain_info", desc = "Quoter chain info account (passed to quoter CPI)")]
+    #[account(4, name = "quoter_quote_body", desc = "Quoter quote body account (passed to quoter CPI)")]
     QuoteExecution = 1,
 
     /// Request execution through the router
-    /// Accounts: [payer, _config, quoter_registration, quoter_program, executor_program, payee, refund_addr, system_program, ...quoter_accounts]
+    #[account(0, writable, signer, name = "payer", desc = "Pays for execution")]
+    #[account(1, name = "config", desc = "Program config (reserved for integrator use)")]
+    #[account(2, name = "quoter_registration", desc = "QuoterRegistration PDA for the quoter")]
+    #[account(3, name = "quoter_program", desc = "Quoter implementation program")]
+    #[account(4, name = "executor_program", desc = "Executor program to CPI into")]
+    #[account(5, writable, name = "payee", desc = "Receives execution payment")]
+    #[account(6, writable, name = "refund_addr", desc = "Receives excess payment refund")]
+    #[account(7, name = "system_program", desc = "System Program")]
+    #[account(8, name = "quoter_config", desc = "Quoter config account (passed to quoter CPI)")]
+    #[account(9, name = "quoter_chain_info", desc = "Quoter chain info account (passed to quoter CPI)")]
+    #[account(10, name = "quoter_quote_body", desc = "Quoter quote body account (passed to quoter CPI)")]
+    #[account(11, name = "event_cpi", desc = "Event CPI account (passed to quoter CPI)")]
     RequestExecution = 2,
 }
 
