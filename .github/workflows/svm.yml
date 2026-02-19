@@ -61,12 +61,12 @@ jobs:
           echo "QUOTER_UPDATER_KEYPAIR_PATH=${{ github.workspace }}/svm/test-keys/quoter-updater.json" >> $GITHUB_ENV
       - name: Build pinocchio programs
         run: |
-          cargo build-sbf --tools-version v1.52 --manifest-path programs/executor-quoter/Cargo.toml
-          cargo build-sbf --tools-version v1.52 --manifest-path programs/executor-quoter-router/Cargo.toml
+          cargo build-sbf --tools-version v1.47 --manifest-path programs/executor-quoter/Cargo.toml
+          cargo build-sbf --tools-version v1.47 --manifest-path programs/executor-quoter-router/Cargo.toml
       - name: Build anchor executor program
         working-directory: svm/anchor
         run: |
-          cargo build-sbf --tools-version v1.52 --manifest-path programs/executor/Cargo.toml
+          cargo build-sbf --tools-version v1.47 --manifest-path programs/executor/Cargo.toml
           cp target/deploy/executor.so ../pinocchio/target/deploy/
       - run: cargo fmt --check --all
       - run: cargo clippy --all-targets
