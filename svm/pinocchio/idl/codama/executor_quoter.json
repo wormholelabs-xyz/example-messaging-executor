@@ -198,9 +198,7 @@
             "isWritable": true,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Pays for account creation"
-            ],
+            "docs": ["Pays for account creation"],
             "defaultValue": {
               "kind": "payerValueNode"
             }
@@ -211,9 +209,7 @@
             "isWritable": false,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Authorized updater (must match UPDATER_ADDRESS)"
-            ]
+            "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -221,9 +217,7 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "ChainInfo PDA ['chain_info', chain_id]"
-            ]
+            "docs": ["ChainInfo PDA ['chain_info', chain_id]"]
           },
           {
             "kind": "instructionAccountNode",
@@ -231,9 +225,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "System Program"
-            ],
+            "docs": ["System Program"],
             "defaultValue": {
               "kind": "publicKeyValueNode",
               "publicKey": "11111111111111111111111111111111",
@@ -328,9 +320,7 @@
             "isWritable": true,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Pays for account creation"
-            ],
+            "docs": ["Pays for account creation"],
             "defaultValue": {
               "kind": "payerValueNode"
             }
@@ -341,9 +331,7 @@
             "isWritable": false,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Authorized updater (must match UPDATER_ADDRESS)"
-            ]
+            "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -351,9 +339,7 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "QuoteBody PDA ['quote', chain_id]"
-            ]
+            "docs": ["QuoteBody PDA ['quote', chain_id]"]
           },
           {
             "kind": "instructionAccountNode",
@@ -361,9 +347,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "System Program"
-            ],
+            "docs": ["System Program"],
             "defaultValue": {
               "kind": "publicKeyValueNode",
               "publicKey": "11111111111111111111111111111111",
@@ -470,9 +454,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Program config (reserved for CPI compatibility)"
-            ]
+            "docs": ["Program config (reserved for CPI compatibility)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -480,9 +462,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "ChainInfo PDA for destination chain"
-            ]
+            "docs": ["ChainInfo PDA for destination chain"]
           },
           {
             "kind": "instructionAccountNode",
@@ -490,9 +470,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "QuoteBody PDA for destination chain"
-            ]
+            "docs": ["QuoteBody PDA for destination chain"]
           }
         ],
         "arguments": [
@@ -593,9 +571,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Program config (reserved for CPI compatibility)"
-            ]
+            "docs": ["Program config (reserved for CPI compatibility)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -603,9 +579,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "ChainInfo PDA for destination chain"
-            ]
+            "docs": ["ChainInfo PDA for destination chain"]
           },
           {
             "kind": "instructionAccountNode",
@@ -613,9 +587,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "QuoteBody PDA for destination chain"
-            ]
+            "docs": ["QuoteBody PDA for destination chain"]
           },
           {
             "kind": "instructionAccountNode",
@@ -623,9 +595,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Event CPI account (reserved for CPI compatibility)"
-            ]
+            "docs": ["Event CPI account (reserved for CPI compatibility)"]
           }
         ],
         "arguments": [

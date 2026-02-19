@@ -282,8 +282,8 @@ function enrichExecutorQuoterRouter(codama) {
         if (node.kind !== "programNode") return node;
         return {
           ...node,
-          errors: EXECUTOR_QUOTER_ROUTER_ERRORS.map(
-            ([name, code, message]) => errorNode({ name, code, message }),
+          errors: EXECUTOR_QUOTER_ROUTER_ERRORS.map(([name, code, message]) =>
+            errorNode({ name, code, message }),
           ),
           definedTypes: node.definedTypes.filter(
             (t) => t.name !== "executorQuoterRouterError",

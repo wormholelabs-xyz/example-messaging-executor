@@ -6,7 +6,7 @@
   "scripts": {
     "generate:idl": "bun scripts/generate-codama-idl.mjs",
     "generate:sdk": "bun scripts/generate-sdk.mjs",
-    "generate": "bun run generate:idl && bun run generate:sdk"
+    "generate": "bun run generate:idl && bun run generate:sdk && cd ../.. && npx prettier --write 'svm/pinocchio/idl/**/*.json' 'svm/pinocchio/clients/js/src/generated/**/*.ts' 'svm/pinocchio/scripts/*.mjs'"
   },
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.3.9",

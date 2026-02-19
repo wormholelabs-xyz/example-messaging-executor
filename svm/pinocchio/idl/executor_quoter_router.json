@@ -9,25 +9,19 @@
           "name": "payer",
           "isMut": true,
           "isSigner": true,
-          "docs": [
-            "Pays for account creation"
-          ]
+          "docs": ["Pays for account creation"]
         },
         {
           "name": "sender",
           "isMut": false,
           "isSigner": true,
-          "docs": [
-            "Must match universal_sender_address in governance message"
-          ]
+          "docs": ["Must match universal_sender_address in governance message"]
         },
         {
           "name": "config",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Program config (reserved for integrator use)"
-          ]
+          "docs": ["Program config (reserved for integrator use)"]
         },
         {
           "name": "quoterRegistration",
@@ -41,9 +35,7 @@
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "System Program"
-          ]
+          "docs": ["System Program"]
         }
       ],
       "args": [],
@@ -59,41 +51,31 @@
           "name": "quoterRegistration",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "QuoterRegistration PDA for the quoter"
-          ]
+          "docs": ["QuoterRegistration PDA for the quoter"]
         },
         {
           "name": "quoterProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter implementation program"
-          ]
+          "docs": ["Quoter implementation program"]
         },
         {
           "name": "quoterConfig",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter config account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter config account (passed to quoter CPI)"]
         },
         {
           "name": "quoterChainInfo",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter chain info account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter chain info account (passed to quoter CPI)"]
         },
         {
           "name": "quoterQuoteBody",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter quote body account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter quote body account (passed to quoter CPI)"]
         }
       ],
       "args": [],
@@ -109,97 +91,73 @@
           "name": "payer",
           "isMut": true,
           "isSigner": true,
-          "docs": [
-            "Pays for execution"
-          ]
+          "docs": ["Pays for execution"]
         },
         {
           "name": "config",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Program config (reserved for integrator use)"
-          ]
+          "docs": ["Program config (reserved for integrator use)"]
         },
         {
           "name": "quoterRegistration",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "QuoterRegistration PDA for the quoter"
-          ]
+          "docs": ["QuoterRegistration PDA for the quoter"]
         },
         {
           "name": "quoterProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter implementation program"
-          ]
+          "docs": ["Quoter implementation program"]
         },
         {
           "name": "executorProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Executor program to CPI into"
-          ]
+          "docs": ["Executor program to CPI into"]
         },
         {
           "name": "payee",
           "isMut": true,
           "isSigner": false,
-          "docs": [
-            "Receives execution payment"
-          ]
+          "docs": ["Receives execution payment"]
         },
         {
           "name": "refundAddr",
           "isMut": true,
           "isSigner": false,
-          "docs": [
-            "Receives excess payment refund"
-          ]
+          "docs": ["Receives excess payment refund"]
         },
         {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "System Program"
-          ]
+          "docs": ["System Program"]
         },
         {
           "name": "quoterConfig",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter config account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter config account (passed to quoter CPI)"]
         },
         {
           "name": "quoterChainInfo",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter chain info account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter chain info account (passed to quoter CPI)"]
         },
         {
           "name": "quoterQuoteBody",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Quoter quote body account (passed to quoter CPI)"
-          ]
+          "docs": ["Quoter quote body account (passed to quoter CPI)"]
         },
         {
           "name": "eventCpi",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Event CPI account (passed to quoter CPI)"
-          ]
+          "docs": ["Event CPI account (passed to quoter CPI)"]
         }
       ],
       "args": [],
@@ -226,10 +184,7 @@
           {
             "name": "quoterAddress",
             "type": {
-              "array": [
-                "u8",
-                20
-              ]
+              "array": ["u8", 20]
             }
           },
           {

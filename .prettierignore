@@ -6,6 +6,8 @@ svm/anchor/target/
 svm/node_modules/
 svm/modules/*/target/
 svm/pinocchio/target/
+svm/pinocchio/clients/js/dist/
+svm/pinocchio/clients/js/node_modules/
 svm/pinocchio/programs/*/target/
 svm/pinocchio/tests/*/target/
 svm/target/

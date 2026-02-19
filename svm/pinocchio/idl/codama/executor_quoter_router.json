@@ -75,9 +75,7 @@
             "isWritable": true,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Pays for account creation"
-            ],
+            "docs": ["Pays for account creation"],
             "defaultValue": {
               "kind": "payerValueNode"
             }
@@ -98,9 +96,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Program config (reserved for integrator use)"
-            ]
+            "docs": ["Program config (reserved for integrator use)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -118,9 +114,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "System Program"
-            ],
+            "docs": ["System Program"],
             "defaultValue": {
               "kind": "publicKeyValueNode",
               "publicKey": "11111111111111111111111111111111",
@@ -177,9 +171,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "QuoterRegistration PDA for the quoter"
-            ]
+            "docs": ["QuoterRegistration PDA for the quoter"]
           },
           {
             "kind": "instructionAccountNode",
@@ -187,9 +179,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter implementation program"
-            ]
+            "docs": ["Quoter implementation program"]
           },
           {
             "kind": "instructionAccountNode",
@@ -197,9 +187,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter config account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter config account (passed to quoter CPI)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -207,9 +195,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter chain info account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter chain info account (passed to quoter CPI)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -217,9 +203,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter quote body account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter quote body account (passed to quoter CPI)"]
           }
         ],
         "arguments": [
@@ -279,9 +263,7 @@
             "isWritable": true,
             "isSigner": true,
             "isOptional": false,
-            "docs": [
-              "Pays for execution"
-            ],
+            "docs": ["Pays for execution"],
             "defaultValue": {
               "kind": "payerValueNode"
             }
@@ -292,9 +274,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Program config (reserved for integrator use)"
-            ]
+            "docs": ["Program config (reserved for integrator use)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -302,9 +282,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "QuoterRegistration PDA for the quoter"
-            ]
+            "docs": ["QuoterRegistration PDA for the quoter"]
           },
           {
             "kind": "instructionAccountNode",
@@ -312,9 +290,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter implementation program"
-            ]
+            "docs": ["Quoter implementation program"]
           },
           {
             "kind": "instructionAccountNode",
@@ -322,9 +298,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Executor program to CPI into"
-            ]
+            "docs": ["Executor program to CPI into"]
           },
           {
             "kind": "instructionAccountNode",
@@ -332,9 +306,7 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Receives execution payment"
-            ]
+            "docs": ["Receives execution payment"]
           },
           {
             "kind": "instructionAccountNode",
@@ -342,9 +314,7 @@
             "isWritable": true,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Receives excess payment refund"
-            ]
+            "docs": ["Receives excess payment refund"]
           },
           {
             "kind": "instructionAccountNode",
@@ -352,9 +322,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "System Program"
-            ],
+            "docs": ["System Program"],
             "defaultValue": {
               "kind": "publicKeyValueNode",
               "publicKey": "11111111111111111111111111111111",
@@ -367,9 +335,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter config account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter config account (passed to quoter CPI)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -377,9 +343,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter chain info account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter chain info account (passed to quoter CPI)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -387,9 +351,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Quoter quote body account (passed to quoter CPI)"
-            ]
+            "docs": ["Quoter quote body account (passed to quoter CPI)"]
           },
           {
             "kind": "instructionAccountNode",
@@ -397,9 +359,7 @@
             "isWritable": false,
             "isSigner": false,
             "isOptional": false,
-            "docs": [
-              "Event CPI account (passed to quoter CPI)"
-            ]
+            "docs": ["Event CPI account (passed to quoter CPI)"]
           }
         ],
         "arguments": [

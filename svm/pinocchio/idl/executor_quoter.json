@@ -9,33 +9,25 @@
           "name": "payer",
           "isMut": true,
           "isSigner": true,
-          "docs": [
-            "Pays for account creation"
-          ]
+          "docs": ["Pays for account creation"]
         },
         {
           "name": "updater",
           "isMut": false,
           "isSigner": true,
-          "docs": [
-            "Authorized updater (must match UPDATER_ADDRESS)"
-          ]
+          "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
         },
         {
           "name": "chainInfo",
           "isMut": true,
           "isSigner": false,
-          "docs": [
-            "ChainInfo PDA ['chain_info', chain_id]"
-          ]
+          "docs": ["ChainInfo PDA ['chain_info', chain_id]"]
         },
         {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "System Program"
-          ]
+          "docs": ["System Program"]
         }
       ],
       "args": [],
@@ -51,33 +43,25 @@
           "name": "payer",
           "isMut": true,
           "isSigner": true,
-          "docs": [
-            "Pays for account creation"
-          ]
+          "docs": ["Pays for account creation"]
         },
         {
           "name": "updater",
           "isMut": false,
           "isSigner": true,
-          "docs": [
-            "Authorized updater (must match UPDATER_ADDRESS)"
-          ]
+          "docs": ["Authorized updater (must match UPDATER_ADDRESS)"]
         },
         {
           "name": "quoteBody",
           "isMut": true,
           "isSigner": false,
-          "docs": [
-            "QuoteBody PDA ['quote', chain_id]"
-          ]
+          "docs": ["QuoteBody PDA ['quote', chain_id]"]
         },
         {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "System Program"
-          ]
+          "docs": ["System Program"]
         }
       ],
       "args": [],
@@ -93,25 +77,19 @@
           "name": "config",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Program config (reserved for CPI compatibility)"
-          ]
+          "docs": ["Program config (reserved for CPI compatibility)"]
         },
         {
           "name": "chainInfo",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "ChainInfo PDA for destination chain"
-          ]
+          "docs": ["ChainInfo PDA for destination chain"]
         },
         {
           "name": "quoteBody",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "QuoteBody PDA for destination chain"
-          ]
+          "docs": ["QuoteBody PDA for destination chain"]
         }
       ],
       "args": [],
@@ -128,33 +106,25 @@
           "name": "config",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Program config (reserved for CPI compatibility)"
-          ]
+          "docs": ["Program config (reserved for CPI compatibility)"]
         },
         {
           "name": "chainInfo",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "ChainInfo PDA for destination chain"
-          ]
+          "docs": ["ChainInfo PDA for destination chain"]
         },
         {
           "name": "quoteBody",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "QuoteBody PDA for destination chain"
-          ]
+          "docs": ["QuoteBody PDA for destination chain"]
         },
         {
           "name": "eventCpi",
           "isMut": false,
           "isSigner": false,
-          "docs": [
-            "Event CPI account (reserved for CPI compatibility)"
-          ]
+          "docs": ["Event CPI account (reserved for CPI compatibility)"]
         }
       ],
       "args": [],
@@ -186,10 +156,7 @@
           {
             "name": "padding",
             "type": {
-              "array": [
-                "u8",
-                4
-              ]
+              "array": ["u8", 4]
             }
           },
           {
