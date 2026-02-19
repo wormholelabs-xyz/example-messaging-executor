@@ -117,5 +117,4 @@ impl GovernanceMessage {
             signature_v,
         })
     }
-
 }

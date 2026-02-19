@@ -1,0 +1,36 @@
+name: svm-anchor
+
+on:
+  pull_request:
+
+jobs:
+  anchor-test:
+    name: Anchor Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: svm/anchor
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get solana version
+        id: solana
+        run: |
+          SOLANA_VERSION="$(awk '/solana_version =/ { print substr($3, 2, length($3)-2) }' Anchor.toml)"
+          echo "::set-output name=version::${SOLANA_VERSION}"
+      - name: Get anchor version
+        id: anchor
+        run: |
+          ANCHOR_VERSION="$(awk '/anchor_version =/ { print substr($3, 2, length($3)-2) }' Anchor.toml)"
+          echo "::set-output name=version::${ANCHOR_VERSION}"
+      - uses: evan-gray/anchor-test@06370fbca011ee48b176211b8f858789d6c33282
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2025-04-14
+        with:
+          node-version: "22.16.0"
+          anchor-version: "${{steps.anchor.outputs.version}}"
+          solana-cli-version: "${{steps.solana.outputs.version}}"
+          working-directory: "svm/anchor"
+
+      - run: cargo fmt --check --all
+      - run: cargo clippy
+      - run: cargo test

@@ -113,11 +113,9 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
     let (request_bytes, rest) = rest.split_at(request_bytes_len);
 
     // Validate relay_instructions_len and relay_instructions
-    let (relay_len_bytes, rest): (&[u8; 4], _) = rest
-        .split_first_chunk()
-        .ok_or(ProgramError::from(
-            ExecutorQuoterRouterError::InvalidInstructionData,
-        ))?;
+    let (relay_len_bytes, rest): (&[u8; 4], _) = rest.split_first_chunk().ok_or(
+        ProgramError::from(ExecutorQuoterRouterError::InvalidInstructionData),
+    )?;
     let relay_instructions_len = u32::from_le_bytes(*relay_len_bytes) as usize;
 
     if rest.len() < relay_instructions_len {

@@ -1,8 +1,8 @@
 #![no_std]
 
 use pinocchio::{
-    account_info::AccountInfo, default_allocator, nostd_panic_handler, program_entrypoint,
-    program_error::ProgramError, pubkey::Pubkey, ProgramResult,
+    account_info::AccountInfo, default_allocator, program_entrypoint, program_error::ProgramError,
+    pubkey::Pubkey, ProgramResult,
 };
 use shank::ShankInstruction;
 
@@ -10,7 +10,6 @@ use shank::ShankInstruction;
 // The MAX_TX_ACCOUNTS default handles any account count
 program_entrypoint!(process_instruction);
 default_allocator!();
-nostd_panic_handler!();
 
 pub mod error;
 pub mod instructions;
@@ -46,27 +45,71 @@ pub const PAYEE_ADDRESS: [u8; 32] = include!(concat!(env!("OUT_DIR"), "/payee_ad
 #[repr(u8)]
 pub enum Instruction {
     /// Update chain info for a destination chain
-    #[account(0, writable, signer, name = "payer", desc = "Pays for account creation")]
-    #[account(1, signer, name = "updater", desc = "Authorized updater (must match UPDATER_ADDRESS)")]
-    #[account(2, writable, name = "chain_info", desc = "ChainInfo PDA ['chain_info', chain_id]")]
+    #[account(
+        0,
+        writable,
+        signer,
+        name = "payer",
+        desc = "Pays for account creation"
+    )]
+    #[account(
+        1,
+        signer,
+        name = "updater",
+        desc = "Authorized updater (must match UPDATER_ADDRESS)"
+    )]
+    #[account(
+        2,
+        writable,
+        name = "chain_info",
+        desc = "ChainInfo PDA ['chain_info', chain_id]"
+    )]
     #[account(3, name = "system_program", desc = "System Program")]
     UpdateChainInfo = 0,
     /// Update quote for a destination chain
-    #[account(0, writable, signer, name = "payer", desc = "Pays for account creation")]
-    #[account(1, signer, name = "updater", desc = "Authorized updater (must match UPDATER_ADDRESS)")]
-    #[account(2, writable, name = "quote_body", desc = "QuoteBody PDA ['quote', chain_id]")]
+    #[account(
+        0,
+        writable,
+        signer,
+        name = "payer",
+        desc = "Pays for account creation"
+    )]
+    #[account(
+        1,
+        signer,
+        name = "updater",
+        desc = "Authorized updater (must match UPDATER_ADDRESS)"
+    )]
+    #[account(
+        2,
+        writable,
+        name = "quote_body",
+        desc = "QuoteBody PDA ['quote', chain_id]"
+    )]
     #[account(3, name = "system_program", desc = "System Program")]
     UpdateQuote = 1,
     /// Request a quote for cross-chain execution (8-byte discriminator, CPI)
-    #[account(0, name = "config", desc = "Program config (reserved for CPI compatibility)")]
+    #[account(
+        0,
+        name = "config",
+        desc = "Program config (reserved for CPI compatibility)"
+    )]
     #[account(1, name = "chain_info", desc = "ChainInfo PDA for destination chain")]
     #[account(2, name = "quote_body", desc = "QuoteBody PDA for destination chain")]
     RequestQuote = 2,
     /// Request execution quote with full details (8-byte discriminator, CPI)
-    #[account(0, name = "config", desc = "Program config (reserved for CPI compatibility)")]
+    #[account(
+        0,
+        name = "config",
+        desc = "Program config (reserved for CPI compatibility)"
+    )]
     #[account(1, name = "chain_info", desc = "ChainInfo PDA for destination chain")]
     #[account(2, name = "quote_body", desc = "QuoteBody PDA for destination chain")]
-    #[account(3, name = "event_cpi", desc = "Event CPI account (reserved for CPI compatibility)")]
+    #[account(
+        3,
+        name = "event_cpi",
+        desc = "Event CPI account (reserved for CPI compatibility)"
+    )]
     RequestExecutionQuote = 3,
 }
 

@@ -179,7 +179,7 @@ mod tests {
         data.extend_from_slice(&[0xab; 32]); // dst_addr
         data.extend_from_slice(&[0xcd; 32]); // refund_addr
         data.extend_from_slice(&0u32.to_le_bytes()); // request_bytes_len = 0
-        // relay_instructions: 1 byte type + 16 gas_limit + 16 msg_value = 33
+                                                     // relay_instructions: 1 byte type + 16 gas_limit + 16 msg_value = 33
         data.extend_from_slice(&33u32.to_le_bytes()); // relay_instructions_len
         data.push(1); // RELAY_IX_GAS
         data.extend_from_slice(&gas_limit.to_be_bytes());
@@ -262,7 +262,7 @@ mod tests {
         data.extend_from_slice(&[0xcd; 32]);
         data.extend_from_slice(&0u32.to_le_bytes()); // request_bytes_len = 0
         data.extend_from_slice(&100u32.to_le_bytes()); // claims 100 bytes of relay data
-        // but provides none
+                                                       // but provides none
         assert!(compute_quote(&qb, &ci, &data).is_err());
     }
 
@@ -276,7 +276,7 @@ mod tests {
         data.extend_from_slice(&[0xab; 32]);
         data.extend_from_slice(&[0xcd; 32]);
         data.extend_from_slice(&10u32.to_le_bytes()); // request_bytes_len = 10
-        // No room for relay_instructions_len after skipping 10 request bytes
+                                                      // No room for relay_instructions_len after skipping 10 request bytes
         assert!(compute_quote(&qb, &ci, &data).is_err());
     }
 }

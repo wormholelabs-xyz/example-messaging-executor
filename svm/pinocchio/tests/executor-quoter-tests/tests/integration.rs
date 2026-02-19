@@ -513,7 +513,11 @@ async fn test_request_quote() {
     // Extract return data from simulation
     let details = result.simulation_details.expect("no simulation details");
     let return_data = details.return_data.expect("no return data");
-    assert_eq!(return_data.data.len(), 8, "return data should be 8 bytes (u64 BE)");
+    assert_eq!(
+        return_data.data.len(),
+        8,
+        "return data should be 8 bytes (u64 BE)"
+    );
 
     let required_payment = u64::from_be_bytes(return_data.data.try_into().unwrap());
 
@@ -2348,8 +2352,7 @@ async fn test_update_overwrites_quote() {
         quote_body_account.data[1], quote_bump,
         "bump should be unchanged"
     );
-    let stored_chain_id =
-        u16::from_le_bytes(quote_body_account.data[2..4].try_into().unwrap());
+    let stored_chain_id = u16::from_le_bytes(quote_body_account.data[2..4].try_into().unwrap());
     assert_eq!(stored_chain_id, chain_id, "chain_id should be unchanged");
 }
 
@@ -2658,8 +2661,7 @@ async fn test_update_chain_info_overwrites() {
 
     // First: create ChainInfo with initial values
     let create_data = build_update_chain_info_data(
-        chain_id,
-        true, // enabled
+        chain_id, true, // enabled
         9,    // gas_price_decimals (Gwei)
         18,   // native_decimals (ETH)
     );
@@ -2701,8 +2703,7 @@ async fn test_update_chain_info_overwrites() {
         .await
         .expect("get blockhash");
     let update_data = build_update_chain_info_data(
-        chain_id,
-        false, // disabled
+        chain_id, false, // disabled
         12,    // different gas_price_decimals
         8,     // different native_decimals
     );
@@ -2745,10 +2746,7 @@ async fn test_update_chain_info_overwrites() {
         account.data[0], CHAIN_INFO_DISCRIMINATOR,
         "discriminator should be unchanged"
     );
-    assert_eq!(
-        account.data[1], initial_bump,
-        "bump should be unchanged"
-    );
+    assert_eq!(account.data[1], initial_bump, "bump should be unchanged");
     let stored_chain_id = u16::from_le_bytes(account.data[2..4].try_into().unwrap());
     assert_eq!(stored_chain_id, chain_id, "chain_id should be unchanged");
 }
@@ -2826,10 +2824,7 @@ async fn test_update_chain_info_chain_id_mismatch() {
     let mut tx = Transaction::new_with_payer(&[mismatch_ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &updater], recent_blockhash);
     let result = banks_client.process_transaction(tx).await;
-    assert!(
-        result.is_err(),
-        "Should have failed with ChainIdMismatch"
-    );
+    assert!(result.is_err(), "Should have failed with ChainIdMismatch");
 }
 
 // Note: test_account_data_layout removed - Config account no longer exists

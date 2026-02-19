@@ -246,7 +246,7 @@ fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[0] = CHAIN_INFO_DISCRIMINATOR;
     data[1] = bump;
     data[2..4].copy_from_slice(&chain_id.to_le_bytes());
-    data[4] = 1;  // enabled
+    data[4] = 1; // enabled
     data[5] = 15; // gas_price_decimals
     data[6] = 18; // native_decimals (ETH)
 
@@ -265,10 +265,10 @@ fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[1] = bump;
     data[2..4].copy_from_slice(&chain_id.to_le_bytes());
     // _padding [4..8]
-    data[8..16].copy_from_slice(&160_000_000u64.to_le_bytes());  // dst_price
+    data[8..16].copy_from_slice(&160_000_000u64.to_le_bytes()); // dst_price
     data[16..24].copy_from_slice(&2_650_000_000u64.to_le_bytes()); // src_price
-    data[24..32].copy_from_slice(&399_146u64.to_le_bytes());     // dst_gas_price
-    data[32..40].copy_from_slice(&100u64.to_le_bytes());         // base_fee
+    data[24..32].copy_from_slice(&399_146u64.to_le_bytes()); // dst_gas_price
+    data[32..40].copy_from_slice(&100u64.to_le_bytes()); // base_fee
 
     let mut account = AccountSharedData::new(lamports, QUOTE_BODY_SIZE, &QUOTER_PROGRAM_ID);
     account.set_data_from_slice(&data);
