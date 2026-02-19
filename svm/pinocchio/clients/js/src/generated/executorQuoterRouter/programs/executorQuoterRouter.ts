@@ -51,7 +51,7 @@ import {
 } from "../instructions";
 
 export const EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS =
-  "21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz" as Address<"21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz">;
+  "qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV" as Address<"qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV">;
 
 export enum ExecutorQuoterRouterAccount {
   QuoterRegistration,
@@ -83,7 +83,7 @@ export function identifyExecutorQuoterRouterInstruction(
 }
 
 export type ParsedExecutorQuoterRouterInstruction<
-  TProgram extends string = "21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz",
+  TProgram extends string = "qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV",
 > =
   | ({
       instructionType: ExecutorQuoterRouterInstruction.UpdateQuoterContract;

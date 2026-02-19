@@ -25,7 +25,7 @@ export async function findQuoterRegistrationPdaPda(
   config: { programAddress?: Address | undefined } = {},
 ): Promise<ProgramDerivedAddress> {
   const {
-    programAddress = "21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz" as Address<"21Simu32qmsouznyLNrpWHEYrAik1BA6FYpgPi12BUKz">,
+    programAddress = "qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV" as Address<"qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV">,
   } = config;
   return await getProgramDerivedAddress({
     programAddress,

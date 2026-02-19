@@ -57,9 +57,8 @@ export type RequestExecutionInstruction<
   TAccountExecutorProgram extends string | AccountMeta<string> = string,
   TAccountPayee extends string | AccountMeta<string> = string,
   TAccountRefundAddr extends string | AccountMeta<string> = string,
-  TAccountSystemProgram extends
-    | string
-    | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TAccountQuoterConfig extends string | AccountMeta<string> = string,
   TAccountQuoterChainInfo extends string | AccountMeta<string> = string,
   TAccountQuoterQuoteBody extends string | AccountMeta<string> = string,
@@ -210,8 +209,8 @@ export function getRequestExecutionInstruction<
   TAccountQuoterChainInfo extends string,
   TAccountQuoterQuoteBody extends string,
   TAccountEventCpi extends string,
-  TProgramAddress extends
-    Address = typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
+  TProgramAddress extends Address =
+    typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
 >(
   input: RequestExecutionInput<
     TAccountPayer,

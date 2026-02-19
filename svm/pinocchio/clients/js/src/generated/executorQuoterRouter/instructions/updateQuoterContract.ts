@@ -53,9 +53,8 @@ export type UpdateQuoterContractInstruction<
   TAccountSender extends string | AccountMeta<string> = string,
   TAccountConfig extends string | AccountMeta<string> = string,
   TAccountQuoterRegistration extends string | AccountMeta<string> = string,
-  TAccountSystemProgram extends
-    | string
-    | AccountMeta<string> = "11111111111111111111111111111111",
+  TAccountSystemProgram extends string | AccountMeta<string> =
+    "11111111111111111111111111111111",
   TRemainingAccounts extends readonly AccountMeta<string>[] = [],
 > = Instruction<TProgram> &
   InstructionWithData<ReadonlyUint8Array> &
@@ -147,8 +146,8 @@ export function getUpdateQuoterContractInstruction<
   TAccountConfig extends string,
   TAccountQuoterRegistration extends string,
   TAccountSystemProgram extends string,
-  TProgramAddress extends
-    Address = typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
+  TProgramAddress extends Address =
+    typeof EXECUTOR_QUOTER_ROUTER_PROGRAM_ADDRESS,
 >(
   input: UpdateQuoterContractInput<
     TAccountPayer,
