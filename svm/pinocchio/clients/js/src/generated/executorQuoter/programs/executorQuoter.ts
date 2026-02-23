@@ -58,7 +58,7 @@ import {
 } from "../instructions";
 
 export const EXECUTOR_QUOTER_PROGRAM_ADDRESS =
-  "wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd" as Address<"wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd">;
+  "qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz" as Address<"qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz">;
 
 export enum ExecutorQuoterAccount {
   QuoteBody,
@@ -95,7 +95,7 @@ export function identifyExecutorQuoterInstruction(
 }
 
 export type ParsedExecutorQuoterInstruction<
-  TProgram extends string = "wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd",
+  TProgram extends string = "qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz",
 > =
   | ({
       instructionType: ExecutorQuoterInstruction.UpdateChainInfo;

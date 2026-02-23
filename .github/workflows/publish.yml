@@ -34,11 +34,11 @@ jobs:
 
       - name: Install SDK dependencies
         working-directory: svm/pinocchio/clients/js
-        run: npm ci
+        run: bun install
 
       - name: Build
         working-directory: svm/pinocchio/clients/js
-        run: npm run build --if-present
+        run: bun run build
 
       - name: Publish
         working-directory: svm/pinocchio/clients/js

@@ -23,7 +23,7 @@ export async function findChainInfoPdaPda(
   config: { programAddress?: Address | undefined } = {},
 ): Promise<ProgramDerivedAddress> {
   const {
-    programAddress = "wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd" as Address<"wYK8QJwwwP6WJfzpsbNcMVKbA9yJE4BfgWntWh2Tffd">,
+    programAddress = "qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz" as Address<"qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz">,
   } = config;
   return await getProgramDerivedAddress({
     programAddress,

@@ -1,8 +1,13 @@
 {
   "name": "@wormhole-labs/svm-example-executor-quoter-sdk",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "TypeScript SDK for the Executor Quoter and Executor Quoter Router Solana programs",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wormholelabs-xyz/example-messaging-executor",
+    "directory": "svm/pinocchio/clients/js"
+  },
   "type": "module",
   "main": "dist/src/generated/index.js",
   "types": "dist/src/generated/index.d.ts",
