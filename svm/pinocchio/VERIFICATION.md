@@ -5,35 +5,58 @@ Verification steps for `executor-quoter` and `executor-quoter-router` using `sol
 ## Prerequisites
 
 - Docker running
-- `cargo install solana-verify`
+- `cargo install solana-verify` (v0.4.12 or later recommended)
 - Solana CLI with deploy authority keypair configured
 
 ## Docker Image Selection
 
-`solana-verify` auto-selects the Docker image from the `solana-program` version in `Cargo.lock`. Because this workspace's test crates pull in `solana-sdk 1.18`, the auto-selected image uses an older toolchain (rustc 1.75) that is incompatible with `pinocchio-system 0.4`.
+`solana-verify` auto-selects the Docker image from the `solana-program` version in `Cargo.lock`. Because this workspace's test crates pull in `solana-sdk 1.18`, the auto-selected image uses an older toolchain that is incompatible with `pinocchio-system 0.4`.
 
-Use `--base-image` to override with the Solana 2.3.6 image (platform-tools v1.48, rustc 1.84):
+Use `--base-image` to override with the Solana 2.3.13 image:
+
+<!-- cspell:disable -->
 
 ```
---base-image "solanafoundation/solana-verifiable-build@sha256:ecfb304ab23f75c7a6c8440dc330cb96ce345b3014db859c165107f12ad59361"
+--base-image "solanafoundation/solana-verifiable-build@sha256:f1f443a3b80fb688194849fbab66264eae7195ed85a7fe4b819cfa7f76f72d15"
 ```
 
-The image digest comes from `solana-verify`'s [image_config.rs](https://github.com/Ellipsis-Labs/solana-verifiable-build). If you upgrade `solana-verify`, check that this digest still maps to 2.3.6.
+<!-- cspell:enable -->
 
-## 1. Docker Builds
+The image digest comes from `solana-verify`'s [image_config.rs](https://github.com/Ellipsis-Labs/solana-verifiable-build). If you upgrade `solana-verify`, check that this digest still maps to 2.3.13.
+
+## 1. Update Git Dependencies
+
+`executor-requests` is a git dependency pinned to a specific commit in `Cargo.lock`. Before building, update the pin to the latest commit:
+
+```bash
+make update-deps
+# or: cargo update -p executor-requests
+```
+
+If `cargo update` bumps `Cargo.lock` to version 4, edit it back to version 3 (see Lockfile Version section below).
+
+## 2. Docker Builds
 
 Run from `svm/pinocchio/`:
 
 ```bash
-BASE_IMAGE="solanafoundation/solana-verifiable-build@sha256:ecfb304ab23f75c7a6c8440dc330cb96ce345b3014db859c165107f12ad59361"
+# Recommended: uses Makefile which runs update-deps first
+make build-verified
 
-solana-verify build --base-image "$BASE_IMAGE" --library-name executor_quoter_router
-solana-verify build --base-image "$BASE_IMAGE" --library-name executor_quoter
+# Or build individually:
+make build-router
+make build-quoter
 ```
 
-## 2. Compare Hashes
+Build-time environment variables are passed via `--config` flags in the Makefile. For other environments, update the Makefile variables before building.
 
-Compare the Docker-built `.so` hashes against the on-chain programs:
+## 3. Compare Hashes
+
+```bash
+make verify-hashes
+```
+
+Or manually:
 
 ```bash
 # executor-quoter-router
@@ -45,9 +68,9 @@ solana-verify get-executable-hash target/deploy/executor_quoter.so
 solana-verify get-program-hash -u devnet qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz
 ```
 
-If hashes match, skip to step 4. If they differ, proceed to step 3.
+If hashes match, skip to step 5. If they differ, proceed to step 4.
 
-## 3. Redeploy (if hashes differ)
+## 4. Redeploy (if hashes differ)
 
 Deploy the Docker-built `.so` files to devnet. PDA state (quoter registrations, chain info, quotes) is preserved across redeployment.
 
@@ -61,12 +84,14 @@ solana program deploy target/deploy/executor_quoter.so \
   -u devnet
 ```
 
-## 4. Push Commit and Verify From Repository
+## 5. Push Commit and Verify From Repository
 
 After the deploy commit is merged:
 
+<!-- cspell:disable -->
+
 ```bash
-BASE_IMAGE="solanafoundation/solana-verifiable-build@sha256:ecfb304ab23f75c7a6c8440dc330cb96ce345b3014db859c165107f12ad59361"
+BASE_IMAGE="solanafoundation/solana-verifiable-build@sha256:f1f443a3b80fb688194849fbab66264eae7195ed85a7fe4b819cfa7f76f72d15"
 
 # executor-quoter-router
 solana-verify verify-from-repo \
@@ -76,7 +101,10 @@ solana-verify verify-from-repo \
   --mount-path svm/pinocchio \
   --library-name executor_quoter_router \
   --base-image "$BASE_IMAGE" \
-  --commit-hash <DEPLOYMENT_COMMIT>
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.ROUTER_CHAIN_ID="1"' \
+  --config 'env.ROUTER_EXECUTOR_PROGRAM_ID="execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"'
 
 # executor-quoter
 solana-verify verify-from-repo \
@@ -86,25 +114,30 @@ solana-verify verify-from-repo \
   --mount-path svm/pinocchio \
   --library-name executor_quoter \
   --base-image "$BASE_IMAGE" \
-  --commit-hash <DEPLOYMENT_COMMIT>
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.QUOTER_UPDATER_PUBKEY="A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY"' \
+  --config 'env.QUOTER_PAYEE_PUBKEY="B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA"'
 ```
 
-## How `.cargo/config.toml` Works
+<!-- cspell:enable -->
 
-`solana-verify` builds inside Docker where no shell env vars exist. The `.cargo/config.toml` provides the required build-time values:
+## Build-Time Environment Variables
 
-| Variable                     | Value                                          | Purpose                       |
-| ---------------------------- | ---------------------------------------------- | ----------------------------- |
-| `QUOTER_UPDATER_PUBKEY`      | `A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY` | Authorized updater for quoter |
-| `QUOTER_PAYEE_PUBKEY`        | `B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA` | Fee payee address             |
-| `ROUTER_CHAIN_ID`            | `1`                                            | Wormhole chain ID (Solana)    |
-| `ROUTER_EXECUTOR_PROGRAM_ID` | `execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV`  | Executor program              |
+Both programs use `build.rs` scripts that read environment variables at compile time. These are passed to the Docker build via cargo `--config` flags in the Makefile:
 
-Shell env vars override these (no `force` flag), so CI and local builds are unaffected.
+| Variable                     | Program                | Devnet Value                                   |
+| ---------------------------- | ---------------------- | ---------------------------------------------- |
+| `QUOTER_UPDATER_PUBKEY`      | executor-quoter        | `A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY` |
+| `QUOTER_PAYEE_PUBKEY`        | executor-quoter        | `B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA` |
+| `ROUTER_CHAIN_ID`            | executor-quoter-router | `1`                                            |
+| `ROUTER_EXECUTOR_PROGRAM_ID` | executor-quoter-router | `execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV`  |
+
+For local and CI builds, these are set as shell environment variables. For Docker builds, they are injected via `--config 'env.VAR="value"'`.
 
 ## Updating for Other Environments
 
-To verify a mainnet or Fogo deployment, update the values in `.cargo/config.toml` to match the target deployment keys and chain ID before building.
+To verify a mainnet or Fogo deployment, update the variable values in the `Makefile` to match the target deployment keys and chain ID before building.
 
 ## Lockfile Version
 

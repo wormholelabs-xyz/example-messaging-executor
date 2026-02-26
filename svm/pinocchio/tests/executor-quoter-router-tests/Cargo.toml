@@ -17,7 +17,7 @@ libsecp256k1 = "0.7"
 rand = "0.8"
 mollusk-svm = "0.0.9-solana-1.18"
 mollusk-svm-bencher = "0.0.9-solana-1.18"
-executor-requests = { path = "../../modules/executor-requests" }
+executor-requests = { git = "https://github.com/wormholelabs-xyz/example-messaging-executor", version = "0.0.1" }
 
 [[bench]]
 name = "compute_units"

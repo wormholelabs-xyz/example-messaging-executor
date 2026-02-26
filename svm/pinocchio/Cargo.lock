@@ -1401,6 +1401,7 @@ dependencies = [
 [[package]]
 name = "executor-requests"
 version = "0.0.1"
+source = "git+https://github.com/wormholelabs-xyz/example-messaging-executor#73799c7b963e25f577b6462b51fd4dfa518c0912"
 
 [[package]]
 name = "fastrand"

@@ -26,7 +26,6 @@ These programs use the [Pinocchio](https://github.com/febo/pinocchio) framework,
 - `programs/executor-quoter-router/` - Router program defining the quoter spec
 - `tests/executor-quoter-tests/` - Integration tests and benchmarks for executor-quoter
 - `tests/executor-quoter-router-tests/` - Integration tests and benchmarks for executor-quoter-router
-- `modules/executor-requests/` - Shared request types (copy of `svm/modules/executor-requests/` for workspace-local builds)
 
 ## Prerequisites
 
@@ -132,25 +131,24 @@ Both programs support [solana-verify](https://github.com/Ellipsis-Labs/solana-ve
 
 ### How It Works
 
-`solana-verify` builds inside a Docker container where no shell environment variables are set. The `.cargo/config.toml` in this workspace provides the required build-time env vars (pubkeys, chain ID) so Docker builds produce the correct binary without manual configuration.
+`solana-verify` builds inside a Docker container for deterministic, reproducible binaries. Build-time environment variables (pubkeys, chain ID) are passed via `--config` flags through to `cargo build-sbf` inside the container. The `Makefile` encodes the deployment values and orchestrates the build.
 
-Shell env vars take precedence over `config.toml` values (no `force` flag is set), so local and CI builds that export their own keys continue to work unchanged.
+The `executor-requests` dependency is fetched as a git dependency from this repository. The `Makefile` runs `cargo update -p executor-requests` before builds to ensure `Cargo.lock` pins the latest commit.
 
 ### Build and Verify
 
 ```bash
 cd svm/pinocchio
 
-# Build both programs inside Docker
-solana-verify build --library-name executor_quoter_router
-solana-verify build --library-name executor_quoter
+# Full workflow: update deps + Docker build both programs
+make build-verified
 
-# Compare local Docker build hash against on-chain program
-solana-verify get-executable-hash target/deploy/executor_quoter_router.so
-solana-verify get-program-hash -u devnet qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV
+# Or build individually:
+make build-router
+make build-quoter
 
-solana-verify get-executable-hash target/deploy/executor_quoter.so
-solana-verify get-program-hash -u devnet qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz
+# Compare hashes against on-chain programs
+make verify-hashes
 ```
 
 ### Verify From Repository
@@ -160,6 +158,8 @@ Once the programs are deployed from a Docker build and the commit is pushed:
 <!-- cspell:disable -->
 
 ```bash
+BASE_IMAGE="solanafoundation/solana-verifiable-build@sha256:f1f443a3b80fb688194849fbab66264eae7195ed85a7fe4b819cfa7f76f72d15"
+
 # executor-quoter-router
 solana-verify verify-from-repo \
   -u https://api.devnet.solana.com \
@@ -167,7 +167,11 @@ solana-verify verify-from-repo \
   https://github.com/wormholelabs-xyz/example-messaging-executor \
   --mount-path svm/pinocchio \
   --library-name executor_quoter_router \
-  --commit-hash <DEPLOYMENT_COMMIT>
+  --base-image "$BASE_IMAGE" \
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.ROUTER_CHAIN_ID="1"' \
+  --config 'env.ROUTER_EXECUTOR_PROGRAM_ID="execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"'
 
 # executor-quoter
 solana-verify verify-from-repo \
@@ -176,18 +180,18 @@ solana-verify verify-from-repo \
   https://github.com/wormholelabs-xyz/example-messaging-executor \
   --mount-path svm/pinocchio \
   --library-name executor_quoter \
-  --commit-hash <DEPLOYMENT_COMMIT>
+  --base-image "$BASE_IMAGE" \
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.QUOTER_UPDATER_PUBKEY="A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY"' \
+  --config 'env.QUOTER_PAYEE_PUBKEY="B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA"'
 ```
 
 <!-- cspell:enable -->
 
-### Updating Config Values
+### Deploying to Other Environments
 
-To deploy for a different environment (e.g. mainnet or Fogo), update the values in `.cargo/config.toml` to match the target deployment keys and chain ID.
-
-### Keeping `modules/executor-requests` in Sync
-
-`modules/executor-requests/` is a workspace-local copy of `svm/modules/executor-requests/` needed because `solana-verify` mounts only this workspace into Docker. The anchor workspace at `svm/anchor/` continues to reference the original. These two copies must stay in sync; any changes to the shared types should be applied to both.
+To deploy for a different environment (e.g. mainnet or Fogo), update the variable values in the `Makefile` to match the target deployment keys and chain ID, then run `make build-verified`.
 
 ## Notes
 
