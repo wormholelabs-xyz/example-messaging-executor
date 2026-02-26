@@ -32,3 +32,7 @@ wormholelabs
 wormhole-labs
 XRPL
 codama
+dropoff
+repr
+rustc
+solanafoundation

@@ -93,12 +93,12 @@ solana-verify verify-from-repo \
 
 `solana-verify` builds inside Docker where no shell env vars exist. The `.cargo/config.toml` provides the required build-time values:
 
-| Variable                     | Value                                        | Purpose                       |
-| ---------------------------- | -------------------------------------------- | ----------------------------- |
+| Variable                     | Value                                          | Purpose                       |
+| ---------------------------- | ---------------------------------------------- | ----------------------------- |
 | `QUOTER_UPDATER_PUBKEY`      | `A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY` | Authorized updater for quoter |
-| `QUOTER_PAYEE_PUBKEY`        | `B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA`  | Fee payee address             |
-| `ROUTER_CHAIN_ID`            | `1`                                          | Wormhole chain ID (Solana)    |
-| `ROUTER_EXECUTOR_PROGRAM_ID` | `execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV`   | Executor program              |
+| `QUOTER_PAYEE_PUBKEY`        | `B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA` | Fee payee address             |
+| `ROUTER_CHAIN_ID`            | `1`                                            | Wormhole chain ID (Solana)    |
+| `ROUTER_EXECUTOR_PROGRAM_ID` | `execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV`  | Executor program              |
 
 Shell env vars override these (no `force` flag), so CI and local builds are unaffected.
 
