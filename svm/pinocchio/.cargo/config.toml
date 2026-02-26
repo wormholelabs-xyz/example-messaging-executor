@@ -1,0 +1,12 @@
+# Build-time environment variables for deterministic solana-verify builds.
+# Values correspond to the current devnet deployment.
+#
+# Precedence: shell env vars override these (no force flag), so CI and local
+# builds can still use shell exports. Inside the solana-verify Docker
+# container no shell env vars are set, so these values are used.
+
+[env]
+QUOTER_UPDATER_PUBKEY = "A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY"
+QUOTER_PAYEE_PUBKEY = "B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA"
+ROUTER_CHAIN_ID = "1"
+ROUTER_EXECUTOR_PROGRAM_ID = "execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"
