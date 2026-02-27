@@ -1,3 +1,5 @@
+<!-- cspell:words Runbook -->
+
 # Solana Program Verification Runbook
 
 Verification steps for `executor-quoter` and `executor-quoter-router` using `solana-verify`.
@@ -58,6 +60,8 @@ make verify-hashes
 
 Or manually:
 
+<!-- cspell:disable -->
+
 ```bash
 # executor-quoter-router
 solana-verify get-executable-hash target/deploy/executor_quoter_router.so
@@ -68,11 +72,15 @@ solana-verify get-executable-hash target/deploy/executor_quoter.so
 solana-verify get-program-hash -u devnet qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz
 ```
 
+<!-- cspell:enable -->
+
 If hashes match, skip to step 5. If they differ, proceed to step 4.
 
 ## 4. Redeploy (if hashes differ)
 
 Deploy the Docker-built `.so` files to devnet. PDA state (quoter registrations, chain info, quotes) is preserved across redeployment.
+
+<!-- cspell:disable -->
 
 ```bash
 solana program deploy target/deploy/executor_quoter_router.so \
@@ -83,6 +91,8 @@ solana program deploy target/deploy/executor_quoter.so \
   --program-id qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz \
   -u devnet
 ```
+
+<!-- cspell:enable -->
 
 ## 5. Push Commit and Verify From Repository
 
@@ -126,12 +136,16 @@ solana-verify verify-from-repo \
 
 Both programs use `build.rs` scripts that read environment variables at compile time. These are passed to the Docker build via cargo `--config` flags in the Makefile:
 
+<!-- cspell:disable -->
+
 | Variable                     | Program                | Devnet Value                                   |
 | ---------------------------- | ---------------------- | ---------------------------------------------- |
 | `QUOTER_UPDATER_PUBKEY`      | executor-quoter        | `A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY` |
 | `QUOTER_PAYEE_PUBKEY`        | executor-quoter        | `B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA` |
 | `ROUTER_CHAIN_ID`            | executor-quoter-router | `1`                                            |
 | `ROUTER_EXECUTOR_PROGRAM_ID` | executor-quoter-router | `execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV`  |
+
+<!-- cspell:enable -->
 
 For local and CI builds, these are set as shell environment variables. For Docker builds, they are injected via `--config 'env.VAR="value"'`.
 
