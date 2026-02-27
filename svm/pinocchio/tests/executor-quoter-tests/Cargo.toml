@@ -15,7 +15,7 @@ solana-program-test = "1.18"
 solana-sdk = "1.18"
 mollusk-svm = "0.0.9-solana-1.18"
 mollusk-svm-bencher = "0.0.9-solana-1.18"
-executor-requests = { path = "../../../modules/executor-requests" }
+executor-requests = { git = "https://github.com/wormholelabs-xyz/example-messaging-executor", rev = "73799c7b963e25f577b6462b51fd4dfa518c0912" }
 
 [[bench]]
 name = "compute_units"

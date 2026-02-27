@@ -120,6 +120,79 @@ cargo bench -p executor-quoter-tests
 cargo bench -p executor-quoter-router-tests
 ```
 
+## Verified Builds
+
+Both programs support [solana-verify](https://github.com/Ellipsis-Labs/solana-verifiable-build) for on-chain verification on Solana explorers.
+
+### Prerequisites
+
+- Docker
+- `cargo install solana-verify`
+
+### How It Works
+
+`solana-verify` builds inside a Docker container for deterministic, reproducible binaries. Build-time environment variables (pubkeys, chain ID) are passed via `--config` flags through to `cargo build-sbf` inside the container. The `Makefile` encodes the deployment values and orchestrates the build.
+
+The `executor-requests` dependency is fetched as a git dependency from this repository. The `Makefile` runs `cargo update -p executor-requests` before builds to ensure `Cargo.lock` pins the latest commit.
+
+### Build and Verify
+
+```bash
+cd svm/pinocchio
+
+# Full workflow: update deps + Docker build both programs
+make build-verified
+
+# Or build individually:
+make build-router
+make build-quoter
+
+# Compare hashes against on-chain programs
+make verify-hashes
+```
+
+### Verify From Repository
+
+Once the programs are deployed from a Docker build and the commit is pushed:
+
+<!-- cspell:disable -->
+
+```bash
+BASE_IMAGE="solanafoundation/solana-verifiable-build@sha256:f1f443a3b80fb688194849fbab66264eae7195ed85a7fe4b819cfa7f76f72d15"
+
+# executor-quoter-router
+solana-verify verify-from-repo \
+  -u https://api.devnet.solana.com \
+  --program-id qtrrrV7W3E1jnX1145wXR6ZpthG19ur5xHC1n6PPhDV \
+  https://github.com/wormholelabs-xyz/example-messaging-executor \
+  --mount-path svm/pinocchio \
+  --library-name executor_quoter_router \
+  --base-image "$BASE_IMAGE" \
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.ROUTER_CHAIN_ID="1"' \
+  --config 'env.ROUTER_EXECUTOR_PROGRAM_ID="execXUrAsMnqMmTHj5m7N1YQgsDz3cwGLYCYyuDRciV"'
+
+# executor-quoter
+solana-verify verify-from-repo \
+  -u https://api.devnet.solana.com \
+  --program-id qtrxiqVAfVS61utwZLUi7UKugjCgFaNxBGyskmGingz \
+  https://github.com/wormholelabs-xyz/example-messaging-executor \
+  --mount-path svm/pinocchio \
+  --library-name executor_quoter \
+  --base-image "$BASE_IMAGE" \
+  --commit-hash <DEPLOYMENT_COMMIT> \
+  -- \
+  --config 'env.QUOTER_UPDATER_PUBKEY="A6M3gQxPpLmFdA8tbPidM9fWp9wfmbebm2tSmAB2HTsY"' \
+  --config 'env.QUOTER_PAYEE_PUBKEY="B4TMRgRPcyjiH5fBfNXssBrkorT6X3ystPNuJSoqrnFA"'
+```
+
+<!-- cspell:enable -->
+
+### Deploying to Other Environments
+
+To deploy for a different environment (e.g. mainnet or Fogo), update the variable values in the `Makefile` to match the target deployment keys and chain ID, then run `make build-verified`.
+
 ## Notes
 
 - The test crates use `solana-program-test` to load and execute the compiled `.so` files in a simulated SVM environment. Benchmarks use [mollusk-svm](https://github.com/buffalojoec/mollusk) for compute unit measurements.
