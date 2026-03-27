@@ -278,6 +278,14 @@ uint64   destinationPrice    // The USD price, in 10^10, of the destinationChain
 [65]byte signature           // Quoter's signature of the previous bytes
 ```
 
+##### Quote - Version 2
+
+See [Quote - Version 2 (EQ02)](./design/02_On_Chain_Quotes.md#quote---version-2-eq02)
+
+##### Signed Token Quote - Version 3
+
+See [Signed Token Quote - Version 3 (EQ03)](./design/03_Source_Token_Quotes.md#signed-token-quote---version-3-eq03)
+
 #### Request For Execution
 
 ##### VAA v1 Request
