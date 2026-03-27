@@ -2,11 +2,7 @@
 pragma solidity ^0.8.19;
 
 interface IExecutorWithToken {
-    event ExecutionPayment(
-        address indexed quoterAddress,
-        uint256 amtPaid,
-        address srcToken
-    );
+    event ExecutionPayment(address indexed quoterAddress, uint256 amtPaid, address srcToken);
 
     function requestExecution(
         uint256 amount,
