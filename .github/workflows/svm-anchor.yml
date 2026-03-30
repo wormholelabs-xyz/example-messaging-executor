@@ -52,11 +52,15 @@ jobs:
         run: solana-keygen new --no-bip39-passphrase
       - name: Make Anchor.toml compatible with runner
         run: sed -i 's:/user/:/runner/:' Anchor.toml
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install Rust toolchain (nightly)
         uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
         with:
           toolchain: nightly-2025-04-14
           components: rustfmt, clippy
+      - name: Set stable as default
+        run: rustup default stable
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -64,6 +68,6 @@ jobs:
       - name: Run anchor tests
         run: anchor test -- --features default
 
-      - run: cargo fmt --check --all
-      - run: cargo clippy
+      - run: cargo +nightly-2025-04-14 fmt --check --all
+      - run: cargo +nightly-2025-04-14 clippy
       - run: cargo test
