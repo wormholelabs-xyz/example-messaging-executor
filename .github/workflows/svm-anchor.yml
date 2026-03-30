@@ -22,50 +22,15 @@ jobs:
         run: |
           ANCHOR_VERSION="$(awk '/anchor_version =/ { print substr($3, 2, length($3)-2) }' Anchor.toml)"
           echo "::set-output name=version::${ANCHOR_VERSION}"
-      # setup-anchor from evan-gray/setup-anchor
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: douglasgalico/anchor-test@074c6fb1381872eb8bf55be6cf40ec8e17920889
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2025-04-14
         with:
           node-version: "22.16.0"
-      - name: Cache Solana CLI tools
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cache/solana/
-            ~/.local/share/solana/
-          key: solana-cli-${{ runner.os }}-build-${{ steps.solana.outputs.version }}
-      - name: Install Solana CLI tools
-        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${{ steps.solana.outputs.version }}/install)"
-      - name: Update PATH
-        run: echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-      - name: Install Anchor
-        run: npm i -g @coral-xyz/anchor-cli@${{ steps.anchor.outputs.version }}
+          anchor-version: "${{steps.anchor.outputs.version}}"
+          solana-cli-version: "${{steps.solana.outputs.version}}"
+          working-directory: "svm/anchor"
 
-      # anchor-test from evan-gray/anchor-test
-      - name: Cache node_modules
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: svm/anchor/node_modules/
-          key: node-modules-${{ runner.os }}-build-22.16.0
-      - name: Install node_modules
-        run: yarn
-      - name: Create keypair
-        run: solana-keygen new --no-bip39-passphrase
-      - name: Make Anchor.toml compatible with runner
-        run: sed -i 's:/user/:/runner/:' Anchor.toml
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-      - name: Cache Cargo dependencies
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          workspaces: svm/anchor
-      - name: Run anchor tests
-        run: anchor test -- --features default
-
-      - name: Install Rust toolchain (nightly for fmt/clippy)
-        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
-        with:
-          toolchain: nightly-2025-04-14
-          components: rustfmt, clippy
-      - run: cargo +nightly-2025-04-14 fmt --check --all
-      - run: cargo +nightly-2025-04-14 clippy
-      - run: cargo +stable test
+      - run: cargo fmt --check --all
+      - run: cargo clippy
+      - run: cargo test
