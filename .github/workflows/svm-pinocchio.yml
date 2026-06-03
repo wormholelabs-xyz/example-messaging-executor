@@ -7,15 +7,20 @@ jobs:
   pinocchio-test:
     name: Pinocchio Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: svm/pinocchio
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@98e1b82157cd469e843cb7f524c1313b4ad9492c # 1.88.0
         with:
-          components: rustfmt, clippy
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.88.0
+          rustup default 1.88.0
+          rustup component add rustfmt clippy
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.13/install)"

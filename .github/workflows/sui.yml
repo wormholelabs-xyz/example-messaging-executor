@@ -7,6 +7,8 @@ jobs:
   test:
     name: Sui Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # pushed Apr 8, 2025 at 4:10 pm
     container: mysten/sui-tools:sui-v1.46.0-release@sha256:c39b509328319dad3b73dbb4ae3a76d6c502f838b81f908fbc6a4e1da81c7855
     defaults:
@@ -14,4 +16,6 @@ jobs:
         working-directory: sui/executor
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - run: sui move test
