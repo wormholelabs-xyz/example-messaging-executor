@@ -7,6 +7,8 @@ jobs:
   test:
     name: Aptos Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # https://github.com/aptos-labs/aptos-core/releases/tag/aptos-cli-v7.2.0
     # https://github.com/aptos-labs/aptos-core/commit/35102f5f33c69b8e48e030243a09edad80cbd946
     container: aptoslabs/tools:devnet_35102f5f33c69b8e48e030243a09edad80cbd946@sha256:06503b21b53ad904c7d689c47a78259b4891fa0d1c6932550c784bddc0d3cda0
@@ -14,5 +16,7 @@ jobs:
       run:
         working-directory: aptos
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - run: sh ci.sh
