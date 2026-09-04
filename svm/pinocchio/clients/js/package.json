@@ -1,37 +1,37 @@
 {
   "name": "@wormhole-labs/svm-example-executor-quoter-sdk",
   "version": "0.0.0",
-  "description": "TypeScript SDK for the Executor Quoter and Executor Quoter Router Solana programs",
-  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/wormholelabs-xyz/example-messaging-executor",
     "directory": "svm/pinocchio/clients/js"
   },
-  "type": "module",
   "main": "dist/src/generated/index.js",
-  "types": "dist/src/generated/index.d.ts",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@solana/kit": "8.2.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/src/generated/index.d.ts",
       "import": "./dist/src/generated/index.js"
     }
   },
+  "description": "TypeScript SDK for the Executor Quoter and Executor Quoter Router Solana programs",
   "files": [
     "dist",
     "src"
   ],
+  "license": "Apache-2.0",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist"
   },
-  "peerDependencies": {
-    "@solana/kit": "^6.1.0"
-  },
+  "type": "module",
+  "types": "dist/src/generated/index.d.ts",
   "dependencies": {
-    "@solana/program-client-core": "^6.1.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0"
+    "@solana/program-client-core": "8.2.0"
   }
 }
