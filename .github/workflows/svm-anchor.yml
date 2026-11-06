@@ -30,7 +30,7 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: nightly-2025-04-14
         with:
-          node-version: "22.16.0"
+          node-version: "22.23.4"
           anchor-version: "${{steps.anchor.outputs.version}}"
           solana-cli-version: "${{steps.solana.outputs.version}}"
           working-directory: "svm/anchor"
