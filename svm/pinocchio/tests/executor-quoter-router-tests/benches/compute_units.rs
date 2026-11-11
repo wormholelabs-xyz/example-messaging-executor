@@ -8,14 +8,14 @@ use mollusk_svm::program::keyed_account_for_system_program;
 use mollusk_svm::Mollusk;
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
-    account::{AccountSharedData, WritableAccount},
-    bpf_loader_upgradeable,
+    account::{Account, WritableAccount},
     instruction::{AccountMeta, Instruction},
     keccak,
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
 };
+use solana_sdk_ids::bpf_loader_upgradeable;
+use solana_sdk_ids::system_program;
 
 /// Router Program ID - FgDLrWZ9avy9A4hNDLCvVUyh7knK9r2Ry4KgHX1y2aKS
 const ROUTER_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
@@ -92,7 +92,7 @@ impl QuoterIdentity {
         let pubkey_bytes = public_key.serialize();
         let pubkey_hash = keccak::hash(&pubkey_bytes[1..65]);
         let mut eth_address = [0u8; 20];
-        eth_address.copy_from_slice(&pubkey_hash.0[12..32]);
+        eth_address.copy_from_slice(&pubkey_hash.to_bytes()[12..32]);
 
         Self {
             secret_key,
@@ -103,7 +103,7 @@ impl QuoterIdentity {
     /// Sign a message and return (r, s, v).
     fn sign(&self, message: &[u8]) -> ([u8; 32], [u8; 32], u8) {
         let message_hash = keccak::hash(message);
-        let message = Message::parse_slice(&message_hash.0).expect("valid message hash");
+        let message = Message::parse_slice(&message_hash.to_bytes()).expect("valid message hash");
 
         let (signature, recovery_id) = libsecp256k1::sign(&message, &self.secret_key);
         let sig_bytes = signature.serialize();
@@ -202,18 +202,18 @@ fn build_quote_execution_data(
 }
 
 /// Create a funded payer account
-fn create_payer_account() -> AccountSharedData {
-    AccountSharedData::new(1_000_000_000, 0, &system_program::ID)
+fn create_payer_account() -> Account {
+    Account::new(1_000_000_000, 0, &system_program::ID)
 }
 
 /// Create a signer account
-fn create_signer_account() -> AccountSharedData {
-    AccountSharedData::new(0, 0, &system_program::ID)
+fn create_signer_account() -> Account {
+    Account::new(0, 0, &system_program::ID)
 }
 
 /// Create a placeholder config account (config is not used, just required in account list)
-fn create_config_account() -> AccountSharedData {
-    AccountSharedData::new(0, 0, &system_program::ID)
+fn create_config_account() -> Account {
+    Account::new(0, 0, &system_program::ID)
 }
 
 /// Create an initialized QuoterRegistration account
@@ -221,7 +221,7 @@ fn create_quoter_registration_account(
     bump: u8,
     quoter_address: &[u8; 20],
     implementation_program_id: &Pubkey,
-) -> AccountSharedData {
+) -> Account {
     let rent = Rent::default();
     let lamports = rent.minimum_balance(QUOTER_REGISTRATION_SIZE);
     let mut data = vec![0u8; QUOTER_REGISTRATION_SIZE];
@@ -231,14 +231,13 @@ fn create_quoter_registration_account(
     data[2..22].copy_from_slice(quoter_address);
     data[22..54].copy_from_slice(implementation_program_id.as_ref());
 
-    let mut account =
-        AccountSharedData::new(lamports, QUOTER_REGISTRATION_SIZE, &ROUTER_PROGRAM_ID);
-    account.set_data_from_slice(&data);
+    let mut account = Account::new(lamports, QUOTER_REGISTRATION_SIZE, &ROUTER_PROGRAM_ID);
+    account.data = data;
     account
 }
 
 /// Create an initialized ChainInfo account for the quoter program
-fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
+fn create_chain_info_account(chain_id: u16, bump: u8) -> Account {
     let rent = Rent::default();
     let lamports = rent.minimum_balance(CHAIN_INFO_SIZE);
     let mut data = vec![0u8; CHAIN_INFO_SIZE];
@@ -250,13 +249,13 @@ fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[5] = 15; // gas_price_decimals
     data[6] = 18; // native_decimals (ETH)
 
-    let mut account = AccountSharedData::new(lamports, CHAIN_INFO_SIZE, &QUOTER_PROGRAM_ID);
-    account.set_data_from_slice(&data);
+    let mut account = Account::new(lamports, CHAIN_INFO_SIZE, &QUOTER_PROGRAM_ID);
+    account.data = data;
     account
 }
 
 /// Create an initialized QuoteBody account for the quoter program
-fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
+fn create_quote_body_account(chain_id: u16, bump: u8) -> Account {
     let rent = Rent::default();
     let lamports = rent.minimum_balance(QUOTE_BODY_SIZE);
     let mut data = vec![0u8; QUOTE_BODY_SIZE];
@@ -270,14 +269,14 @@ fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[24..32].copy_from_slice(&399_146u64.to_le_bytes()); // dst_gas_price
     data[32..40].copy_from_slice(&100u64.to_le_bytes()); // base_fee
 
-    let mut account = AccountSharedData::new(lamports, QUOTE_BODY_SIZE, &QUOTER_PROGRAM_ID);
-    account.set_data_from_slice(&data);
+    let mut account = Account::new(lamports, QUOTE_BODY_SIZE, &QUOTER_PROGRAM_ID);
+    account.data = data;
     account
 }
 
 /// Create an executable program account for CPI
-fn create_program_account() -> AccountSharedData {
-    let mut account = AccountSharedData::new(1, 0, &bpf_loader_upgradeable::id());
+fn create_program_account() -> Account {
+    let mut account = Account::new(1, 0, &bpf_loader_upgradeable::id());
     account.set_executable(true);
     account
 }
@@ -330,7 +329,7 @@ fn main() {
         (config_pda, create_config_account()),
         (
             quoter_registration_pda,
-            AccountSharedData::new(0, 0, &system_program::ID),
+            Account::new(0, 0, &system_program::ID),
         ),
         system_program_account.clone(),
     ];

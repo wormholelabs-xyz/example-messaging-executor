@@ -3,16 +3,16 @@
 //! Since this is a Pinocchio program (not using solana_program), we must
 //! test using the compiled BPF binary rather than native execution.
 
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_program_test::{tokio, ProgramTest};
 use solana_sdk::{
     account::Account,
-    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_program,
     transaction::Transaction,
 };
+use solana_sdk_ids::system_program;
 
 /// Program ID matching the deployed address from Anchor.toml
 /// 6yfXVhNgRKRk7YHFT8nTkVpFn5zXktbJddPUWK7jFAGX
@@ -301,7 +301,7 @@ async fn test_update_chain_info() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_chain_info_data(
         chain_id, true, // enabled
@@ -375,7 +375,7 @@ async fn test_update_quote() {
 
     // Add pre-existing config account
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_quote_data(
         chain_id,
@@ -478,7 +478,7 @@ async fn test_request_quote() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let dst_addr = [0x01u8; 32];
     let refund_addr = [0x02u8; 32];
@@ -601,7 +601,7 @@ async fn test_request_execution_quote() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let dst_addr = [0x01u8; 32];
     let refund_addr = [0x02u8; 32];
@@ -675,7 +675,7 @@ async fn test_invalid_updater() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_chain_info_data(chain_id, true, 9, 18);
 
@@ -764,7 +764,7 @@ async fn test_chain_disabled() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let dst_addr = [0x01u8; 32];
     let refund_addr = [0x02u8; 32];
@@ -827,7 +827,7 @@ async fn test_full_flow() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Step 1: UpdateChainInfo
     let update_chain_data = build_update_chain_info_data(chain_id, true, 9, 18);
@@ -960,7 +960,7 @@ async fn test_invalid_updater_quote() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let instruction_data = build_update_quote_data(
         chain_id,
@@ -1050,7 +1050,7 @@ async fn test_chain_disabled_execution_quote() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 0);
     let instruction_data = build_request_execution_quote_data(
@@ -1138,7 +1138,7 @@ async fn test_unsupported_instruction() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_invalid_type();
     let instruction_data = build_request_quote_data(
@@ -1225,7 +1225,7 @@ async fn test_more_than_one_dropoff() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_two_dropoffs(&[0x03u8; 32]);
     let instruction_data = build_request_quote_data(
@@ -1312,7 +1312,7 @@ async fn test_invalid_relay_instructions() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_truncated();
     let instruction_data = build_request_quote_data(
@@ -1366,7 +1366,7 @@ async fn test_not_enough_accounts() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 0);
     let instruction_data = build_request_quote_data(
@@ -1450,7 +1450,7 @@ async fn test_zero_gas_limit() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Zero gas limit, zero msg value - should return base_fee only
     let relay_instructions = build_relay_instructions_gas(0, 0);
@@ -1540,7 +1540,7 @@ async fn test_zero_src_price() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 0);
     let instruction_data = build_request_quote_data(
@@ -1627,7 +1627,7 @@ async fn test_multiple_gas_instructions() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Build two gas instructions - they should sum
     let mut relay_instructions = build_relay_instructions_gas(100000, 1000000000000000000); // 100k gas, 1 ETH
@@ -1718,7 +1718,7 @@ async fn test_gas_plus_dropoff() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Gas instruction + DropOff instruction
     let relay_instructions = build_relay_instructions_gas_and_dropoff(
@@ -1813,7 +1813,7 @@ async fn test_empty_relay_instructions() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Empty relay instructions - should just return base_fee
     let relay_instructions: Vec<u8> = vec![];
@@ -1909,7 +1909,7 @@ async fn test_arithmetic_overflow() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Very large values that should cause overflow
     let relay_instructions = build_relay_instructions_gas(u128::MAX / 2, u128::MAX / 2);
@@ -2005,7 +2005,7 @@ async fn test_decimals_18_to_9() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 1000000000000000000); // 200k gas, 1 ETH
     let instruction_data = build_request_quote_data(
@@ -2100,7 +2100,7 @@ async fn test_decimals_6_to_9() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 1_000000); // 200k gas, 1 unit at 6 decimals
     let instruction_data = build_request_quote_data(
@@ -2195,7 +2195,7 @@ async fn test_decimals_9_to_9() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     let relay_instructions = build_relay_instructions_gas(200000, 1_000000000); // 200k gas, 1 SOL
     let instruction_data = build_request_quote_data(
@@ -2265,7 +2265,7 @@ async fn test_update_overwrites_quote() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // First update
     let instruction_data1 = build_update_quote_data(
@@ -2388,7 +2388,7 @@ async fn test_update_quote_zero_price() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Create with all-zero prices
     let instruction_data = build_update_quote_data(chain_id, 0, 0, 0, 0);
@@ -2503,7 +2503,7 @@ async fn test_chain_toggle() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Disable the chain
     let disable_data = build_update_chain_info_data(chain_id, false, 9, 18);
@@ -2657,7 +2657,7 @@ async fn test_update_chain_info_overwrites() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // First: create ChainInfo with initial values
     let create_data = build_update_chain_info_data(
@@ -2784,7 +2784,7 @@ async fn test_update_chain_info_chain_id_mismatch() {
         },
     );
 
-    let (mut banks_client, _, recent_blockhash) = pt.start().await;
+    let (banks_client, _, recent_blockhash) = pt.start().await;
 
     // Create ChainInfo for chain_id=2
     let create_data = build_update_chain_info_data(chain_id, true, 9, 18);

@@ -7,13 +7,13 @@ use mollusk_svm::program::keyed_account_for_system_program;
 use mollusk_svm::Mollusk;
 use mollusk_svm_bencher::MolluskComputeUnitBencher;
 use solana_sdk::{
-    account::AccountSharedData,
+    account::Account,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     rent::Rent,
     signature::Signer,
-    system_program,
 };
+use solana_sdk_ids::system_program;
 
 // Program ID - must match the deployed program
 const PROGRAM_ID: Pubkey = Pubkey::new_from_array([
@@ -62,23 +62,23 @@ fn derive_quote_body_pda(chain_id: u16) -> (Pubkey, u8) {
 }
 
 /// Create a funded payer account
-fn create_payer_account() -> AccountSharedData {
-    AccountSharedData::new(1_000_000_000, 0, &system_program::ID)
+fn create_payer_account() -> Account {
+    Account::new(1_000_000_000, 0, &system_program::ID)
 }
 
 /// Create a signer account (updater)
-fn create_signer_account() -> AccountSharedData {
-    AccountSharedData::new(0, 0, &system_program::ID)
+fn create_signer_account() -> Account {
+    Account::new(0, 0, &system_program::ID)
 }
 
 /// Create a placeholder config account (config is not used, just required in account list)
-fn create_config_account() -> AccountSharedData {
-    AccountSharedData::new(0, 0, &system_program::ID)
+fn create_config_account() -> Account {
+    Account::new(0, 0, &system_program::ID)
 }
 
 /// Create an initialized ChainInfo account
 /// Layout: discriminator, bump, chain_id (u16), enabled, gas_price_decimals, native_decimals, _padding
-fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
+fn create_chain_info_account(chain_id: u16, bump: u8) -> Account {
     let rent = Rent::default();
     let lamports = rent.minimum_balance(CHAIN_INFO_SIZE);
     let mut data = vec![0u8; CHAIN_INFO_SIZE];
@@ -91,14 +91,14 @@ fn create_chain_info_account(chain_id: u16, bump: u8) -> AccountSharedData {
     data[6] = 18; // native_decimals (ETH)
                   // data[7] = padding
 
-    let mut account = AccountSharedData::new(lamports, CHAIN_INFO_SIZE, &PROGRAM_ID);
-    account.set_data_from_slice(&data);
+    let mut account = Account::new(lamports, CHAIN_INFO_SIZE, &PROGRAM_ID);
+    account.data = data;
     account
 }
 
 /// Create an initialized QuoteBody account
 /// Layout: discriminator, bump, chain_id (u16), _padding (4), dst_price, src_price, dst_gas_price, base_fee
-fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
+fn create_quote_body_account(chain_id: u16, bump: u8) -> Account {
     let rent = Rent::default();
     let lamports = rent.minimum_balance(QUOTE_BODY_SIZE);
     let mut data = vec![0u8; QUOTE_BODY_SIZE];
@@ -116,8 +116,8 @@ fn create_quote_body_account(chain_id: u16, bump: u8) -> AccountSharedData {
     // base_fee (u64 at offset 32) - old test value
     data[32..40].copy_from_slice(&100u64.to_le_bytes());
 
-    let mut account = AccountSharedData::new(lamports, QUOTE_BODY_SIZE, &PROGRAM_ID);
-    account.set_data_from_slice(&data);
+    let mut account = Account::new(lamports, QUOTE_BODY_SIZE, &PROGRAM_ID);
+    account.data = data;
     account
 }
 
@@ -217,10 +217,7 @@ fn main() {
     let update_chain_info_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (
-            chain_info_pda,
-            AccountSharedData::new(0, 0, &system_program::ID),
-        ),
+        (chain_info_pda, Account::new(0, 0, &system_program::ID)),
         system_program_account.clone(),
     ];
 
@@ -250,10 +247,7 @@ fn main() {
     let update_quote_accounts = vec![
         (payer, create_payer_account()),
         (updater, create_signer_account()),
-        (
-            quote_body_pda,
-            AccountSharedData::new(0, 0, &system_program::ID),
-        ),
+        (quote_body_pda, Account::new(0, 0, &system_program::ID)),
         system_program_account.clone(),
     ];
 
@@ -323,7 +317,7 @@ fn main() {
             quote_body_pda,
             create_quote_body_account(DST_CHAIN_ID, quote_body_bump),
         ),
-        (event_cpi, AccountSharedData::new(0, 0, &system_program::ID)),
+        (event_cpi, Account::new(0, 0, &system_program::ID)),
     ];
 
     // Run benchmarks
