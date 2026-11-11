@@ -4,16 +4,16 @@
 
 use libsecp256k1::{Message, PublicKey, SecretKey};
 use rand::rngs::OsRng;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_program_test::{tokio, ProgramTest, ProgramTestBanksClientExt};
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     keccak,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_program,
     transaction::Transaction,
 };
+use solana_sdk_ids::system_program;
 
 /// Router Program ID - FgDLrWZ9avy9A4hNDLCvVUyh7knK9r2Ry4KgHX1y2aKS
 const ROUTER_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
@@ -83,7 +83,7 @@ impl QuoterIdentity {
         let pubkey_bytes = public_key.serialize();
         let pubkey_hash = keccak::hash(&pubkey_bytes[1..65]);
         let mut eth_address = [0u8; 20];
-        eth_address.copy_from_slice(&pubkey_hash.0[12..32]);
+        eth_address.copy_from_slice(&pubkey_hash.to_bytes()[12..32]);
 
         Self {
             secret_key,
@@ -94,7 +94,7 @@ impl QuoterIdentity {
     /// Sign a message and return (r, s, v).
     fn sign(&self, message: &[u8]) -> ([u8; 32], [u8; 32], u8) {
         let message_hash = keccak::hash(message);
-        let message = Message::parse_slice(&message_hash.0).expect("valid message hash");
+        let message = Message::parse_slice(&message_hash.to_bytes()).expect("valid message hash");
 
         let (signature, recovery_id) = libsecp256k1::sign(&message, &self.secret_key);
         let sig_bytes = signature.serialize();
@@ -1260,7 +1260,7 @@ async fn test_ecrecover_deterministic_key() {
     let pubkey_bytes = public_key.serialize();
     let pubkey_hash = keccak::hash(&pubkey_bytes[1..65]);
     let mut eth_address = [0u8; 20];
-    eth_address.copy_from_slice(&pubkey_hash.0[12..32]);
+    eth_address.copy_from_slice(&pubkey_hash.to_bytes()[12..32]);
 
     // Log the derived address for verification
     // This can be compared with EVM ecrecover using the same key
@@ -1289,7 +1289,7 @@ async fn test_ecrecover_deterministic_key() {
 
     // Sign
     let message_hash = keccak::hash(&body);
-    let message = Message::parse_slice(&message_hash.0).expect("valid message hash");
+    let message = Message::parse_slice(&message_hash.to_bytes()).expect("valid message hash");
     let (signature, recovery_id) = libsecp256k1::sign(&message, &secret_key);
     let sig_bytes = signature.serialize();
 

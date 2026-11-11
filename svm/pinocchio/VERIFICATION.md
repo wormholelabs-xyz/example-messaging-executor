@@ -12,7 +12,7 @@ Verification steps for `executor-quoter` and `executor-quoter-router` using `sol
 
 ## Docker Image Selection
 
-`solana-verify` auto-selects the Docker image from the `solana-program` version in `Cargo.lock`. Because this workspace's test crates pull in `solana-sdk 1.18`, the auto-selected image uses an older toolchain that is incompatible with `pinocchio-system 0.4`.
+`solana-verify` auto-selects the Docker image from the `solana-program` version in `Cargo.lock`. This workspace's test crates pull in `solana-program 3.0`, so the auto-selected image would not match the Solana 2.3.13 toolchain the programs are built and deployed with.
 
 Use `--base-image` to override with the Solana 2.3.13 image:
 

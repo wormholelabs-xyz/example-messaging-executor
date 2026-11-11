@@ -18,8 +18,8 @@ jobs:
           persist-credentials: false
       - name: Install Rust
         run: |
-          rustup toolchain install 1.88.0
-          rustup default 1.88.0
+          rustup toolchain install 1.89.0
+          rustup default 1.89.0
           rustup component add rustfmt clippy
       - name: Install Solana CLI
         run: |
